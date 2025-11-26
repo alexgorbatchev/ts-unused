@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 import path from "node:path";
 import { analyzeProject } from "./analyzeProject";
@@ -8,7 +8,7 @@ function main(): void {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {
-    console.error("Usage: bun find-unused <path-to-tsconfig.json> [file-path-to-check]");
+    console.error("Usage: ts-unused <path-to-tsconfig.json> [file-path-to-check]");
     process.exit(1);
   }
 

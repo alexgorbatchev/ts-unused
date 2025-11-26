@@ -1,19 +1,30 @@
 {
   "name": "ts-unused",
-  "module": "src/index.ts",
+  "version": "0.0.1",
+  "description": "Find unused exports and properties in TypeScript projects",
+  "license": "MIT",
+  "bin": {
+    "ts-unused": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
-  "private": true,
   "scripts": {
+    "clean": "rm -rf dist",
+    "build:js": "bun build src/cli.ts --outdir dist --target node --external ts-morph --external typescript",
+    "build": "bun run clean && bun run build:js",
     "typecheck": "tsc --noEmit",
-    "lint": "npm run fix && biome check src",
+    "lint": "bun run fix && biome check src",
     "fix": "biome check --write --unsafe src"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.3.4",
     "@types/bun": "latest",
-    "@biomejs/biome": "^2.3.4"
+    "@types/node": "^24.10.1"
   },
   "dependencies": {
-    "ts-morph":"^27.0.2"
+    "ts-morph": "^27.0.2"
   },
   "peerDependencies": {
     "typescript": "^5"

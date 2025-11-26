@@ -17,13 +17,13 @@ describe("Unused Files Detection", () => {
 
   test("detects completely unused files", () => {
     const results = analyzeProject(tsConfigPath, undefined, undefined, isTestFileForTests);
-    
-    const unusedFile = results.unusedFiles.find(f => f.endsWith("unused-file.ts"));
+
+    const unusedFile = results.unusedFiles.find((f) => f.endsWith("unused-file.ts"));
     expect(unusedFile).toBeDefined();
-    
+
     // Check formatting
     const formatted = formatResults(results);
-    
+
     expect(formatted).toContain("Completely Unused Files:");
     expect(formatted).toContain("unused-file.ts");
     expect(formatted).toContain("file:1:1-1 [ERROR] (All exports unused - file can be deleted)");

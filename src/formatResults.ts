@@ -57,9 +57,7 @@ export function formatResults(results: AnalysisResults): string {
   const unusedFileSet = new Set(results.unusedFiles);
 
   // Filter out exports from completely unused files
-  const exportsToReport = results.unusedExports.filter(
-    (exp) => !unusedFileSet.has(exp.filePath)
-  );
+  const exportsToReport = results.unusedExports.filter((exp) => !unusedFileSet.has(exp.filePath));
 
   // Report completely unused files first
   if (results.unusedFiles.length > 0) {

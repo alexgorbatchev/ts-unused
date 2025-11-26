@@ -1,6 +1,6 @@
-# Unused TypeScript Analyzer
+# ts-unused
 
-A script that analyzes TypeScript projects to find unused exports and unused properties in types and interfaces.
+A CLI tool that analyzes TypeScript projects to find unused exports and unused properties in types and interfaces.
 
 ## Features
 
@@ -27,20 +27,21 @@ A script that analyzes TypeScript projects to find unused exports and unused pro
 ## Installation
 
 ```bash
-cd scripts/unused-analyzer
-bun install
+npm install -g ts-unused
+# or
+bun add -g ts-unused
 ```
 
 ## Usage
 
 ```bash
-bun analyze.ts <path-to-tsconfig.json>
+ts-unused <path-to-tsconfig.json> [file-path-to-check]
 ```
 
 ### Example
 
 ```bash
-bun analyze.ts ../../tsconfig.json
+ts-unused ./tsconfig.json
 ```
 
 ## Output
@@ -120,42 +121,6 @@ packages/example/src/types.ts
    - Files with `// @ts-nocheck` on the first line
    - Note: Test files are still scanned for references to track test-only usage
 
-## API
-
-### analyzeProject(tsConfigPath: string): AnalysisResults
-
-Analyzes a TypeScript project and returns results.
-
-**Parameters:**
-- `tsConfigPath`: Absolute path to the tsconfig.json file
-
-**Returns:**
-```typescript
-{
-  unusedExports: Array<{
-    filePath: string;
-    exportName: string;
-    line: number;
-    kind: 'function' | 'class' | 'interface' | 'type' | 'enum' | 'namespace' | 'const' | 'let' | 'var' | 'export';
-    severity: 'error' | 'warning' | 'info';
-    onlyUsedInTests: boolean;
-  }>;
-  unusedProperties: Array<{
-    filePath: string;
-    typeName: string;
-    propertyName: string;
-    line: number;
-    severity: 'error' | 'warning' | 'info';
-    onlyUsedInTests: boolean;
-    todoComment?: string;
-  }>;
-}
-```
-
-### formatResults(results: AnalysisResults): string
-
-Formats analysis results into a human-readable string.
-
 ## VS Code Integration
 
 Add this task to your `.vscode/tasks.json` to run the analyzer with problem matcher support:
@@ -164,8 +129,8 @@ Add this task to your `.vscode/tasks.json` to run the analyzer with problem matc
 {
   "label": "Find Unused Exports",
   "type": "shell",
-  "command": "bun",
-  "args": ["run", "find-unused", "./tsconfig.json"],
+  "command": "ts-unused",
+  "args": ["./tsconfig.json"],
   "presentation": {
     "echo": true,
     "reveal": "always",
@@ -173,7 +138,7 @@ Add this task to your `.vscode/tasks.json` to run the analyzer with problem matc
     "panel": "shared"
   },
   "problemMatcher": {
-    "owner": "unused-analyzer",
+    "owner": "ts-unused",
     "fileLocation": ["relative", "${workspaceFolder}"],
     "pattern": [
       {
@@ -201,22 +166,6 @@ This will:
 - Allow clicking to navigate to the exact file location
 - Highlight the entire identifier (function name, property name, etc.) in the editor
 - Provide quick fixes and context
-
-## Testing
-
-```bash
-bun test
-```
-
-The test suite includes:
-- Finding unused exports (functions, constants, types, interfaces)
-- Finding unused properties in interfaces
-- Finding unused properties in type aliases
-- Verifying used items are not reported as unused
-- Checking that file paths and line numbers are included
-- Testing severity system (error/warning/info)
-- Testing TODO comment extraction and display
-- Testing test-only usage detection
 
 ## Advanced Features
 
@@ -259,4 +208,4 @@ In this case, `SourceOptions.timeout` and `SourceOptions.retryCount` are **not**
 
 ## License
 
-Part of the dotfiles-tool-installer project.
+MIT License
