@@ -53,10 +53,29 @@ export function formatResults(results: AnalysisResults): string {
     (prop) => !unusedExportNames.has(prop.typeName)
   );
 
-  if (results.unusedExports.length > 0) {
+  // Create a set of completely unused files to exclude from export reporting
+  const unusedFileSet = new Set(results.unusedFiles);
+
+  // Filter out exports from completely unused files
+  const exportsToReport = results.unusedExports.filter(
+    (exp) => !unusedFileSet.has(exp.filePath)
+  );
+
+  // Report completely unused files first
+  if (results.unusedFiles.length > 0) {
+    lines.push("🗑️  Completely Unused Files:");
+    lines.push("");
+    for (const filePath of results.unusedFiles) {
+      lines.push(filePath);
+      lines.push("  file:1:1-1 [ERROR] (All exports unused - file can be deleted)");
+      lines.push("");
+    }
+  }
+
+  if (exportsToReport.length > 0) {
     lines.push("🔍 Unused Exports:");
     lines.push("");
-    lines.push(...formatGroupedItems(results.unusedExports, formatExportLine));
+    lines.push(...formatGroupedItems(exportsToReport, formatExportLine));
   }
 
   if (propertiesToReport.length > 0) {
@@ -65,11 +84,12 @@ export function formatResults(results: AnalysisResults): string {
     lines.push(...formatGroupedItems(propertiesToReport, formatPropertyLine));
   }
 
-  if (results.unusedExports.length === 0 && propertiesToReport.length === 0) {
+  if (results.unusedFiles.length === 0 && exportsToReport.length === 0 && propertiesToReport.length === 0) {
     lines.push("✅ No unused exports or properties found!");
   } else {
     lines.push("📊 Summary:");
-    lines.push(`  Unused exports: ${results.unusedExports.length}`);
+    lines.push(`  Completely unused files: ${results.unusedFiles.length}`);
+    lines.push(`  Unused exports: ${exportsToReport.length}`);
     lines.push(`  Unused properties: ${propertiesToReport.length}`);
   }
 

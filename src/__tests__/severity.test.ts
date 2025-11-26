@@ -5,6 +5,7 @@ import type { AnalysisResults } from "../types";
 describe("Severity system", () => {
   test("shows [ERROR] for completely unused items", () => {
     const results: AnalysisResults = {
+      unusedFiles: [],
       unusedExports: [
         {
           filePath: "/path/to/file.ts",
@@ -39,6 +40,7 @@ describe("Severity system", () => {
 
   test("shows [WARNING] for items with TODO comments", () => {
     const results: AnalysisResults = {
+      unusedFiles: [],
       unusedExports: [],
       unusedProperties: [
         {
@@ -62,6 +64,7 @@ describe("Severity system", () => {
 
   test("shows [INFO] for test-only items", () => {
     const results: AnalysisResults = {
+      unusedFiles: [],
       unusedExports: [
         {
           filePath: "/path/to/helpers.ts",
@@ -96,6 +99,7 @@ describe("Severity system", () => {
 
   test("handles mixed severity levels", () => {
     const results: AnalysisResults = {
+      unusedFiles: [],
       unusedExports: [
         {
           filePath: "/path/to/file.ts",

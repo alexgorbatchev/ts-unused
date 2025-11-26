@@ -3,7 +3,7 @@ import path from "node:path";
 import type { SourceFile } from "ts-morph";
 import { analyzeProject } from "../analyzeProject";
 
-const FIXTURES_DIR = path.join(import.meta.dir, "test-fixtures");
+const FIXTURES_DIR = path.join(import.meta.dir, "../../test-project");
 const TSCONFIG_PATH = path.join(FIXTURES_DIR, "tsconfig.json");
 
 // Custom isTestFile for tests that only checks file extensions, not __tests__ directories

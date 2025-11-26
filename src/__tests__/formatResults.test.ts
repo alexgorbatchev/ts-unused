@@ -5,6 +5,7 @@ import type { AnalysisResults } from "../types";
 describe("formatResults", () => {
   test("formats results with unused exports and properties", () => {
     const results: AnalysisResults = {
+      unusedFiles: [],
       unusedExports: [
         {
           filePath: "/path/to/file.ts",
@@ -59,6 +60,7 @@ describe("formatResults", () => {
 
   test("formats results with no unused items", () => {
     const results: AnalysisResults = {
+      unusedFiles: [],
       unusedExports: [],
       unusedProperties: [],
     };
@@ -72,6 +74,7 @@ describe("formatResults", () => {
 
   test("formats results with only unused exports", () => {
     const results: AnalysisResults = {
+      unusedFiles: [],
       unusedExports: [
         {
           filePath: "/path/to/file.ts",
@@ -98,6 +101,7 @@ describe("formatResults", () => {
 
   test("formats results with only unused properties", () => {
     const results: AnalysisResults = {
+      unusedFiles: [],
       unusedExports: [],
       unusedProperties: [
         {

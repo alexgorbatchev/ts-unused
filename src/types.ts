@@ -39,6 +39,7 @@ export interface UnusedPropertyResult {
 export interface AnalysisResults {
   unusedExports: UnusedExportResult[];
   unusedProperties: UnusedPropertyResult[];
+  unusedFiles: string[];
 }
 
 export type IsTestFileFn = (sourceFile: SourceFile) => boolean;

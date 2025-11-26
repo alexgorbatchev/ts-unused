@@ -62,9 +62,40 @@ export function analyzeProject(
     targetFilePath
   );
 
+  // Identify completely unused files (where all exports are unused)
+  const unusedFiles: string[] = [];
+  const fileExportCounts = new Map<string, { total: number; unused: number }>();
+
+  // Count total exports per file
+  for (const sourceFile of filesToAnalyze) {
+    const filePath = path.relative(tsConfigDir, sourceFile.getFilePath());
+    const exports = sourceFile.getExportedDeclarations();
+    const totalExports = exports.size;
+
+    if (totalExports > 0) {
+      fileExportCounts.set(filePath, { total: totalExports, unused: 0 });
+    }
+  }
+
+  // Count unused exports per file
+  for (const unusedExport of unusedExports) {
+    const counts = fileExportCounts.get(unusedExport.filePath);
+    if (counts) {
+      counts.unused++;
+    }
+  }
+
+  // Identify files where all exports are unused
+  for (const [filePath, counts] of fileExportCounts.entries()) {
+    if (counts.total > 0 && counts.unused === counts.total) {
+      unusedFiles.push(filePath);
+    }
+  }
+
   const results: AnalysisResults = {
     unusedExports,
     unusedProperties,
+    unusedFiles,
   };
 
   return results;

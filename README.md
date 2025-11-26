@@ -5,6 +5,7 @@ A script that analyzes TypeScript projects to find unused exports and unused pro
 ## Features
 
 - **Finds Unused Exports**: Identifies functions, classes, types, interfaces, and constants that are exported but never imported or used elsewhere
+- **Finds Completely Unused Files**: Identifies files where all exports are unused, suggesting the entire file can be deleted
 - **Finds Unused Type Properties**: Detects properties in interfaces and type aliases that are defined but never accessed
 - **Structural Property Equivalence**: Handles property re-declarations across multiple interfaces - properties are considered "used" if structurally equivalent properties (same name and type) are accessed in any interface
 - **Three-Tier Severity System**: Categorizes findings by severity level for better prioritization
@@ -46,8 +47,9 @@ bun analyze.ts ../../tsconfig.json
 
 The script outputs:
 
-1. **Unused Exports**: Functions, types, interfaces, and constants that are exported but never used
-2. **Unused Properties**: Properties in types/interfaces that are defined but never accessed
+1. **Completely Unused Files**: Files where all exports are unused (candidates for deletion)
+2. **Unused Exports**: Functions, types, interfaces, and constants that are exported but never used
+3. **Unused Properties**: Properties in types/interfaces that are defined but never accessed
 3. **Summary**: Total count of unused items found
 
 Each finding includes:
