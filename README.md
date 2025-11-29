@@ -9,6 +9,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 - **Finds Unused Exports**: Identifies functions, classes, types, interfaces, and constants that are exported but never imported or used elsewhere
 - **Finds Completely Unused Files**: Identifies files where all exports are unused, suggesting the entire file can be deleted
 - **Finds Unused Type Properties**: Detects properties in interfaces and type aliases that are defined but never accessed
+- **Auto-Fix Command**: Automatically removes unused exports, properties, and deletes unused files with git safety checks
 - **Structural Property Equivalence**: Handles property re-declarations across multiple interfaces - properties are considered "used" if structurally equivalent properties (same name and type) are accessed in any interface
 - **Three-Tier Severity System**: Categorizes findings by severity level for better prioritization
   - **ERROR**: Completely unused code that should be removed
@@ -39,7 +40,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 | **Comment Support** | ✅ **Unique:** TODOs change severity | ✅ Skip/Ignore only | ✅ Skip/Ignore only |
 | **Unused Files** | ✅ Reports completely unused files | ✅ Deletes unreachable files | ✅ Explicit report flag |
 | **VS Code Integration** | ✅ **Problem Matcher provided** | ❌ Manual setup required | ❌ Manual setup / ESLint plugin |
-| **Auto-Fix** | ❌ Manual removal required | ✅ **Primary Feature:** Auto-removes code | ❌ Manual removal required |
+| **Auto-Fix** | ✅ **New:** Removes unused code safely | ✅ **Primary Feature:** Auto-removes code | ❌ Manual removal required |
 | **Accuracy** | ⭐️ **High** (Language Service) | ⚡️ **Fast** (Custom Graph) | ⚡️ **Fast** (Custom Parser) |
 | **Entrypoints** | 🟢 Not required (Global scan) | 🔴 **Required** (Reachability graph) | 🟢 Not required (Global scan) |
 
@@ -68,17 +69,44 @@ bun add -g ts-unused
 
 ## Usage
 
+### Check Command (Analysis Only)
+
+Analyze your project and report unused items without making any changes:
+
 ```bash
+ts-unused check <path-to-tsconfig.json> [file-path-to-check]
+# or simply:
 ts-unused <path-to-tsconfig.json> [file-path-to-check]
 ```
+
+### Fix Command (Auto-Remove)
+
+Automatically remove unused exports, properties, and delete unused files:
+
+```bash
+ts-unused fix <path-to-tsconfig.json>
+```
+
+**Safety Features:**
+- Checks git status before modifying each file
+- Skips files with uncommitted local changes
+- Reports which files were skipped
+- Continues processing other files if one fails
+- Provides detailed per-file logging
 
 ### Example
 
 ```bash
+# Analyze only
 ts-unused ./tsconfig.json
+
+# Auto-fix
+ts-unused fix ./tsconfig.json
 ```
 
 ## Output
+
+### Check Command Output
 
 The script outputs:
 
@@ -95,7 +123,7 @@ Each finding includes:
 
 The column positions are 1-based (VS Code standard) and the range highlights the entire identifier name in VS Code's editor and Problems panel.
 
-### Example Output
+### Example Check Output
 
 ```
 🔍 Analyzing TypeScript project: /path/to/tsconfig.json
@@ -119,6 +147,28 @@ packages/example/src/types.ts
 📊 Summary:
   Unused exports: 3
   Unused properties: 3
+```
+
+### Example Fix Output
+
+```
+🔧 Fixing TypeScript project: /path/to/tsconfig.json
+
+🗑️  Deleting: src/unused-file.ts (all exports unused)
+🔧 Fixing: src/helpers.ts
+  ✓ Removed unused export: unusedFunction
+🔧 Fixing: src/types.ts
+  ✓ Removed unused property: UserConfig.unusedProp
+⚠️  Skipped: src/modified.ts (has local git changes)
+
+📊 Summary:
+  Fixed exports: 1
+  Fixed properties: 1
+  Deleted files: 1
+  Skipped files: 1
+
+⚠️  Skipped files (have local git changes):
+  src/modified.ts
 ```
 
 ### Severity Levels
