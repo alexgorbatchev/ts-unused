@@ -6,34 +6,34 @@
       "name": "ts-unused",
       "dependencies": {
         "ts-morph": "^27.0.2",
+        "typescript": "^5",
       },
       "devDependencies": {
-        "@biomejs/biome": "^2.3.4",
+        "@biomejs/biome": "^2.3.8",
         "@types/bun": "latest",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
+        "@types/node": "^24.10.1",
+        "@typescript/native-preview": "^7.0.0-dev.20251128.1",
       },
     },
   },
   "packages": {
-    "@biomejs/biome": ["@biomejs/biome@2.3.7", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/biome/-/biome-2.3.7.tgz", { "optionalDependencies": { "@biomejs/cli-darwin-arm64": "2.3.7", "@biomejs/cli-darwin-x64": "2.3.7", "@biomejs/cli-linux-arm64": "2.3.7", "@biomejs/cli-linux-arm64-musl": "2.3.7", "@biomejs/cli-linux-x64": "2.3.7", "@biomejs/cli-linux-x64-musl": "2.3.7", "@biomejs/cli-win32-arm64": "2.3.7", "@biomejs/cli-win32-x64": "2.3.7" }, "bin": { "biome": "bin/biome" } }, "sha512-CTbAS/jNAiUc6rcq94BrTB8z83O9+BsgWj2sBCQg9rD6Wkh2gjfR87usjx0Ncx0zGXP1NKgT7JNglay5Zfs9jw=="],
+    "@biomejs/biome": ["@biomejs/biome@2.3.8", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/biome/-/biome-2.3.8.tgz", { "optionalDependencies": { "@biomejs/cli-darwin-arm64": "2.3.8", "@biomejs/cli-darwin-x64": "2.3.8", "@biomejs/cli-linux-arm64": "2.3.8", "@biomejs/cli-linux-arm64-musl": "2.3.8", "@biomejs/cli-linux-x64": "2.3.8", "@biomejs/cli-linux-x64-musl": "2.3.8", "@biomejs/cli-win32-arm64": "2.3.8", "@biomejs/cli-win32-x64": "2.3.8" }, "bin": { "biome": "bin/biome" } }, "sha512-Qjsgoe6FEBxWAUzwFGFrB+1+M8y/y5kwmg5CHac+GSVOdmOIqsAiXM5QMVGZJ1eCUCLlPZtq4aFAQ0eawEUuUA=="],
 
-    "@biomejs/cli-darwin-arm64": ["@biomejs/cli-darwin-arm64@2.3.7", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-darwin-arm64/-/cli-darwin-arm64-2.3.7.tgz", { "os": "darwin", "cpu": "arm64" }, "sha512-LirkamEwzIUULhXcf2D5b+NatXKeqhOwilM+5eRkbrnr6daKz9rsBL0kNZ16Hcy4b8RFq22SG4tcLwM+yx/wFA=="],
+    "@biomejs/cli-darwin-arm64": ["@biomejs/cli-darwin-arm64@2.3.8", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-darwin-arm64/-/cli-darwin-arm64-2.3.8.tgz", { "os": "darwin", "cpu": "arm64" }, "sha512-HM4Zg9CGQ3txTPflxD19n8MFPrmUAjaC7PQdLkugeeC0cQ+PiVrd7i09gaBS/11QKsTDBJhVg85CEIK9f50Qww=="],
 
-    "@biomejs/cli-darwin-x64": ["@biomejs/cli-darwin-x64@2.3.7", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-darwin-x64/-/cli-darwin-x64-2.3.7.tgz", { "os": "darwin", "cpu": "x64" }, "sha512-Q4TO633kvrMQkKIV7wmf8HXwF0dhdTD9S458LGE24TYgBjSRbuhvio4D5eOQzirEYg6eqxfs53ga/rbdd8nBKg=="],
+    "@biomejs/cli-darwin-x64": ["@biomejs/cli-darwin-x64@2.3.8", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-darwin-x64/-/cli-darwin-x64-2.3.8.tgz", { "os": "darwin", "cpu": "x64" }, "sha512-lUDQ03D7y/qEao7RgdjWVGCu+BLYadhKTm40HkpJIi6kn8LSv5PAwRlew/DmwP4YZ9ke9XXoTIQDO1vAnbRZlA=="],
 
-    "@biomejs/cli-linux-arm64": ["@biomejs/cli-linux-arm64@2.3.7", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-linux-arm64/-/cli-linux-arm64-2.3.7.tgz", { "os": "linux", "cpu": "arm64" }, "sha512-inHOTdlstUBzgjDcx0ge71U4SVTbwAljmkfi3MC5WzsYCRhancqfeL+sa4Ke6v2ND53WIwCFD5hGsYExoI3EZQ=="],
+    "@biomejs/cli-linux-arm64": ["@biomejs/cli-linux-arm64@2.3.8", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-linux-arm64/-/cli-linux-arm64-2.3.8.tgz", { "os": "linux", "cpu": "arm64" }, "sha512-Uo1OJnIkJgSgF+USx970fsM/drtPcQ39I+JO+Fjsaa9ZdCN1oysQmy6oAGbyESlouz+rzEckLTF6DS7cWse95g=="],
 
-    "@biomejs/cli-linux-arm64-musl": ["@biomejs/cli-linux-arm64-musl@2.3.7", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-linux-arm64-musl/-/cli-linux-arm64-musl-2.3.7.tgz", { "os": "linux", "cpu": "arm64" }, "sha512-/afy8lto4CB8scWfMdt+NoCZtatBUF62Tk3ilWH2w8ENd5spLhM77zKlFZEvsKJv9AFNHknMl03zO67CiklL2Q=="],
+    "@biomejs/cli-linux-arm64-musl": ["@biomejs/cli-linux-arm64-musl@2.3.8", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-linux-arm64-musl/-/cli-linux-arm64-musl-2.3.8.tgz", { "os": "linux", "cpu": "arm64" }, "sha512-PShR4mM0sjksUMyxbyPNMxoKFPVF48fU8Qe8Sfx6w6F42verbwRLbz+QiKNiDPRJwUoMG1nPM50OBL3aOnTevA=="],
 
-    "@biomejs/cli-linux-x64": ["@biomejs/cli-linux-x64@2.3.7", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-linux-x64/-/cli-linux-x64-2.3.7.tgz", { "os": "linux", "cpu": "x64" }, "sha512-fJMc3ZEuo/NaMYo5rvoWjdSS5/uVSW+HPRQujucpZqm2ZCq71b8MKJ9U4th9yrv2L5+5NjPF0nqqILCl8HY/fg=="],
+    "@biomejs/cli-linux-x64": ["@biomejs/cli-linux-x64@2.3.8", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-linux-x64/-/cli-linux-x64-2.3.8.tgz", { "os": "linux", "cpu": "x64" }, "sha512-QDPMD5bQz6qOVb3kiBui0zKZXASLo0NIQ9JVJio5RveBEFgDgsvJFUvZIbMbUZT3T00M/1wdzwWXk4GIh0KaAw=="],
 
-    "@biomejs/cli-linux-x64-musl": ["@biomejs/cli-linux-x64-musl@2.3.7", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-linux-x64-musl/-/cli-linux-x64-musl-2.3.7.tgz", { "os": "linux", "cpu": "x64" }, "sha512-CQUtgH1tIN6e5wiYSJqzSwJumHYolNtaj1dwZGCnZXm2PZU1jOJof9TsyiP3bXNDb+VOR7oo7ZvY01If0W3iFQ=="],
+    "@biomejs/cli-linux-x64-musl": ["@biomejs/cli-linux-x64-musl@2.3.8", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-linux-x64-musl/-/cli-linux-x64-musl-2.3.8.tgz", { "os": "linux", "cpu": "x64" }, "sha512-YGLkqU91r1276uwSjiUD/xaVikdxgV1QpsicT0bIA1TaieM6E5ibMZeSyjQ/izBn4tKQthUSsVZacmoJfa3pDA=="],
 
-    "@biomejs/cli-win32-arm64": ["@biomejs/cli-win32-arm64@2.3.7", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-win32-arm64/-/cli-win32-arm64-2.3.7.tgz", { "os": "win32", "cpu": "arm64" }, "sha512-aJAE8eCNyRpcfx2JJAtsPtISnELJ0H4xVVSwnxm13bzI8RwbXMyVtxy2r5DV1xT3WiSP+7LxORcApWw0LM8HiA=="],
+    "@biomejs/cli-win32-arm64": ["@biomejs/cli-win32-arm64@2.3.8", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-win32-arm64/-/cli-win32-arm64-2.3.8.tgz", { "os": "win32", "cpu": "arm64" }, "sha512-H4IoCHvL1fXKDrTALeTKMiE7GGWFAraDwBYFquE/L/5r1927Te0mYIGseXi4F+lrrwhSWbSGt5qPFswNoBaCxg=="],
 
-    "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.3.7", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-win32-x64/-/cli-win32-x64-2.3.7.tgz", { "os": "win32", "cpu": "x64" }, "sha512-pulzUshqv9Ed//MiE8MOUeeEkbkSHVDVY5Cz5wVAnH1DUqliCQG3j6s1POaITTFqFfo7AVIx2sWdKpx/GS+Nqw=="],
+    "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.3.8", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@biomejs/cli-win32-x64/-/cli-win32-x64-2.3.8.tgz", { "os": "win32", "cpu": "x64" }, "sha512-RguzimPoZWtBapfKhKjcWXBVI91tiSprqdBYu7tWhgN8pKRZhw24rFeNZTNf6UiBfjCYCi9eFQs/JzJZIhuK4w=="],
 
     "@isaacs/balanced-match": ["@isaacs/balanced-match@4.0.1", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@isaacs/balanced-match/-/balanced-match-4.0.1.tgz", {}, "sha512-yzMTt9lEb8Gv7zRioUilSglI0c0smZ9k5D65677DLWLtWJaXIS3CqcGyUFByYKlnUj6TkjLVs54fBl6+TiGQDQ=="],
 
@@ -44,6 +44,22 @@
     "@types/bun": ["@types/bun@1.3.3", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@types/bun/-/bun-1.3.3.tgz", { "dependencies": { "bun-types": "1.3.3" } }, "sha512-ogrKbJ2X5N0kWLLFKeytG0eHDleBYtngtlbu9cyBKFtNL3cnpDZkNdQj8flVf6WTZUX5ulI9AY1oa7ljhSrp+g=="],
 
     "@types/node": ["@types/node@24.10.1", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@types/node/-/node-24.10.1.tgz", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ=="],
+
+    "@typescript/native-preview": ["@typescript/native-preview@7.0.0-dev.20251201.1", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@typescript/native-preview/-/native-preview-7.0.0-dev.20251201.1.tgz", { "optionalDependencies": { "@typescript/native-preview-darwin-arm64": "7.0.0-dev.20251201.1", "@typescript/native-preview-darwin-x64": "7.0.0-dev.20251201.1", "@typescript/native-preview-linux-arm": "7.0.0-dev.20251201.1", "@typescript/native-preview-linux-arm64": "7.0.0-dev.20251201.1", "@typescript/native-preview-linux-x64": "7.0.0-dev.20251201.1", "@typescript/native-preview-win32-arm64": "7.0.0-dev.20251201.1", "@typescript/native-preview-win32-x64": "7.0.0-dev.20251201.1" }, "bin": { "tsgo": "bin/tsgo.js" } }, "sha512-EiPEgGwNa2uHyyKgeoWTL6wWHKUBmF3xsfZ3OHofk7TxUuxb2mpLG5igEuaBe8iUwkCUl9uZgJvOu6o0wE5NSA=="],
+
+    "@typescript/native-preview-darwin-arm64": ["@typescript/native-preview-darwin-arm64@7.0.0-dev.20251201.1", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@typescript/native-preview-darwin-arm64/-/native-preview-darwin-arm64-7.0.0-dev.20251201.1.tgz", { "os": "darwin", "cpu": "arm64" }, "sha512-PY0BrlRF3YCZEMxzuk79IFSgpGqUErkdrW7Aq+/mF8DEET5uaDypTMb8Vz4CLYJ7Xvvxz8eZsLimPbv6hYDIvA=="],
+
+    "@typescript/native-preview-darwin-x64": ["@typescript/native-preview-darwin-x64@7.0.0-dev.20251201.1", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@typescript/native-preview-darwin-x64/-/native-preview-darwin-x64-7.0.0-dev.20251201.1.tgz", { "os": "darwin", "cpu": "x64" }, "sha512-YeDrjnsvXwm/MNG8aURT3J+cmHQIhpiElBKOVOy/H6ky4S2Ro9ufG+Bj9CqS3etbTCLhV5btk+QNh86DZ4VDkQ=="],
+
+    "@typescript/native-preview-linux-arm": ["@typescript/native-preview-linux-arm@7.0.0-dev.20251201.1", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@typescript/native-preview-linux-arm/-/native-preview-linux-arm-7.0.0-dev.20251201.1.tgz", { "os": "linux", "cpu": "arm" }, "sha512-gr2EQYK888YdGROMc7l3N3MeKY1V3QVImKIQZNgqprV+N2rXaFnxGAZ+gql3LqZgRGel4a12vCUJeP7Pjl2gww=="],
+
+    "@typescript/native-preview-linux-arm64": ["@typescript/native-preview-linux-arm64@7.0.0-dev.20251201.1", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@typescript/native-preview-linux-arm64/-/native-preview-linux-arm64-7.0.0-dev.20251201.1.tgz", { "os": "linux", "cpu": "arm64" }, "sha512-HbEn+SBTDZEtwN/VUxA2To+6vEr7x++SCRc6yGp5y4onpBL2xnH17UoxWiqN9J4Bu1DbQ9jZv3D5CzwBlofPQA=="],
+
+    "@typescript/native-preview-linux-x64": ["@typescript/native-preview-linux-x64@7.0.0-dev.20251201.1", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@typescript/native-preview-linux-x64/-/native-preview-linux-x64-7.0.0-dev.20251201.1.tgz", { "os": "linux", "cpu": "x64" }, "sha512-q94K/LZ3Ab/SbUBMBsf37VdsumeZ1dZmymJYlhGBqk/fdXBayL0diLR3RdzyeQWbCXAxWL5KFKLIiIc3cI/fcA=="],
+
+    "@typescript/native-preview-win32-arm64": ["@typescript/native-preview-win32-arm64@7.0.0-dev.20251201.1", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@typescript/native-preview-win32-arm64/-/native-preview-win32-arm64-7.0.0-dev.20251201.1.tgz", { "os": "win32", "cpu": "arm64" }, "sha512-/AFwpsX/G05bBsfVURfg4+/JC6gfvqj9jfFe/7oe1Y1J42koN5C8TH+eSmMOOEcPYpFjR1e+NWckqBJKaCXJ4A=="],
+
+    "@typescript/native-preview-win32-x64": ["@typescript/native-preview-win32-x64@7.0.0-dev.20251201.1", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/@typescript/native-preview-win32-x64/-/native-preview-win32-x64-7.0.0-dev.20251201.1.tgz", { "os": "win32", "cpu": "x64" }, "sha512-vTUCDEuSP4ifLHqb8aljuj44v6+M1HDKo1WLnboTDpwU7IIrTux/0jzkPfEHd9xd5FU4EhSA8ZrYDwKI0BcRcg=="],
 
     "bun-types": ["bun-types@1.3.3", "https://global.block-artifacts.com/artifactory/api/npm/square-npm/bun-types/-/bun-types-1.3.3.tgz", { "dependencies": { "@types/node": "*" } }, "sha512-z3Xwlg7j2l9JY27x5Qn3Wlyos8YAp0kKRlrePAOjgjMGS5IG6E7Jnlx736vH9UVI4wUICwwhC9anYL++XeOgTQ=="],
 
