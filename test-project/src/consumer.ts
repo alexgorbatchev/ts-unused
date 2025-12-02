@@ -10,12 +10,12 @@ import {
 } from "./return-types";
 import {
   asyncProcessWithImportedTypes,
-  configWithDestructuring,
   explicitImportedType,
   inlineObjectReturn,
   processWithImportedTypes,
   veryLongInlineType,
 } from "./imported-return-types";
+import { detectPlatform, getStatus, getStatusOrError, getStatusOrNull } from "./enum-return-types";
 
 export function consumer(): void {
   usedFunction();
@@ -52,5 +52,10 @@ export function consumer(): void {
   console.log(explicitImportedType());
   console.log(inlineObjectReturn());
   console.log(veryLongInlineType());
-  console.log(configWithDestructuring());
+  
+  // Use enum-return-types functions
+  console.log(getStatus());
+  console.log(detectPlatform("linux"));
+  console.log(getStatusOrNull());
+  console.log(getStatusOrError());
 }
