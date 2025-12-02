@@ -1,14 +1,45 @@
 import { describe, expect, test } from "bun:test";
+import path from "node:path";
 import { formatResults } from "../formatResults";
 import type { AnalysisResults } from "../types";
 
 describe("formatResults", () => {
-  test("formats results with unused exports and properties", () => {
+  test("formats file paths relative to process.cwd", () => {
+    const cwd = process.cwd();
+    const tsConfigDir = cwd; // Simulating tsconfig in project root
+
     const results: AnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {
-          filePath: "/path/to/file.ts",
+          filePath: "src/types.ts", // Path relative to tsConfigDir
+          exportName: "unusedFunction",
+          line: 10,
+          character: 1,
+          endCharacter: 15,
+          kind: "function",
+          severity: "error",
+          onlyUsedInTests: false,
+        },
+      ],
+      unusedProperties: [],
+    };
+
+    const output = formatResults(results, tsConfigDir);
+
+    // Should output path relative to cwd
+    expect(output).toContain("src/types.ts");
+    // Should not contain absolute path
+    expect(output).not.toContain(path.join(cwd, "src/types.ts"));
+  });
+
+  test("formats results with unused exports and properties", () => {
+    const tsConfigDir = "/path/to/project";
+    const results: AnalysisResults = {
+      unusedFiles: [],
+      unusedExports: [
+        {
+          filePath: "file.ts",
           exportName: "unusedFunction",
           line: 10,
           character: 1,
@@ -18,7 +49,7 @@ describe("formatResults", () => {
           onlyUsedInTests: false,
         },
         {
-          filePath: "/path/to/file.ts",
+          filePath: "file.ts",
           exportName: "UNUSED_CONSTANT",
           line: 20,
           character: 7,
@@ -30,7 +61,7 @@ describe("formatResults", () => {
       ],
       unusedProperties: [
         {
-          filePath: "/path/to/types.ts",
+          filePath: "types.ts",
           typeName: "UserConfig",
           propertyName: "unusedProp",
           line: 5,
@@ -42,16 +73,16 @@ describe("formatResults", () => {
       ],
     };
 
-    const output = formatResults(results);
+    const output = formatResults(results, tsConfigDir);
 
     expect(output).toContain("Unused Exports:");
     expect(output).toContain("unusedFunction:10:1-15 [ERROR] (Unused function)");
     expect(output).toContain("UNUSED_CONSTANT:20:7-22 [ERROR] (Unused const)");
-    expect(output).toContain("/path/to/file.ts");
+    expect(output).toMatch(/file\.ts/);
 
     expect(output).toContain("Unused Type/Interface Properties:");
     expect(output).toContain("UserConfig.unusedProp:5:3-13 [ERROR] (Unused property)");
-    expect(output).toContain("/path/to/types.ts");
+    expect(output).toMatch(/types\.ts/);
 
     expect(output).toContain("Summary:");
     expect(output).toContain("Unused exports: 2");
@@ -59,13 +90,14 @@ describe("formatResults", () => {
   });
 
   test("formats results with no unused items", () => {
+    const tsConfigDir = "/path/to/project";
     const results: AnalysisResults = {
       unusedFiles: [],
       unusedExports: [],
       unusedProperties: [],
     };
 
-    const output = formatResults(results);
+    const output = formatResults(results, tsConfigDir);
 
     expect(output).toContain("No unused exports or properties found!");
     expect(output).not.toContain("Unused Exports:");
@@ -73,11 +105,12 @@ describe("formatResults", () => {
   });
 
   test("formats results with only unused exports", () => {
+    const tsConfigDir = "/path/to/project";
     const results: AnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {
-          filePath: "/path/to/file.ts",
+          filePath: "file.ts",
           exportName: "unusedFunction",
           line: 10,
           character: 1,
@@ -90,7 +123,7 @@ describe("formatResults", () => {
       unusedProperties: [],
     };
 
-    const output = formatResults(results);
+    const output = formatResults(results, tsConfigDir);
 
     expect(output).toContain("Unused Exports:");
     expect(output).not.toContain("Unused Type/Interface Properties:");
@@ -100,12 +133,13 @@ describe("formatResults", () => {
   });
 
   test("formats results with only unused properties", () => {
+    const tsConfigDir = "/path/to/project";
     const results: AnalysisResults = {
       unusedFiles: [],
       unusedExports: [],
       unusedProperties: [
         {
-          filePath: "/path/to/types.ts",
+          filePath: "types.ts",
           typeName: "UserConfig",
           propertyName: "unusedProp",
           line: 5,
@@ -117,7 +151,7 @@ describe("formatResults", () => {
       ],
     };
 
-    const output = formatResults(results);
+    const output = formatResults(results, tsConfigDir);
 
     expect(output).not.toContain("Unused Exports:");
     expect(output).toContain("Unused Type/Interface Properties:");

@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { AnalysisResults, Severity, UnusedExportResult, UnusedPropertyResult } from "./types";
 
 function getSeverityMarker(severity: Severity): string {
@@ -24,12 +25,20 @@ function formatPropertyLine(item: UnusedPropertyResult): string {
   return `  ${item.typeName}.${item.propertyName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (${status}${todoSuffix})`;
 }
 
-function formatGroupedItems<T extends { filePath: string }>(items: T[], formatter: (item: T) => string): string[] {
+function formatGroupedItems<T extends { filePath: string }>(
+  items: T[],
+  formatter: (item: T) => string,
+  tsConfigDir: string,
+  cwd: string
+): string[] {
   const lines: string[] = [];
   const grouped = groupByFile(items);
 
   for (const [filePath, groupItems] of grouped.entries()) {
-    lines.push(filePath);
+    // filePath is relative to tsConfigDir, convert to absolute then to relative from cwd
+    const absolutePath = path.resolve(tsConfigDir, filePath);
+    const relativePath = path.relative(cwd, absolutePath);
+    lines.push(relativePath);
     for (const item of groupItems) {
       lines.push(formatter(item));
     }
@@ -39,8 +48,9 @@ function formatGroupedItems<T extends { filePath: string }>(items: T[], formatte
   return lines;
 }
 
-export function formatResults(results: AnalysisResults): string {
+export function formatResults(results: AnalysisResults, tsConfigDir: string): string {
   const lines: string[] = [];
+  const cwd = process.cwd();
 
   // Create a set of unused export names (interfaces/types) for quick lookup
   const unusedExportNames = new Set<string>();
@@ -64,7 +74,10 @@ export function formatResults(results: AnalysisResults): string {
     lines.push("Completely Unused Files:");
     lines.push("");
     for (const filePath of results.unusedFiles) {
-      lines.push(filePath);
+      // filePath is relative to tsConfigDir, convert to absolute then to relative from cwd
+      const absolutePath = path.resolve(tsConfigDir, filePath);
+      const relativePath = path.relative(cwd, absolutePath);
+      lines.push(relativePath);
       lines.push("  file:1:1-1 [ERROR] (All exports unused - file can be deleted)");
       lines.push("");
     }
@@ -73,13 +86,13 @@ export function formatResults(results: AnalysisResults): string {
   if (exportsToReport.length > 0) {
     lines.push("Unused Exports:");
     lines.push("");
-    lines.push(...formatGroupedItems(exportsToReport, formatExportLine));
+    lines.push(...formatGroupedItems(exportsToReport, formatExportLine, tsConfigDir, cwd));
   }
 
   if (propertiesToReport.length > 0) {
     lines.push("Unused Type/Interface Properties:");
     lines.push("");
-    lines.push(...formatGroupedItems(propertiesToReport, formatPropertyLine));
+    lines.push(...formatGroupedItems(propertiesToReport, formatPropertyLine, tsConfigDir, cwd));
   }
 
   if (results.unusedFiles.length === 0 && exportsToReport.length === 0 && propertiesToReport.length === 0) {

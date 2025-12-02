@@ -107,7 +107,7 @@ describe("Interface and Type Usage", () => {
     const unusedProperties = findUnusedProperties(project, "/", isTestFile);
 
     const results: AnalysisResults = { unusedFiles: [], unusedExports, unusedProperties };
-    const output = formatResults(results);
+    const output = formatResults(results, "/");
 
     // The interface is unused, so it should be in unusedExports
     // but we shouldn't also report each property as unused

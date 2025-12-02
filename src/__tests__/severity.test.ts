@@ -4,11 +4,12 @@ import type { AnalysisResults } from "../types";
 
 describe("Severity system", () => {
   test("shows [ERROR] for completely unused items", () => {
+    const tsConfigDir = "/path/to/project";
     const results: AnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {
-          filePath: "/path/to/file.ts",
+          filePath: "file.ts",
           exportName: "unusedFunction",
           line: 10,
           character: 1,
@@ -20,7 +21,7 @@ describe("Severity system", () => {
       ],
       unusedProperties: [
         {
-          filePath: "/path/to/types.ts",
+          filePath: "types.ts",
           typeName: "UserConfig",
           propertyName: "unusedProp",
           line: 5,
@@ -32,19 +33,20 @@ describe("Severity system", () => {
       ],
     };
 
-    const output = formatResults(results);
+    const output = formatResults(results, tsConfigDir);
 
     expect(output).toContain("unusedFunction:10:1-15 [ERROR] (Unused function)");
     expect(output).toContain("UserConfig.unusedProp:5:3-13 [ERROR] (Unused property)");
   });
 
   test("shows [WARNING] for items with TODO comments", () => {
+    const tsConfigDir = "/path/to/project";
     const results: AnalysisResults = {
       unusedFiles: [],
       unusedExports: [],
       unusedProperties: [
         {
-          filePath: "/path/to/types.ts",
+          filePath: "types.ts",
           typeName: "UserConfig",
           propertyName: "todoProp",
           line: 15,
@@ -57,17 +59,18 @@ describe("Severity system", () => {
       ],
     };
 
-    const output = formatResults(results);
+    const output = formatResults(results, tsConfigDir);
 
     expect(output).toContain("UserConfig.todoProp:15:3-11 [WARNING] (Unused property: [TODO] implement this later)");
   });
 
   test("shows [INFO] for test-only items", () => {
+    const tsConfigDir = "/path/to/project";
     const results: AnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {
-          filePath: "/path/to/helpers.ts",
+          filePath: "helpers.ts",
           exportName: "createTestUser",
           line: 8,
           character: 1,
@@ -79,7 +82,7 @@ describe("Severity system", () => {
       ],
       unusedProperties: [
         {
-          filePath: "/path/to/types.ts",
+          filePath: "types.ts",
           typeName: "TestConfig",
           propertyName: "testOnlyProp",
           line: 20,
@@ -91,18 +94,19 @@ describe("Severity system", () => {
       ],
     };
 
-    const output = formatResults(results);
+    const output = formatResults(results, tsConfigDir);
 
     expect(output).toContain("createTestUser:8:1-15 [INFO] (Used only in tests)");
     expect(output).toContain("TestConfig.testOnlyProp:20:3-15 [INFO] (Used only in tests)");
   });
 
   test("handles mixed severity levels", () => {
+    const tsConfigDir = "/path/to/project";
     const results: AnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {
-          filePath: "/path/to/file.ts",
+          filePath: "file.ts",
           exportName: "unusedFunction",
           line: 10,
           character: 1,
@@ -112,7 +116,7 @@ describe("Severity system", () => {
           onlyUsedInTests: false,
         },
         {
-          filePath: "/path/to/file.ts",
+          filePath: "file.ts",
           exportName: "testHelper",
           line: 20,
           character: 1,
@@ -124,7 +128,7 @@ describe("Severity system", () => {
       ],
       unusedProperties: [
         {
-          filePath: "/path/to/types.ts",
+          filePath: "types.ts",
           typeName: "Config",
           propertyName: "unusedProp",
           line: 5,
@@ -134,7 +138,7 @@ describe("Severity system", () => {
           onlyUsedInTests: false,
         },
         {
-          filePath: "/path/to/types.ts",
+          filePath: "types.ts",
           typeName: "Config",
           propertyName: "todoProp",
           line: 10,
@@ -147,7 +151,7 @@ describe("Severity system", () => {
       ],
     };
 
-    const output = formatResults(results);
+    const output = formatResults(results, tsConfigDir);
 
     expect(output).toContain("[ERROR]");
     expect(output).toContain("[WARNING]");
