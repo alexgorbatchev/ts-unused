@@ -9,7 +9,8 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 - **Finds Unused Exports**: Identifies functions, classes, types, interfaces, and constants that are exported but never imported or used elsewhere
 - **Finds Completely Unused Files**: Identifies files where all exports are unused, suggesting the entire file can be deleted
 - **Finds Unused Type Properties**: Detects properties in interfaces and type aliases that are defined but never accessed
-- **Auto-Fix Command**: Automatically removes unused exports, properties, and deletes unused files with git safety checks
+- **Finds Never-Returned Types**: Detects union type branches in function return types that are declared but never actually returned
+- **Auto-Fix Command**: Automatically removes unused exports, properties, deletes unused files, and fixes never-returned types with git safety checks
 - **Structural Property Equivalence**: Handles property re-declarations across multiple interfaces - properties are considered "used" if structurally equivalent properties (same name and type) are accessed in any interface
 - **Three-Tier Severity System**: Categorizes findings by severity level for better prioritization
   - **ERROR**: Completely unused code that should be removed
@@ -36,6 +37,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 | **Goal** | **Report & Analyze** | **Remove (Tree-Shake)** | **Report** |
 | **Unused Exports** | ✅ Detects and reports | ✅ Detects and removes | ✅ Detects and reports |
 | **Unused Properties** | ✅ **Unique:** Checks `interface`/`type` properties | ❌ No property checks | ❌ No property checks |
+| **Never-Returned Types** | ✅ **Unique:** Detects unused union branches | ❌ Not supported | ❌ Not supported |
 | **Test-Only Usage** | ✅ **Unique:** Identifies "Used only in tests" | ⚠️ May delete if not entrypoint | ❌ No distinction |
 | **Comment Support** | ✅ **Unique:** TODOs change severity | ✅ Skip/Ignore only | ✅ Skip/Ignore only |
 | **Unused Files** | ✅ Reports completely unused files | ✅ Deletes unreachable files | ✅ Explicit report flag |
@@ -113,7 +115,8 @@ The script outputs:
 1. **Completely Unused Files**: Files where all exports are unused (candidates for deletion)
 2. **Unused Exports**: Functions, types, interfaces, and constants that are exported but never used
 3. **Unused Properties**: Properties in types/interfaces that are defined but never accessed
-3. **Summary**: Total count of unused items found
+4. **Never-Returned Types**: Union type branches in function return types that are never actually returned
+5. **Summary**: Total count of unused items found
 
 Each finding includes:
 - File path relative to the project root
@@ -144,9 +147,16 @@ packages/example/src/types.ts
   UserConfig.futureFeature:12:3-16 [WARNING] (Unused property: [TODO] implement this later)
   TestHelpers.mockData:8:3-11 [INFO] (Used only in tests)
 
+Never-Returned Types:
+
+packages/example/src/api.ts
+  processRequest.ErrorResult:15:17-28 [ERROR] (Never-returned type in union)
+  fetchData.TimeoutError:42:25-37 [ERROR] (Never-returned type in union)
+
 Summary:
   Unused exports: 3
   Unused properties: 3
+  Never-returned types: 2
 ```
 
 ### Example Fix Output
@@ -159,11 +169,15 @@ Fixing: src/helpers.ts
   Removed unused export: unusedFunction
 Fixing: src/types.ts
   Removed unused property: UserConfig.unusedProp
+Fixing: src/api.ts
+  ✓ Removed never-returned type 'ErrorResult' from processRequest
+  ✓ Removed never-returned type 'TimeoutError' from fetchData
 Skipped: src/modified.ts (has local git changes)
 
 Summary:
   Fixed exports: 1
   Fixed properties: 1
+  Fixed never-returned types: 2
   Deleted files: 1
   Skipped files: 1
 
@@ -252,6 +266,57 @@ This will:
 - Provide quick fixes and context
 
 ## Advanced Features
+
+### Never-Returned Types Detection
+
+The analyzer detects when functions declare union types in their return type signature but never actually return certain branches of that union. This commonly occurs when:
+
+- **Error Handling**: Functions declare error types but never return errors in practice
+- **Refactoring**: Code evolution leaves unused type branches behind
+- **Over-Engineering**: Return types are declared too broadly for actual usage
+
+**Example:**
+
+```typescript
+interface SuccessResult {
+  success: true;
+  data: string;
+}
+
+interface ErrorResult {
+  success: false;
+  error: string;
+}
+
+type ResultType = SuccessResult | ErrorResult;
+
+// ErrorResult is never returned
+export function processData(): ResultType {
+  // This function only ever returns SuccessResult
+  return { success: true, data: "processed" };
+}
+```
+
+**Detection Capabilities:**
+- Analyzes all function return statements to determine actual return types
+- Handles `Promise<Union>` types for async functions
+- Works with type aliases and direct union declarations
+- Supports primitive unions (`string | number | boolean`)
+- Handles multi-way unions (3+ types)
+- Normalizes boolean literals (`true | false` → `boolean`)
+
+**Auto-Fix Behavior:**
+- Removes never-returned types from the union declaration
+- Preserves `Promise<>` wrapper for async functions
+- Simplifies to single type when only one branch remains
+- Skips functions that are completely unused (they get removed entirely)
+
+After fixing the example above, the return type would become:
+```typescript
+export function processData(): SuccessResult {
+  return { success: true, data: "processed" };
+}
+```
 
 ### Structural Property Equivalence
 
