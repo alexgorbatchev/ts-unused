@@ -16,7 +16,8 @@
     "build": "bun run clean && bun run build:js",
     "typecheck": "tsgo --noEmit",
     "lint": "bun run fix && biome check src",
-    "fix": "biome check --write --unsafe src"
+    "fix": "biome check --write --unsafe src",
+    "sanity-check": "bun run scripts/sanity-check.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.8",
