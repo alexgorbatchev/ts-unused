@@ -218,5 +218,11 @@ function getTypeDisplayName(type: Type): string {
   if (typeText === "null") return "null";
   if (typeText === "undefined") return "undefined";
 
+  // Truncate very long types (e.g., inline object types)
+  const MAX_TYPE_LENGTH = 100;
+  if (typeText.length > MAX_TYPE_LENGTH) {
+    return typeText.substring(0, MAX_TYPE_LENGTH) + "...";
+  }
+
   return typeText;
 }

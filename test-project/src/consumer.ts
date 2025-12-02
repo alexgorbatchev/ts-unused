@@ -10,6 +10,7 @@ import {
 } from "./return-types";
 import {
   asyncProcessWithImportedTypes,
+  configWithDestructuring,
   explicitImportedType,
   inlineObjectReturn,
   processWithImportedTypes,
@@ -51,4 +52,5 @@ export function consumer(): void {
   console.log(explicitImportedType());
   console.log(inlineObjectReturn());
   console.log(veryLongInlineType());
+  console.log(configWithDestructuring());
 }
