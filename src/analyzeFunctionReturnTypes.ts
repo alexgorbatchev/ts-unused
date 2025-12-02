@@ -64,6 +64,27 @@ export function analyzeFunctionReturnTypes(
     return results;
   }
 
+  // Check if any returned type is a generic type assignable to the whole union but not to specific branches
+  // This happens with destructured objects or other inferred types that satisfy the union structurally
+  for (const returnedType of returnedTypes) {
+    if (returnedType.isAssignableTo(typeToCheck)) {
+      // Check if this type is assignable to ANY specific union branch
+      let assignableToAnyBranch = false;
+      for (const unionBranch of unionTypes) {
+        if (returnedType.isAssignableTo(unionBranch)) {
+          assignableToAnyBranch = true;
+          break;
+        }
+      }
+      
+      // If assignable to the union but NOT to any specific branch,
+      // this is a generic type that could be any branch - skip analysis
+      if (!assignableToAnyBranch) {
+        return results;
+      }
+    }
+  }
+
   // Group union branches by display name to handle boolean (true/false) and avoid duplicates
   const branchMap = new Map<string, Type>();
   for (const unionBranch of unionTypes) {
