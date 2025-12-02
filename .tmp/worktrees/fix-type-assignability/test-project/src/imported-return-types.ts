@@ -51,3 +51,18 @@ export function veryLongInlineType():
   | { error: string; code: number } {
   return { error: "not implemented", code: 501 };
 }
+
+// This tests that structurally compatible types from destructuring are properly recognized
+// The function explicitly returns LocalSuccess type, and the actual returned value is structurally compatible
+export function configWithDestructuring(): LocalSuccess {
+  const fullConfig: LocalSuccess & { extraField: string } = {
+    success: true,
+    data: "test",
+    extraField: "should be removed",
+  };
+  
+  // The inferred type from destructuring is anonymous but structurally equivalent to LocalSuccess
+  // TypeScript's assignability check should recognize this
+  const { extraField, ...result } = fullConfig;
+  return result; // result is structurally LocalSuccess
+}
