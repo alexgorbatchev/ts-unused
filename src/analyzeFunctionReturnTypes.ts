@@ -76,11 +76,44 @@ export function analyzeFunctionReturnTypes(
           break;
         }
       }
-      
+
       // If assignable to the union but NOT to any specific branch,
       // this is a generic type that could be any branch - skip analysis
       if (!assignableToAnyBranch) {
         return results;
+      }
+    }
+  }
+
+  // Group enum literals by their parent enum
+  // If any enum member is returned, we consider the entire enum as "returned"
+  const enumGroups = new Map<string, Type[]>();
+  const enumsWithReturnedValues = new Set<string>();
+
+  for (const unionBranch of unionTypes) {
+    if (unionBranch.isEnumLiteral()) {
+      const enumName = getEnumNameFromLiteral(unionBranch);
+      if (enumName) {
+        if (!enumGroups.has(enumName)) {
+          enumGroups.set(enumName, []);
+        }
+        enumGroups.get(enumName)?.push(unionBranch);
+      }
+    }
+  }
+
+  // Check which enums have at least one returned value
+  for (const [enumName, enumBranches] of enumGroups.entries()) {
+    for (const returnedType of returnedTypes) {
+      // Check if this returned type is any member of this enum
+      for (const enumBranch of enumBranches) {
+        if (isTypeAssignableTo(returnedType, enumBranch)) {
+          enumsWithReturnedValues.add(enumName);
+          break;
+        }
+      }
+      if (enumsWithReturnedValues.has(enumName)) {
+        break;
       }
     }
   }
@@ -96,6 +129,15 @@ export function analyzeFunctionReturnTypes(
 
   // Check each unique union branch to see if it's ever returned
   for (const [displayName, unionBranch] of branchMap.entries()) {
+    // Skip enum literal branches if the enum has at least one returned value
+    if (unionBranch.isEnumLiteral()) {
+      const enumName = getEnumNameFromLiteral(unionBranch);
+      if (enumName && enumsWithReturnedValues.has(enumName)) {
+        // This enum has at least one returned value, so don't flag any of its members
+        continue;
+      }
+    }
+
     let isReturned = false;
 
     for (const returnedType of returnedTypes) {
@@ -173,6 +215,28 @@ function isTypeAssignableTo(sourceType: Type, targetType: Type): boolean {
 }
 
 /**
+ * Extract the enum name from an enum literal type
+ * For example: "Status.Idle" -> "Status"
+ */
+function getEnumNameFromLiteral(type: Type): string | null {
+  if (!type.isEnumLiteral()) {
+    return null;
+  }
+
+  const typeText = type.getText();
+  // Strip import paths first
+  const cleanedText = typeText.replace(/import\([^)]+\)\./g, "");
+
+  // Extract enum name from "EnumName.MemberName"
+  const lastDotIndex = cleanedText.lastIndexOf(".");
+  if (lastDotIndex > 0) {
+    return cleanedText.substring(0, lastDotIndex);
+  }
+
+  return null;
+}
+
+/**
  * Get a readable display name for a type
  */
 function getTypeDisplayName(type: Type): string {
@@ -204,7 +268,7 @@ function getTypeDisplayName(type: Type): string {
   // Truncate very long types (e.g., inline object types)
   const MAX_TYPE_LENGTH = 100;
   if (typeText.length > MAX_TYPE_LENGTH) {
-    return typeText.substring(0, MAX_TYPE_LENGTH) + "...";
+    return `${typeText.substring(0, MAX_TYPE_LENGTH)}...`;
   }
 
   return typeText;
