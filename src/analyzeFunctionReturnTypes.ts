@@ -204,7 +204,11 @@ function getTypeDisplayName(type: Type): string {
   }
 
   // Otherwise, use the type text
-  const typeText = type.getText();
+  let typeText = type.getText();
+
+  // Strip import paths from type text
+  // Pattern: import("path/to/file").TypeName -> TypeName
+  typeText = typeText.replace(/import\([^)]+\)\./g, "");
 
   // Simplify common type texts
   if (typeText === "string") return "string";

@@ -8,6 +8,12 @@ import {
   returnsAll,
   sometimesSucceeds,
 } from "./return-types";
+import {
+  asyncProcessWithImportedTypes,
+  explicitImportedType,
+  inlineObjectReturn,
+  processWithImportedTypes,
+} from "./imported-return-types";
 
 export function consumer(): void {
   usedFunction();
@@ -37,4 +43,10 @@ export function consumer(): void {
   console.log(neverWarns());
   console.log(onlyReturnsString());
   console.log(returnsAll());
+
+  // Use imported-return-types functions
+  console.log(processWithImportedTypes());
+  asyncProcessWithImportedTypes().then(console.log);
+  console.log(explicitImportedType());
+  console.log(inlineObjectReturn());
 }

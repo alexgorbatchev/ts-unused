@@ -76,4 +76,40 @@ describe("Never-Returned Types Detection", () => {
     expect(result?.line).toBeGreaterThan(0);
     expect(result?.character).toBeGreaterThan(0);
   });
+
+  test("displays simple type names without import paths", () => {
+    const results = analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+
+    if (!results.neverReturnedTypes) {
+      throw new Error("neverReturnedTypes is undefined");
+    }
+
+    // Check imported types show simple names, not full import paths
+    const importedTypeResult = results.neverReturnedTypes.find((r) => r.functionName === "processWithImportedTypes");
+    expect(importedTypeResult).toBeDefined();
+    expect(importedTypeResult?.neverReturnedType).toBe("LocalError");
+    expect(importedTypeResult?.neverReturnedType).not.toContain("import(");
+    expect(importedTypeResult?.neverReturnedType).not.toContain("/");
+
+    // Check async with imported types
+    const asyncImportedResult = results.neverReturnedTypes.find(
+      (r) => r.functionName === "asyncProcessWithImportedTypes"
+    );
+    expect(asyncImportedResult).toBeDefined();
+    expect(asyncImportedResult?.neverReturnedType).toBe("LocalError");
+    expect(asyncImportedResult?.neverReturnedType).not.toContain("import(");
+
+    // Check explicit imported union types
+    const explicitResult = results.neverReturnedTypes.find((r) => r.functionName === "explicitImportedType");
+    expect(explicitResult).toBeDefined();
+    expect(explicitResult?.neverReturnedType).toBe("LocalError");
+    expect(explicitResult?.neverReturnedType).not.toContain("import(");
+
+    // Check inline object types with imported types - should not have full import paths
+    const inlineResult = results.neverReturnedTypes.find((r) => r.functionName === "inlineObjectReturn");
+    expect(inlineResult).toBeDefined();
+    // The type should not contain import() paths
+    expect(inlineResult?.neverReturnedType).not.toContain("import(");
+    expect(inlineResult?.neverReturnedType).not.toMatch(/\/.*\/.*\//); // No file paths with multiple slashes
+  });
 });
