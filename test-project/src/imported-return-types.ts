@@ -22,3 +22,32 @@ export function inlineObjectReturn():
   | { status: "error"; reason: LocalError } {
   return { status: "success", value: { success: true, data: "inline" } };
 }
+
+// This function has a very long inline object type that should be truncated
+export function veryLongInlineType():
+  | {
+      name: string;
+      config: {
+        enabled: boolean;
+        settings: {
+          theme: "light" | "dark";
+          fontSize: number;
+          fontFamily: string;
+          lineHeight: number;
+        };
+        advanced: {
+          caching: boolean;
+          compression: "gzip" | "brotli" | "none";
+          timeout: number;
+          retries: number;
+        };
+      };
+      metadata: {
+        version: string;
+        author: string;
+        tags: string[];
+      };
+    }
+  | { error: string; code: number } {
+  return { error: "not implemented", code: 501 };
+}

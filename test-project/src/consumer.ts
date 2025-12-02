@@ -13,6 +13,7 @@ import {
   explicitImportedType,
   inlineObjectReturn,
   processWithImportedTypes,
+  veryLongInlineType,
 } from "./imported-return-types";
 
 export function consumer(): void {
@@ -49,4 +50,5 @@ export function consumer(): void {
   asyncProcessWithImportedTypes().then(console.log);
   console.log(explicitImportedType());
   console.log(inlineObjectReturn());
+  console.log(veryLongInlineType());
 }

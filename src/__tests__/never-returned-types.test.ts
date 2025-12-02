@@ -111,5 +111,14 @@ describe("Never-Returned Types Detection", () => {
     // The type should not contain import() paths
     expect(inlineResult?.neverReturnedType).not.toContain("import(");
     expect(inlineResult?.neverReturnedType).not.toMatch(/\/.*\/.*\//); // No file paths with multiple slashes
+
+    // Check very long inline types are truncated to reasonable length
+    const longTypeResult = results.neverReturnedTypes.find((r) => r.functionName === "veryLongInlineType");
+    expect(longTypeResult).toBeDefined();
+    // Type should be truncated to max 100 characters with ellipsis
+    expect(longTypeResult?.neverReturnedType.length).toBeLessThanOrEqual(103); // 100 + "..." = 103
+    if (longTypeResult && longTypeResult.neverReturnedType.length > 100) {
+      expect(longTypeResult.neverReturnedType).toMatch(/\.\.\.$/); // Should end with ...
+    }
   });
 });
