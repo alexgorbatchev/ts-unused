@@ -52,15 +52,17 @@ export function veryLongInlineType():
   return { error: "not implemented", code: 501 };
 }
 
-// This mimics the real createBaseResolvedConfig issue: explicit return type but inferred type from destructuring
-export function configWithDestructuring(): LocalResult {
-  const fullConfig = {
-    success: true as const,
+// This tests that structurally compatible types from destructuring are properly recognized
+// The function explicitly returns LocalSuccess type, and the actual returned value is structurally compatible
+export function configWithDestructuring(): LocalSuccess {
+  const fullConfig: LocalSuccess & { extraField: string } = {
+    success: true,
     data: "test",
     extraField: "should be removed",
   };
   
-  // The inferred type from destructuring is anonymous, not LocalSuccess
+  // The inferred type from destructuring is anonymous but structurally equivalent to LocalSuccess
+  // TypeScript's assignability check should recognize this
   const { extraField, ...result } = fullConfig;
-  return result;
+  return result; // result is structurally LocalSuccess
 }

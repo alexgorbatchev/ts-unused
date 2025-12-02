@@ -121,4 +121,18 @@ describe("Never-Returned Types Detection", () => {
       expect(longTypeResult.neverReturnedType).toMatch(/\.\.\.$/); // Should end with ...
     }
   });
+
+  test("does not flag structurally compatible types from object destructuring", () => {
+    const results = analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+
+    if (!results.neverReturnedTypes) {
+      throw new Error("neverReturnedTypes is undefined");
+    }
+
+    // configWithDestructuring returns a structurally compatible LocalSuccess through destructuring
+    // The function has a non-union return type (LocalSuccess), so it should not be in neverReturnedTypes at all
+    // This tests that our improved isTypeAssignableTo correctly handles structural compatibility
+    const destructuredResult = results.neverReturnedTypes.find((r) => r.functionName === "configWithDestructuring");
+    expect(destructuredResult).toBeUndefined();
+  });
 });

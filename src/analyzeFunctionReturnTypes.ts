@@ -130,60 +130,22 @@ function unwrapPromiseType(type: Type): Type | null {
  * Check if sourceType is assignable to targetType
  */
 function isTypeAssignableTo(sourceType: Type, targetType: Type): boolean {
-  // Direct equality check
-  if (sourceType === targetType) {
+  // Use TypeScript's built-in type checker for assignability
+  // This properly handles structural compatibility, inferred types, etc.
+  if (sourceType.isAssignableTo(targetType)) {
     return true;
   }
 
-  // Check if source type text matches target type text
+  // Special handling for boolean literals (true/false)
+  // TypeScript represents boolean as true | false, so we need to check
+  // if both are boolean literals when comparing
   const sourceText = sourceType.getText();
   const targetText = targetType.getText();
 
-  if (sourceText === targetText) {
+  const isBooleanLiteral = (text: string) => text === "true" || text === "false";
+
+  if (isBooleanLiteral(sourceText) && isBooleanLiteral(targetText)) {
     return true;
-  }
-
-  // Handle string literals assignable to string
-  if (targetText === "string" && sourceType.isStringLiteral()) {
-    return true;
-  }
-
-  // Handle number literals assignable to number
-  if (targetText === "number" && sourceType.isNumberLiteral()) {
-    return true;
-  }
-
-  // Handle boolean literals assignable to boolean (true/false)
-  if ((targetText === "true" || targetText === "false") && sourceType.isBooleanLiteral()) {
-    return true;
-  }
-
-  // Check structural compatibility for object types
-  if (sourceType.isObject() && targetType.isObject()) {
-    // Try to check if all properties of target exist in source
-    const targetProps = targetType.getProperties();
-    const sourceProps = sourceType.getProperties();
-
-    const sourcePropNames = new Set(sourceProps.map((p) => p.getName()));
-
-    // All target properties must exist in source
-    for (const targetProp of targetProps) {
-      if (!sourcePropNames.has(targetProp.getName())) {
-        return false;
-      }
-    }
-
-    // If all target properties exist in source, consider it assignable
-    return targetProps.length > 0;
-  }
-
-  // Check if source is a union that includes the target
-  if (sourceType.isUnion()) {
-    for (const unionType of sourceType.getUnionTypes()) {
-      if (isTypeAssignableTo(unionType, targetType)) {
-        return true;
-      }
-    }
   }
 
   return false;
