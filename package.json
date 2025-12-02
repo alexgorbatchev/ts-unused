@@ -4,7 +4,7 @@
   "description": "Find unused exports and properties in TypeScript projects",
   "license": "MIT",
   "bin": {
-    "ts-unused": "./dist/cli.js"
+    "ts-unused": "dist/cli.js"
   },
   "files": [
     "dist"
@@ -13,7 +13,7 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build:js": "bun build src/cli.ts --outdir dist --target node --external ts-morph --external typescript",
-    "build": "bun run clean && bun run build:js",
+    "build": "bun lint && bun test && bun clean && bun build:js && bun sanity-check --no-build",
     "typecheck": "tsgo --noEmit",
     "lint": "bun run fix && biome check src",
     "fix": "biome check --write --unsafe src",

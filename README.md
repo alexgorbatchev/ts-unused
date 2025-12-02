@@ -27,7 +27,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 - **Re-exports**: Items that are re-exported through barrel files are considered used
 - **Type Narrowing**: Properties accessed after type guards or conditional checks may not always be tracked through complex control flow
 
-## Comparison with Similar Tools
+## Comparison With Similar Tools
 
 ### Feature Comparison
 
@@ -40,7 +40,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 | **Comment Support** | ✅ **Unique:** TODOs change severity | ✅ Skip/Ignore only | ✅ Skip/Ignore only |
 | **Unused Files** | ✅ Reports completely unused files | ✅ Deletes unreachable files | ✅ Explicit report flag |
 | **VS Code Integration** | ✅ **Problem Matcher provided** | ❌ Manual setup required | ❌ Manual setup / ESLint plugin |
-| **Auto-Fix** | ✅ **New:** Removes unused code safely | ✅ **Primary Feature:** Auto-removes code | ❌ Manual removal required |
+| **Auto-Fix** | ✅ Removes unused code safely | ✅ **Primary Feature:** Auto-removes code | ❌ Manual removal required |
 | **Accuracy** | ⭐️ **High** (Language Service) | ⚡️ **Fast** (Custom Graph) | ⚡️ **Fast** (Custom Parser) |
 | **Entrypoints** | 🟢 Not required (Global scan) | 🔴 **Required** (Reachability graph) | 🟢 Not required (Global scan) |
 

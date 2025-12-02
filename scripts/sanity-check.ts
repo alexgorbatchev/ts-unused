@@ -7,13 +7,20 @@ import { resolve } from "path";
 const TEST_PROJECT_DIR = resolve(import.meta.dir, "../test-project");
 
 async function main() {
+  const args = process.argv.slice(2);
+  const skipBuild = args.includes("--no-build");
+
   console.log("🔍 Running sanity check...\n");
 
   try {
     // Step 1: Build the project
-    console.log("📦 Step 1: Building project...");
-    await $`bun run build`.quiet();
-    console.log("✅ Build successful\n");
+    if (!skipBuild) {
+      console.log("📦 Step 1: Building project...");
+      await $`bun run build`.quiet();
+      console.log("✅ Build successful\n");
+    } else {
+      console.log("⏭️  Step 1: Skipping build (--no-build flag provided)\n");
+    }
 
     // Step 2: Check for git changes in test-project
     console.log("📋 Step 2: Checking test-project has no uncommitted changes...");

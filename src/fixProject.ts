@@ -9,6 +9,7 @@ import type { AnalysisResults, IsTestFileFn } from "./types";
 export interface FixResults {
   fixedExports: number;
   fixedProperties: number;
+  fixedNeverReturnedTypes: number;
   deletedFiles: number;
   skippedFiles: string[];
   errors: Array<{ file: string; error: string }>;
@@ -22,6 +23,7 @@ export function fixProject(
   const results: FixResults = {
     fixedExports: 0,
     fixedProperties: 0,
+    fixedNeverReturnedTypes: 0,
     deletedFiles: 0,
     skippedFiles: [],
     errors: [],
@@ -69,6 +71,71 @@ export function fixProject(
     cleanupBrokenImports(project, tsConfigDir, deletedFiles, filesWithChanges, onProgress, results);
   }
 
+  // Group never-returned types by file (process BEFORE exports to avoid removing functions)
+  const neverReturnedByFile = new Map<string, typeof analysis.neverReturnedTypes>();
+  for (const neverReturned of analysis.neverReturnedTypes || []) {
+    if (!neverReturnedByFile.has(neverReturned.filePath)) {
+      neverReturnedByFile.set(neverReturned.filePath, []);
+    }
+    neverReturnedByFile.get(neverReturned.filePath)?.push(neverReturned);
+  }
+
+  // Create a set of unused export names for quick lookup
+  const unusedExportNames = new Set<string>();
+  for (const unusedExport of analysis.unusedExports) {
+    unusedExportNames.add(`${unusedExport.filePath}:${unusedExport.exportName}`);
+  }
+
+  // Fix never-returned types first (before removing exports)
+  for (const [relativeFilePath, neverReturnedItems] of neverReturnedByFile.entries()) {
+    const absoluteFilePath = path.resolve(tsConfigDir, relativeFilePath);
+
+    // Skip if file was deleted
+    if (analysis.unusedFiles.includes(relativeFilePath)) {
+      continue;
+    }
+
+    if (filesWithChanges.has(absoluteFilePath)) {
+      if (!results.skippedFiles.includes(relativeFilePath)) {
+        onProgress?.(`Skipped: ${relativeFilePath} (has local git changes)`);
+        results.skippedFiles.push(relativeFilePath);
+      }
+      continue;
+    }
+
+    try {
+      const sourceFile = project.getSourceFile(absoluteFilePath);
+      if (!sourceFile) {
+        continue;
+      }
+
+      onProgress?.(`Fixing: ${relativeFilePath}`);
+
+      if (neverReturnedItems) {
+        for (const neverReturned of neverReturnedItems) {
+          // Skip if the function itself is unused (will be removed)
+          const exportKey = `${relativeFilePath}:${neverReturned.functionName}`;
+          if (unusedExportNames.has(exportKey)) {
+            continue;
+          }
+
+          if (removeNeverReturnedType(sourceFile, neverReturned.functionName, neverReturned.neverReturnedType)) {
+            onProgress?.(
+              `  ✓ Removed never-returned type '${neverReturned.neverReturnedType}' from ${neverReturned.functionName}`
+            );
+            results.fixedNeverReturnedTypes++;
+          }
+        }
+      }
+
+      sourceFile.saveSync();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      results.errors.push({ file: relativeFilePath, error: errorMessage });
+      onProgress?.(`Error fixing ${relativeFilePath}: ${errorMessage}`);
+    }
+  }
+
   // Group unused exports by file
   const exportsByFile = new Map<string, typeof analysis.unusedExports>();
   for (const unusedExport of analysis.unusedExports) {
@@ -99,7 +166,10 @@ export function fixProject(
         continue;
       }
 
-      onProgress?.(`Fixing: ${relativeFilePath}`);
+      // Only log if we haven't already logged for this file (from never-returned types)
+      if (!neverReturnedByFile.has(relativeFilePath)) {
+        onProgress?.(`Fixing: ${relativeFilePath}`);
+      }
 
       for (const unusedExport of exports) {
         if (removeExport(sourceFile, unusedExport.exportName)) {
@@ -149,8 +219,8 @@ export function fixProject(
         continue;
       }
 
-      // Only log if we haven't already logged for this file (from exports)
-      if (!exportsByFile.has(relativeFilePath)) {
+      // Only log if we haven't already logged for this file (from exports or never-returned)
+      if (!exportsByFile.has(relativeFilePath) && !neverReturnedByFile.has(relativeFilePath)) {
         onProgress?.(`Fixing: ${relativeFilePath}`);
       }
 
@@ -237,6 +307,84 @@ function removeProperty(sourceFile: SourceFile, typeName: string, propertyName: 
           }
         }
       }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Remove a never-returned type from a function's return type union
+ */
+function removeNeverReturnedType(sourceFile: SourceFile, functionName: string, neverReturnedType: string): boolean {
+  // Find the function
+  const functions = sourceFile.getFunctions();
+  for (const func of functions) {
+    if (func.getName() === functionName) {
+      const returnTypeNode = func.getReturnTypeNode();
+      if (!returnTypeNode) {
+        return false;
+      }
+
+      // Get the actual type (resolved) to check if it's a union
+      const returnType = returnTypeNode.getType();
+
+      // For Promise types, unwrap to get inner type
+      let typeToCheck = returnType;
+      let isPromise = false;
+      const symbol = returnType.getSymbol();
+      if (symbol?.getName() === "Promise") {
+        const typeArgs = returnType.getTypeArguments();
+        if (typeArgs.length > 0 && typeArgs[0]) {
+          typeToCheck = typeArgs[0];
+          isPromise = true;
+        }
+      }
+
+      // Check if it's a union type
+      if (!typeToCheck.isUnion()) {
+        return false;
+      }
+
+      const unionTypes = typeToCheck.getUnionTypes();
+
+      // Find which union branches to keep
+      const typesToKeep: string[] = [];
+      for (const ut of unionTypes) {
+        const symbol = ut.getSymbol();
+        const typeName = symbol?.getName() || ut.getText();
+
+        // Normalize boolean
+        const normalizedName = typeName === "true" || typeName === "false" ? "boolean" : typeName;
+        const normalizedRemove =
+          neverReturnedType === "true" || neverReturnedType === "false" ? "boolean" : neverReturnedType;
+
+        if (normalizedName !== normalizedRemove && !typesToKeep.includes(typeName)) {
+          typesToKeep.push(typeName);
+        }
+      }
+
+      // Build the new return type
+      let newReturnType: string | undefined;
+      if (typesToKeep.length === 1 && typesToKeep[0]) {
+        newReturnType = typesToKeep[0];
+      } else if (typesToKeep.length > 1) {
+        newReturnType = typesToKeep.join(" | ");
+      }
+
+      if (!newReturnType) {
+        // All types removed, shouldn't happen
+        return false;
+      }
+
+      // Wrap in Promise if needed
+      if (isPromise) {
+        newReturnType = `Promise<${newReturnType}>`;
+      }
+
+      // Replace the return type
+      func.setReturnType(newReturnType);
+      return true;
     }
   }
 

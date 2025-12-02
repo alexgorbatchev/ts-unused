@@ -36,10 +36,21 @@ export interface UnusedPropertyResult {
   onlyUsedInTests: boolean;
 }
 
+export interface NeverReturnedTypeResult {
+  filePath: string;
+  functionName: string;
+  neverReturnedType: string;
+  line: number;
+  character: number;
+  endCharacter: number;
+  severity: Severity;
+}
+
 export interface AnalysisResults {
   unusedExports: UnusedExportResult[];
   unusedProperties: UnusedPropertyResult[];
   unusedFiles: string[];
+  neverReturnedTypes?: NeverReturnedTypeResult[];
 }
 
 export type IsTestFileFn = (sourceFile: SourceFile) => boolean;

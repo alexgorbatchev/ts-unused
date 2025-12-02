@@ -1,5 +1,11 @@
 import path from "node:path";
-import type { AnalysisResults, Severity, UnusedExportResult, UnusedPropertyResult } from "./types";
+import type {
+  AnalysisResults,
+  NeverReturnedTypeResult,
+  Severity,
+  UnusedExportResult,
+  UnusedPropertyResult,
+} from "./types";
 
 function getSeverityMarker(severity: Severity): string {
   const markers: Record<Severity, string> = {
@@ -23,6 +29,11 @@ function formatPropertyLine(item: UnusedPropertyResult): string {
   const todoSuffix: string = item.todoComment ? `: [TODO] ${item.todoComment}` : "";
   const marker: string = getSeverityMarker(item.severity);
   return `  ${item.typeName}.${item.propertyName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (${status}${todoSuffix})`;
+}
+
+function formatNeverReturnedLine(item: NeverReturnedTypeResult): string {
+  const marker: string = getSeverityMarker(item.severity);
+  return `  ${item.functionName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (Type '${item.neverReturnedType}' in return type is never returned)`;
 }
 
 function formatGroupedItems<T extends { filePath: string }>(
@@ -95,13 +106,26 @@ export function formatResults(results: AnalysisResults, tsConfigDir: string): st
     lines.push(...formatGroupedItems(propertiesToReport, formatPropertyLine, tsConfigDir, cwd));
   }
 
-  if (results.unusedFiles.length === 0 && exportsToReport.length === 0 && propertiesToReport.length === 0) {
+  const neverReturnedTypes = results.neverReturnedTypes || [];
+  if (neverReturnedTypes.length > 0) {
+    lines.push("Never-Returned Types:");
+    lines.push("");
+    lines.push(...formatGroupedItems(neverReturnedTypes, formatNeverReturnedLine, tsConfigDir, cwd));
+  }
+
+  if (
+    results.unusedFiles.length === 0 &&
+    exportsToReport.length === 0 &&
+    propertiesToReport.length === 0 &&
+    neverReturnedTypes.length === 0
+  ) {
     lines.push("No unused exports or properties found!");
   } else {
     lines.push("Summary:");
     lines.push(`  Completely unused files: ${results.unusedFiles.length}`);
     lines.push(`  Unused exports: ${exportsToReport.length}`);
     lines.push(`  Unused properties: ${propertiesToReport.length}`);
+    lines.push(`  Never-returned types: ${neverReturnedTypes.length}`);
   }
 
   return lines.join("\n");

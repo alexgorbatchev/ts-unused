@@ -1,10 +1,17 @@
 import path from "node:path";
 import { Project } from "ts-morph";
+import { findNeverReturnedTypes } from "./findNeverReturnedTypes";
 import { findUnusedExports } from "./findUnusedExports";
 import { findUnusedProperties } from "./findUnusedProperties";
 import { hasNoCheck } from "./hasNoCheck";
 import { isTestFile as defaultIsTestFile } from "./isTestFile";
-import type { AnalysisResults, IsTestFileFn, UnusedExportResult, UnusedPropertyResult } from "./types";
+import type {
+  AnalysisResults,
+  IsTestFileFn,
+  NeverReturnedTypeResult,
+  UnusedExportResult,
+  UnusedPropertyResult,
+} from "./types";
 
 export function analyzeProject(
   tsConfigPath: string,
@@ -61,10 +68,17 @@ export function analyzeProject(
     progressCallback,
     targetFilePath
   );
+  const neverReturnedTypes: NeverReturnedTypeResult[] = findNeverReturnedTypes(
+    project,
+    tsConfigDir,
+    isTestFile,
+    progressCallback,
+    targetFilePath
+  );
 
   // Identify completely unused files (where all exports are unused)
   const unusedFiles: string[] = [];
-  const fileExportCounts = new Map<string, { total: number; unused: number }>();
+  const fileExportCounts = new Map<string, { total: number; unused: number; testOnly: number }>();
 
   // Count total exports per file
   for (const sourceFile of filesToAnalyze) {
@@ -73,7 +87,7 @@ export function analyzeProject(
     const totalExports = exports.size;
 
     if (totalExports > 0) {
-      fileExportCounts.set(filePath, { total: totalExports, unused: 0 });
+      fileExportCounts.set(filePath, { total: totalExports, unused: 0, testOnly: 0 });
     }
   }
 
@@ -82,12 +96,22 @@ export function analyzeProject(
     const counts = fileExportCounts.get(unusedExport.filePath);
     if (counts) {
       counts.unused++;
+      if (unusedExport.onlyUsedInTests) {
+        counts.testOnly++;
+      }
     }
   }
 
-  // Identify files where all exports are unused
+  // Identify files where all exports are unused AND not just test-only
+  // Files with any test-only exports should show individual exports with [INFO], not be listed as completely unused
   for (const [filePath, counts] of fileExportCounts.entries()) {
-    if (counts.total > 0 && counts.unused === counts.total) {
+    // Only add to unusedFiles if:
+    // 1. All exports are "unused" (in the unusedExports list)
+    // 2. NONE of the exports are test-only (all are completely unused with severity: error)
+    const allExportsUnused = counts.total > 0 && counts.unused === counts.total;
+    const hasAnyTestOnlyExports = counts.testOnly > 0;
+
+    if (allExportsUnused && !hasAnyTestOnlyExports) {
       unusedFiles.push(filePath);
     }
   }
@@ -96,6 +120,7 @@ export function analyzeProject(
     unusedExports,
     unusedProperties,
     unusedFiles,
+    neverReturnedTypes,
   };
 
   return results;
