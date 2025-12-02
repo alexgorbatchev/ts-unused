@@ -287,13 +287,13 @@ console.log(ownFunction());
 
     // Original should be deleted
     expect(fs.existsSync(originalFile)).toBe(false);
-    
+
     // Mixed file should still exist but without the broken re-export
     expect(fs.existsSync(mixedFile)).toBe(true);
     const mixedContent = fs.readFileSync(mixedFile, "utf-8");
     expect(mixedContent).not.toContain('from "./original"');
     expect(mixedContent).toContain("ownFunction");
-    
+
     expect(results.deletedFiles).toBe(1);
   });
 });

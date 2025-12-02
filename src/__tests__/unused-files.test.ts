@@ -22,7 +22,8 @@ describe("Unused Files Detection", () => {
     expect(unusedFile).toBeDefined();
 
     // Check formatting
-    const formatted = formatResults(results);
+    const tsConfigDir = path.dirname(tsConfigPath);
+    const formatted = formatResults(results, tsConfigDir);
 
     expect(formatted).toContain("Completely Unused Files:");
     expect(formatted).toContain("unused-file.ts");

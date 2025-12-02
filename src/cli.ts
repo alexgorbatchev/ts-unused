@@ -34,7 +34,7 @@ function main(): void {
   }
 
   let tsConfigPath = path.resolve(args[configIndex] ?? "");
-  
+
   // If the path is a directory, look for tsconfig.json inside it
   if (fs.existsSync(tsConfigPath) && fs.statSync(tsConfigPath).isDirectory()) {
     tsConfigPath = path.join(tsConfigPath, "tsconfig.json");
@@ -96,7 +96,8 @@ function main(): void {
     // Clear the progress bar line
     process.stdout.write("\r\x1b[K");
 
-    const output = formatResults(results);
+    const tsConfigDir = path.dirname(path.resolve(tsConfigPath));
+    const output = formatResults(results, tsConfigDir);
 
     console.log(output);
   }
