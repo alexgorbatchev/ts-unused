@@ -61,7 +61,7 @@ export function formatResults(results: AnalysisResults): string {
 
   // Report completely unused files first
   if (results.unusedFiles.length > 0) {
-    lines.push("🗑️  Completely Unused Files:");
+    lines.push("Completely Unused Files:");
     lines.push("");
     for (const filePath of results.unusedFiles) {
       lines.push(filePath);
@@ -71,21 +71,21 @@ export function formatResults(results: AnalysisResults): string {
   }
 
   if (exportsToReport.length > 0) {
-    lines.push("🔍 Unused Exports:");
+    lines.push("Unused Exports:");
     lines.push("");
     lines.push(...formatGroupedItems(exportsToReport, formatExportLine));
   }
 
   if (propertiesToReport.length > 0) {
-    lines.push("🔍 Unused Type/Interface Properties:");
+    lines.push("Unused Type/Interface Properties:");
     lines.push("");
     lines.push(...formatGroupedItems(propertiesToReport, formatPropertyLine));
   }
 
   if (results.unusedFiles.length === 0 && exportsToReport.length === 0 && propertiesToReport.length === 0) {
-    lines.push("✅ No unused exports or properties found!");
+    lines.push("No unused exports or properties found!");
   } else {
-    lines.push("📊 Summary:");
+    lines.push("Summary:");
     lines.push(`  Completely unused files: ${results.unusedFiles.length}`);
     lines.push(`  Unused exports: ${exportsToReport.length}`);
     lines.push(`  Unused properties: ${propertiesToReport.length}`);

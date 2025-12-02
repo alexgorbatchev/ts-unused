@@ -126,9 +126,9 @@ The column positions are 1-based (VS Code standard) and the range highlights the
 ### Example Check Output
 
 ```
-🔍 Analyzing TypeScript project: /path/to/tsconfig.json
+Analyzing TypeScript project: /path/to/tsconfig.json
 
-🔍 Unused Exports:
+Unused Exports:
 
 packages/example/src/helpers.ts
   unusedFunction:10:1-15 [ERROR] (Unused function)
@@ -137,14 +137,14 @@ packages/example/src/helpers.ts
 packages/example/src/constants.ts
   UNUSED_CONSTANT:20:7-22 [ERROR] (Unused const)
 
-🔍 Unused Type/Interface Properties:
+Unused Type/Interface Properties:
 
 packages/example/src/types.ts
   UserConfig.unusedProp:5:3-13 [ERROR] (Unused property)
   UserConfig.futureFeature:12:3-16 [WARNING] (Unused property: [TODO] implement this later)
   TestHelpers.mockData:8:3-11 [INFO] (Used only in tests)
 
-📊 Summary:
+Summary:
   Unused exports: 3
   Unused properties: 3
 ```
@@ -152,22 +152,22 @@ packages/example/src/types.ts
 ### Example Fix Output
 
 ```
-🔧 Fixing TypeScript project: /path/to/tsconfig.json
+Fixing TypeScript project: /path/to/tsconfig.json
 
-🗑️  Deleting: src/unused-file.ts (all exports unused)
-🔧 Fixing: src/helpers.ts
-  ✓ Removed unused export: unusedFunction
-🔧 Fixing: src/types.ts
-  ✓ Removed unused property: UserConfig.unusedProp
-⚠️  Skipped: src/modified.ts (has local git changes)
+Deleting: src/unused-file.ts (all exports unused)
+Fixing: src/helpers.ts
+  Removed unused export: unusedFunction
+Fixing: src/types.ts
+  Removed unused property: UserConfig.unusedProp
+Skipped: src/modified.ts (has local git changes)
 
-📊 Summary:
+Summary:
   Fixed exports: 1
   Fixed properties: 1
   Deleted files: 1
   Skipped files: 1
 
-⚠️  Skipped files (have local git changes):
+Skipped files (have local git changes):
   src/modified.ts
 ```
 
@@ -246,7 +246,7 @@ Add this task to your `.vscode/tasks.json` to run the analyzer with problem matc
 
 This will:
 - Display results in VS Code's Problems panel
-- Show severity indicators (🔴 error, 🟡 warning, 🔵 info)
+- Show severity indicators (error, warning, info)
 - Allow clicking to navigate to the exact file location
 - Highlight the entire identifier (function name, property name, etc.) in the editor
 - Provide quick fixes and context

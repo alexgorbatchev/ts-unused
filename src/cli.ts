@@ -43,7 +43,7 @@ function main(): void {
   const targetFilePath = args[configIndex + 1] ? path.resolve(args[configIndex + 1]!) : undefined;
 
   if (command === "fix") {
-    console.log(`🔧 Fixing TypeScript project: ${tsConfigPath}`);
+    console.log(`Fixing TypeScript project: ${tsConfigPath}`);
     console.log("");
 
     const results = fixProject(tsConfigPath, (message) => {
@@ -51,7 +51,7 @@ function main(): void {
     });
 
     console.log("");
-    console.log("📊 Summary:");
+    console.log("Summary:");
     console.log(`  Fixed exports: ${results.fixedExports}`);
     console.log(`  Fixed properties: ${results.fixedProperties}`);
     console.log(`  Deleted files: ${results.deletedFiles}`);
@@ -59,7 +59,7 @@ function main(): void {
 
     if (results.errors.length > 0) {
       console.log("");
-      console.log("❌ Errors:");
+      console.log("Errors:");
       for (const error of results.errors) {
         console.log(`  ${error.file}: ${error.error}`);
       }
@@ -67,15 +67,15 @@ function main(): void {
 
     if (results.skippedFiles.length > 0) {
       console.log("");
-      console.log("⚠️  Skipped files (have local git changes):");
+      console.log("Skipped files (have local git changes):");
       for (const file of results.skippedFiles) {
         console.log(`  ${file}`);
       }
     }
   } else {
-    console.log(`🔍 Analyzing TypeScript project: ${tsConfigPath}`);
+    console.log(`Analyzing TypeScript project: ${tsConfigPath}`);
     if (targetFilePath) {
-      console.log(`📄 Checking only: ${targetFilePath}`);
+      console.log(`Checking only: ${targetFilePath}`);
     }
     console.log("");
 
@@ -88,7 +88,7 @@ function main(): void {
         const emptyLength = Math.max(0, barLength - filledLength);
         const bar = "█".repeat(filledLength) + "░".repeat(emptyLength);
         const fileName = path.basename(filePath);
-        process.stdout.write(`\r\x1b[K📊 Progress: [${bar}] ${percentage}% (${current}/${total}) ${fileName}`);
+        process.stdout.write(`\r\x1b[KProgress: [${bar}] ${percentage}% (${current}/${total}) ${fileName}`);
       },
       targetFilePath
     );

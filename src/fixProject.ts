@@ -47,20 +47,20 @@ export function fixProject(
     const absoluteFilePath = path.resolve(tsConfigDir, relativeFilePath);
 
     if (filesWithChanges.has(absoluteFilePath)) {
-      onProgress?.(`⚠️  Skipped: ${relativeFilePath} (has local git changes)`);
+      onProgress?.(`Skipped: ${relativeFilePath} (has local git changes)`);
       results.skippedFiles.push(relativeFilePath);
       continue;
     }
 
     try {
-      onProgress?.(`🗑️  Deleting: ${relativeFilePath} (all exports unused)`);
+      onProgress?.(`Deleting: ${relativeFilePath} (all exports unused)`);
       fs.unlinkSync(absoluteFilePath);
       deletedFiles.add(relativeFilePath);
       results.deletedFiles++;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       results.errors.push({ file: relativeFilePath, error: errorMessage });
-      onProgress?.(`❌ Error deleting ${relativeFilePath}: ${errorMessage}`);
+      onProgress?.(`Error deleting ${relativeFilePath}: ${errorMessage}`);
     }
   }
 
@@ -88,7 +88,7 @@ export function fixProject(
     }
 
     if (filesWithChanges.has(absoluteFilePath)) {
-      onProgress?.(`⚠️  Skipped: ${relativeFilePath} (has local git changes)`);
+      onProgress?.(`Skipped: ${relativeFilePath} (has local git changes)`);
       results.skippedFiles.push(relativeFilePath);
       continue;
     }
@@ -99,7 +99,7 @@ export function fixProject(
         continue;
       }
 
-      onProgress?.(`🔧 Fixing: ${relativeFilePath}`);
+      onProgress?.(`Fixing: ${relativeFilePath}`);
 
       for (const unusedExport of exports) {
         if (removeExport(sourceFile, unusedExport.exportName)) {
@@ -112,7 +112,7 @@ export function fixProject(
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       results.errors.push({ file: relativeFilePath, error: errorMessage });
-      onProgress?.(`❌ Error fixing ${relativeFilePath}: ${errorMessage}`);
+      onProgress?.(`Error fixing ${relativeFilePath}: ${errorMessage}`);
     }
   }
 
@@ -137,7 +137,7 @@ export function fixProject(
     if (filesWithChanges.has(absoluteFilePath)) {
       // Only add to skipped list if not already added
       if (!results.skippedFiles.includes(relativeFilePath)) {
-        onProgress?.(`⚠️  Skipped: ${relativeFilePath} (has local git changes)`);
+        onProgress?.(`Skipped: ${relativeFilePath} (has local git changes)`);
         results.skippedFiles.push(relativeFilePath);
       }
       continue;
@@ -151,7 +151,7 @@ export function fixProject(
 
       // Only log if we haven't already logged for this file (from exports)
       if (!exportsByFile.has(relativeFilePath)) {
-        onProgress?.(`🔧 Fixing: ${relativeFilePath}`);
+        onProgress?.(`Fixing: ${relativeFilePath}`);
       }
 
       for (const unusedProperty of properties) {
@@ -165,7 +165,7 @@ export function fixProject(
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       results.errors.push({ file: relativeFilePath, error: errorMessage });
-      onProgress?.(`❌ Error fixing ${relativeFilePath}: ${errorMessage}`);
+      onProgress?.(`Error fixing ${relativeFilePath}: ${errorMessage}`);
     }
   }
 
@@ -307,7 +307,7 @@ function cleanupBrokenImports(
     // If file only has broken re-exports, delete it
     if (brokenExports.length > 0 && !hasValidExports) {
       try {
-        onProgress?.(`🗑️  Deleting: ${relativePath} (only re-exports from deleted files)`);
+        onProgress?.(`Deleting: ${relativePath} (only re-exports from deleted files)`);
         fs.unlinkSync(absolutePath);
         if (results) {
           results.deletedFiles++;
@@ -317,13 +317,13 @@ function cleanupBrokenImports(
         if (results) {
           results.errors.push({ file: relativePath, error: errorMessage });
         }
-        onProgress?.(`❌ Error deleting ${relativePath}: ${errorMessage}`);
+        onProgress?.(`Error deleting ${relativePath}: ${errorMessage}`);
       }
     }
     // Otherwise, just remove the broken export declarations
     else if (brokenExports.length > 0) {
       try {
-        onProgress?.(`🔧 Fixing: ${relativePath}`);
+        onProgress?.(`Fixing: ${relativePath}`);
         for (const exportDecl of brokenExports) {
           const moduleSpec = exportDecl.getModuleSpecifierValue();
           exportDecl.remove();
@@ -335,7 +335,7 @@ function cleanupBrokenImports(
         if (results) {
           results.errors.push({ file: relativePath, error: errorMessage });
         }
-        onProgress?.(`❌ Error fixing ${relativePath}: ${errorMessage}`);
+        onProgress?.(`Error fixing ${relativePath}: ${errorMessage}`);
       }
     }
   }
