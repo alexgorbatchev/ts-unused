@@ -74,16 +74,22 @@ export function fixProject(
   // Group never-returned types by file (process BEFORE exports to avoid removing functions)
   const neverReturnedByFile = new Map<string, typeof analysis.neverReturnedTypes>();
   for (const neverReturned of analysis.neverReturnedTypes || []) {
+    // Only fix ERROR severity items
+    if (neverReturned.severity !== "error") {
+      continue;
+    }
     if (!neverReturnedByFile.has(neverReturned.filePath)) {
       neverReturnedByFile.set(neverReturned.filePath, []);
     }
     neverReturnedByFile.get(neverReturned.filePath)?.push(neverReturned);
   }
 
-  // Create a set of unused export names for quick lookup
+  // Create a set of unused export names for quick lookup (only ERROR severity)
   const unusedExportNames = new Set<string>();
   for (const unusedExport of analysis.unusedExports) {
-    unusedExportNames.add(`${unusedExport.filePath}:${unusedExport.exportName}`);
+    if (unusedExport.severity === "error") {
+      unusedExportNames.add(`${unusedExport.filePath}:${unusedExport.exportName}`);
+    }
   }
 
   // Fix never-returned types first (before removing exports)
@@ -136,9 +142,13 @@ export function fixProject(
     }
   }
 
-  // Group unused exports by file
+  // Group unused exports by file (only ERROR severity)
   const exportsByFile = new Map<string, typeof analysis.unusedExports>();
   for (const unusedExport of analysis.unusedExports) {
+    // Only fix ERROR severity items (skip INFO for test-only, WARNING for TODOs)
+    if (unusedExport.severity !== "error") {
+      continue;
+    }
     if (!exportsByFile.has(unusedExport.filePath)) {
       exportsByFile.set(unusedExport.filePath, []);
     }
@@ -186,9 +196,13 @@ export function fixProject(
     }
   }
 
-  // Group unused properties by file
+  // Group unused properties by file (only ERROR severity)
   const propertiesByFile = new Map<string, typeof analysis.unusedProperties>();
   for (const unusedProperty of analysis.unusedProperties) {
+    // Only fix ERROR severity items (skip INFO for test-only, WARNING for TODOs)
+    if (unusedProperty.severity !== "error") {
+      continue;
+    }
     if (!propertiesByFile.has(unusedProperty.filePath)) {
       propertiesByFile.set(unusedProperty.filePath, []);
     }
@@ -348,47 +362,161 @@ function removeNeverReturnedType(sourceFile: SourceFile, functionName: string, n
 
       const unionTypes = typeToCheck.getUnionTypes();
 
-      // Find which union branches to keep
-      const typesToKeep: string[] = [];
-      for (const ut of unionTypes) {
-        const symbol = ut.getSymbol();
-        const typeName = symbol?.getName() || ut.getText();
+      // Check if any of the union branches is an inline object type or enum literal
+      const hasInlineObjectType = unionTypes.some((ut) => ut.getSymbol()?.getName() === "__type");
+      const hasEnumLiteral = unionTypes.some((ut) => ut.isEnumLiteral());
 
-        // Normalize boolean
-        const normalizedName = typeName === "true" || typeName === "false" ? "boolean" : typeName;
-        const normalizedRemove =
-          neverReturnedType === "true" || neverReturnedType === "false" ? "boolean" : neverReturnedType;
+      if (hasInlineObjectType || hasEnumLiteral) {
+        // Use source text manipulation for inline object types and enum literals
+        const originalTypeText = returnTypeNode.getText();
 
-        if (normalizedName !== normalizedRemove && !typesToKeep.includes(typeName)) {
-          typesToKeep.push(typeName);
+        // For Promise types, we need to extract the inner type text
+        let typeTextToModify = originalTypeText;
+        let promiseWrapper = "";
+        if (isPromise) {
+          const promiseMatch = originalTypeText.match(/^Promise<(.+)>$/s);
+          if (promiseMatch?.[1]) {
+            typeTextToModify = promiseMatch[1];
+            promiseWrapper = "Promise<>";
+          }
         }
-      }
 
-      // Build the new return type
-      let newReturnType: string | undefined;
-      if (typesToKeep.length === 1 && typesToKeep[0]) {
-        newReturnType = typesToKeep[0];
-      } else if (typesToKeep.length > 1) {
-        newReturnType = typesToKeep.join(" | ");
-      }
+        // Split the union by | but handle nested structures
+        const branches = splitUnionType(typeTextToModify);
 
-      if (!newReturnType) {
-        // All types removed, shouldn't happen
-        return false;
-      }
+        // Normalize the type to remove for comparison
+        const normalizedRemove = normalizeTypeText(
+          neverReturnedType === "true" || neverReturnedType === "false" ? "boolean" : neverReturnedType
+        );
 
-      // Wrap in Promise if needed
-      if (isPromise) {
-        newReturnType = `Promise<${newReturnType}>`;
-      }
+        // Filter out the branch to remove
+        const remainingBranches = branches.filter((branch) => {
+          const trimmed = branch.trim();
+          // Normalize boolean for comparison
+          const normalized = normalizeTypeText(trimmed === "true" || trimmed === "false" ? "boolean" : trimmed);
+          return normalized !== normalizedRemove;
+        });
 
-      // Replace the return type
-      func.setReturnType(newReturnType);
-      return true;
+        if (remainingBranches.length === 0 || remainingBranches.length === branches.length) {
+          // Either all removed (shouldn't happen) or nothing matched
+          return false;
+        }
+
+        // Build the new return type
+        let newReturnType = remainingBranches.join(" | ");
+
+        // Wrap in Promise if needed
+        if (promiseWrapper) {
+          newReturnType = `Promise<${newReturnType}>`;
+        }
+
+        // Replace the return type
+        func.setReturnType(newReturnType);
+        return true;
+      } else {
+        // Use the old approach for named types (interfaces, type aliases, enums)
+        const typesToKeep: string[] = [];
+        for (const ut of unionTypes) {
+          const symbol = ut.getSymbol();
+          const typeName = symbol?.getName() || ut.getText();
+
+          // Normalize boolean
+          const normalizedName = typeName === "true" || typeName === "false" ? "boolean" : typeName;
+          const normalizedRemove =
+            neverReturnedType === "true" || neverReturnedType === "false" ? "boolean" : neverReturnedType;
+
+          if (normalizedName !== normalizedRemove && !typesToKeep.includes(typeName)) {
+            typesToKeep.push(typeName);
+          }
+        }
+
+        // Build the new return type
+        let newReturnType: string | undefined;
+        if (typesToKeep.length === 1 && typesToKeep[0]) {
+          newReturnType = typesToKeep[0];
+        } else if (typesToKeep.length > 1) {
+          newReturnType = typesToKeep.join(" | ");
+        }
+
+        if (!newReturnType) {
+          // All types removed, shouldn't happen
+          return false;
+        }
+
+        // Wrap in Promise if needed
+        if (isPromise) {
+          newReturnType = `Promise<${newReturnType}>`;
+        }
+
+        // Replace the return type
+        func.setReturnType(newReturnType);
+        return true;
+      }
     }
   }
 
   return false;
+}
+
+/**
+ * Split a union type string by | while respecting nested structures
+ */
+function splitUnionType(typeText: string): string[] {
+  const branches: string[] = [];
+  let current = "";
+  let depth = 0;
+  let inString = false;
+  let stringChar = "";
+
+  for (let i = 0; i < typeText.length; i++) {
+    const char = typeText[i];
+    const prevChar = i > 0 ? typeText[i - 1] : "";
+
+    // Handle string literals
+    if ((char === '"' || char === "'") && prevChar !== "\\") {
+      if (!inString) {
+        inString = true;
+        stringChar = char;
+      } else if (char === stringChar) {
+        inString = false;
+        stringChar = "";
+      }
+    }
+
+    if (!inString) {
+      // Track depth for nested structures
+      if (char === "{" || char === "<" || char === "(") {
+        depth++;
+      } else if (char === "}" || char === ">" || char === ")") {
+        depth--;
+      } else if (char === "|" && depth === 0) {
+        // Found a top-level union separator
+        branches.push(current);
+        current = "";
+        continue;
+      }
+    }
+
+    current += char;
+  }
+
+  // Add the last branch
+  if (current) {
+    branches.push(current);
+  }
+
+  return branches;
+}
+
+/**
+ * Normalize type text for comparison by removing optional trailing semicolons
+ */
+function normalizeTypeText(typeText: string): string {
+  // Remove semicolons before closing braces/brackets
+  return typeText
+    .replace(/;\s*([}\]>])/g, " $1")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**

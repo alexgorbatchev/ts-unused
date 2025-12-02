@@ -1,6 +1,6 @@
 {
   "name": "ts-unused",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Find unused exports and properties in TypeScript projects",
   "license": "MIT",
   "bin": {
@@ -13,11 +13,12 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build:js": "bun build src/cli.ts --outdir dist --target node --external ts-morph --external typescript",
-    "build": "bun lint && bun test && bun clean && bun build:js && bun sanity-check --no-build",
+    "build": "bun clean && bun build:js",
     "typecheck": "tsgo --noEmit",
     "lint": "bun run fix && biome check src",
     "fix": "biome check --write --unsafe src",
     "sanity-check": "bun run scripts/sanity-check.ts",
+    "prepublish": "bun lint && bun test && bun run build && bun sanity-check --no-build",
     "cli": "bun run src/cli.ts"
   },
   "devDependencies": {

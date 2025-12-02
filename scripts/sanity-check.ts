@@ -65,7 +65,9 @@ async function main() {
       console.error("❌ FAILED: TypeScript errors after fix");
       console.error("Fix command should not leave TypeScript errors");
       console.error("\nTypeScript output:");
-      console.error(tscAfter.stderr.toString());
+      // tsgo outputs to stdout, not stderr
+      const output = tscAfter.stdout.toString() || tscAfter.stderr.toString();
+      console.error(output);
       await $`git -C ${TEST_PROJECT_DIR} restore .`.quiet();
       process.exit(1);
     }
