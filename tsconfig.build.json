@@ -5,12 +5,13 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "declaration": true,
-    "emitDeclarationOnly": true,
     "outDir": "dist",
     "skipLibCheck": true,
     "esModuleInterop": true,
     "downlevelIteration": true,
-    "noEmit": false
+    "noEmit": false,
+    "allowImportingTsExtensions": false
   },
-  "include": ["src/index.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/__tests__/**", "src/cli.ts"]
 }
