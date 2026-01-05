@@ -2,21 +2,41 @@ import path from "node:path";
 import type { InterfaceDeclaration, Project, SourceFile } from "ts-morph";
 import { extractTodoComment } from "./extractTodoComment";
 import { isPropertyUnused, type PropertyUsageResult } from "./isPropertyUnused";
+import { matchesPattern } from "./patternMatcher";
 import type { IsTestFileFn, Severity, UnusedPropertyResult } from "./types";
+
+export interface AnalyzeInterfacesOptions {
+  ignoreProperties?: string[];
+  ignoreTypes?: string[];
+}
 
 export function analyzeInterfaces(
   sourceFile: SourceFile,
   tsConfigDir: string,
   isTestFile: IsTestFileFn,
   results: UnusedPropertyResult[],
-  project: Project
+  project: Project,
+  options: AnalyzeInterfacesOptions = {}
 ): void {
+  const { ignoreProperties = [], ignoreTypes = [] } = options;
   const interfaces: InterfaceDeclaration[] = sourceFile.getInterfaces();
 
   for (const iface of interfaces) {
     const interfaceName: string = iface.getName();
 
+    // Skip ignored types
+    if (ignoreTypes.length > 0 && matchesPattern(interfaceName, ignoreTypes)) {
+      continue;
+    }
+
     for (const prop of iface.getProperties()) {
+      const propertyName: string = prop.getName();
+
+      // Skip ignored properties
+      if (ignoreProperties.length > 0 && matchesPattern(propertyName, ignoreProperties)) {
+        continue;
+      }
+
       const usage: PropertyUsageResult = isPropertyUnused(prop, isTestFile, project);
 
       if (usage.isUnusedOrTestOnly) {
@@ -31,7 +51,6 @@ export function analyzeInterfaces(
           severity = "info";
         }
 
-        const propertyName: string = prop.getName();
         const startPos: number = prop.getStart();
         const lineStartPos: number = prop.getStartLinePos();
         const character: number = startPos - lineStartPos + 1;

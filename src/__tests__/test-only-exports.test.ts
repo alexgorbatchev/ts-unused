@@ -6,11 +6,12 @@ import { analyzeProject } from "../analyzeProject";
 const FIXTURES_DIR = path.join(import.meta.dir, "../../test-project");
 const TSCONFIG_PATH = path.join(FIXTURES_DIR, "tsconfig.json");
 
-// Custom isTestFile for tests that only checks file extensions, not __tests__ directories
+// Custom isTestFile that only looks at test file extensions (not directories)
+// This allows us to analyze test-helpers.ts even though it's in __tests__
 const TEST_FILE_EXTENSIONS: string[] = [".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"];
 function isTestFileForTests(sourceFile: SourceFile): boolean {
   const filePath: string = sourceFile.getFilePath();
-  return filePath.includes("__tests__") || TEST_FILE_EXTENSIONS.some((ext) => filePath.endsWith(ext));
+  return TEST_FILE_EXTENSIONS.some((ext) => filePath.endsWith(ext));
 }
 
 setDefaultTimeout(30000);
@@ -20,6 +21,7 @@ describe("Test-Only Exports", () => {
     const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // Find the createTestUser function which is only used in test files
+    // test-helpers.ts is in __tests__ folder but not treated as test file due to our custom isTestFile
     const createTestUser = results.unusedExports.find(
       (item) => item.exportName === "createTestUser" && item.filePath.includes("test-helpers.ts")
     );

@@ -5,42 +5,78 @@ import path from "node:path";
 import { analyzeProject } from "./analyzeProject";
 import { fixProject } from "./fixProject";
 import { formatResults } from "./formatResults";
+import { loadConfigSync } from "./loadConfig";
 
-function main(): void {
-  const args = process.argv.slice(2);
-
-  if (args.length === 0) {
-    console.log("Usage: ts-unused <command> <path-to-tsconfig.json> [file-path-to-check]");
-    console.log("");
-    console.log("Commands:");
-    console.log("  check  - Analyze and report unused exports/properties (default)");
-    console.log("  fix    - Automatically remove unused exports/properties and delete unused files");
-    console.log("");
-    console.log("Examples:");
-    console.log("  ts-unused check tsconfig.json");
-    console.log("  ts-unused check ./project-dir    # looks for tsconfig.json inside");
-    console.log("  ts-unused fix tsconfig.json");
-    process.exit(1);
-  }
-
-  // Check if first arg is a command or a path
-  const firstArg = args[0] ?? "";
+function parseArgs(args: string[]): {
+  command: string;
+  tsConfigPath: string;
+  targetFilePath?: string;
+  configPath?: string;
+} {
   let command = "check";
-  let configIndex = 0;
+  let tsConfigArg = "";
+  let configPath: string | undefined;
 
-  if (firstArg === "check" || firstArg === "fix") {
-    command = firstArg;
-    configIndex = 1;
+  const positionalArgs: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] ?? "";
+
+    if (arg === "--config" || arg === "-c") {
+      configPath = args[++i];
+    } else if (arg.startsWith("--config=")) {
+      configPath = arg.slice("--config=".length);
+    } else if (arg === "check" || arg === "fix") {
+      command = arg;
+    } else {
+      positionalArgs.push(arg);
+    }
   }
 
-  let tsConfigPath = path.resolve(args[configIndex] ?? "");
+  tsConfigArg = positionalArgs[0] ?? "";
+  const targetFilePath = positionalArgs[1];
+
+  let tsConfigPath = path.resolve(tsConfigArg);
 
   // If the path is a directory, look for tsconfig.json inside it
   if (fs.existsSync(tsConfigPath) && fs.statSync(tsConfigPath).isDirectory()) {
     tsConfigPath = path.join(tsConfigPath, "tsconfig.json");
   }
 
-  const targetFilePath = args[configIndex + 1] ? path.resolve(args[configIndex + 1]!) : undefined;
+  return {
+    command,
+    tsConfigPath,
+    targetFilePath: targetFilePath ? path.resolve(targetFilePath) : undefined,
+    configPath,
+  };
+}
+
+function main(): void {
+  const args = process.argv.slice(2);
+
+  if (args.length === 0) {
+    console.log("Usage: ts-unused <command> <path-to-tsconfig.json> [file-path-to-check] [options]");
+    console.log("");
+    console.log("Commands:");
+    console.log("  check  - Analyze and report unused exports/properties (default)");
+    console.log("  fix    - Automatically remove unused exports/properties and delete unused files");
+    console.log("");
+    console.log("Options:");
+    console.log("  --config, -c <path>  - Path to configuration file (default: unused.config.ts in project dir)");
+    console.log("");
+    console.log("Examples:");
+    console.log("  ts-unused check tsconfig.json");
+    console.log("  ts-unused check ./project-dir    # looks for tsconfig.json inside");
+    console.log("  ts-unused fix tsconfig.json");
+    console.log("  ts-unused check tsconfig.json --config ./unused.config.ts");
+    process.exit(1);
+  }
+
+  const { command, tsConfigPath, targetFilePath, configPath } = parseArgs(args);
+  const tsConfigDir = path.dirname(path.resolve(tsConfigPath));
+
+  // Load configuration from the project directory
+  const config = loadConfigSync(tsConfigDir, configPath);
 
   if (command === "fix") {
     console.log(`Fixing TypeScript project: ${tsConfigPath}`);
@@ -90,13 +126,13 @@ function main(): void {
         const fileName = path.basename(filePath);
         process.stdout.write(`\r\x1b[KProgress: [${bar}] ${percentage}% (${current}/${total}) ${fileName}`);
       },
-      targetFilePath
+      targetFilePath,
+      { config }
     );
 
     // Clear the progress bar line
     process.stdout.write("\r\x1b[K");
 
-    const tsConfigDir = path.dirname(path.resolve(tsConfigPath));
     const output = formatResults(results, tsConfigDir);
 
     console.log(output);

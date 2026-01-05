@@ -104,6 +104,103 @@ ts-unused ./tsconfig.json
 
 # Auto-fix
 ts-unused fix ./tsconfig.json
+
+# With custom config path
+ts-unused ./tsconfig.json --config ./custom.config.ts
+```
+
+## Configuration
+
+Create an `unused.config.ts` file in your project root (same directory as `tsconfig.json`) to customize the analysis behavior.
+
+### Example Configuration
+
+```typescript
+import { defineConfig } from "ts-unused";
+
+export default defineConfig({
+  // Custom patterns for identifying test files
+  testFilePatterns: [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/__tests__/**",
+    "**/Test*.ts", // Include files like TestLogger.ts
+  ],
+
+  // Files to completely ignore during analysis
+  ignoreFilePatterns: [
+    "**/generated/**",
+    "**/*.d.ts",
+  ],
+
+  // Export names to ignore (supports glob patterns)
+  ignoreExports: [
+    "formatLogMessage", // Specific export
+    "internal*",        // All exports starting with "internal"
+  ],
+
+  // Property names to ignore in interfaces/types
+  ignoreProperties: [
+    "message",    // Common error property
+    "_*",         // Private-like properties
+  ],
+
+  // Type names to skip property analysis for
+  ignoreTypes: [
+    "*Config",    // Skip all config types
+    "Options",
+  ],
+
+  // Whether to ignore module augmentation declarations
+  // (declare module "..." blocks)
+  ignoreModuleAugmentations: true,
+
+  // Toggle specific analysis features
+  analyzeExports: true,
+  analyzeProperties: true,
+  analyzeNeverReturnedTypes: true,
+  detectUnusedFiles: true,
+});
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `testFilePatterns` | `string[]` | `["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/__tests__/**"]` | Glob patterns for test file detection |
+| `ignoreFilePatterns` | `string[]` | `[]` | Files to completely ignore during analysis |
+| `ignoreExports` | `string[]` | `[]` | Export names to ignore (supports glob patterns) |
+| `ignoreProperties` | `string[]` | `[]` | Property names to ignore (supports glob patterns) |
+| `ignoreTypes` | `string[]` | `[]` | Type names to skip property analysis for |
+| `ignoreModuleAugmentations` | `boolean` | `true` | Whether to ignore `declare module` blocks |
+| `analyzeExports` | `boolean` | `true` | Enable/disable unused export detection |
+| `analyzeProperties` | `boolean` | `true` | Enable/disable unused property detection |
+| `analyzeNeverReturnedTypes` | `boolean` | `true` | Enable/disable never-returned type detection |
+| `detectUnusedFiles` | `boolean` | `true` | Enable/disable completely unused file detection |
+
+### Pattern Syntax
+
+The configuration supports glob-like patterns:
+
+- `*` - Matches any characters except `/`
+- `**` - Matches any characters including `/`
+- `?` - Matches any single character
+
+Examples:
+- `**/*.test.ts` - All `.test.ts` files in any directory
+- `**/Test*.ts` - All files starting with `Test` and ending with `.ts`
+- `internal*` - Names starting with `internal`
+- `*Config` - Names ending with `Config`
+
+### CLI Options
+
+```bash
+ts-unused [command] <path-to-tsconfig.json> [options]
+
+Options:
+  --config, -c <path>  Path to configuration file (default: unused.config.ts in project dir)
 ```
 
 ## Output

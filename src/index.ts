@@ -1,10 +1,16 @@
+export type { AnalyzeProjectOptions } from "./analyzeProject";
 export { analyzeProject } from "./analyzeProject";
-export { fixProject } from "./fixProject";
-export { formatResults } from "./formatResults";
+export type { UnusedConfig } from "./config";
+export { defaultConfig, defineConfig, mergeConfig } from "./config";
 export { findUnusedExports } from "./findUnusedExports";
 export { findUnusedProperties } from "./findUnusedProperties";
-export { isTestFile } from "./isTestFile";
-
+export type { FixResults } from "./fixProject";
+export { fixProject } from "./fixProject";
+export { formatResults } from "./formatResults";
+export type { PropertyUsageResult } from "./isPropertyUnused";
+export { createIsTestFile, isTestFile } from "./isTestFile";
+export { loadConfig, loadConfigSync } from "./loadConfig";
+export { matchesFilePattern, matchesPattern, patternToRegex } from "./patternMatcher";
 export type {
   AnalysisResults,
   ExportKind,
@@ -14,6 +20,3 @@ export type {
   UnusedExportResult,
   UnusedPropertyResult,
 } from "./types";
-
-export type { FixResults } from "./fixProject";
-export type { PropertyUsageResult } from "./isPropertyUnused";

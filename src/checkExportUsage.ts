@@ -1,6 +1,12 @@
 import path from "node:path";
 import { Node, type ReferencedSymbol, type SourceFile } from "ts-morph";
+import { matchesPattern } from "./patternMatcher";
 import type { ExportKind, IsTestFileFn, Severity, UnusedExportResult } from "./types";
+
+export interface CheckExportOptions {
+  ignoreExports?: string[];
+  ignoreModuleAugmentations?: boolean;
+}
 
 function getExportKind(declaration: Node): ExportKind {
   if (Node.isFunctionDeclaration(declaration)) {
@@ -48,15 +54,42 @@ function getNameNode(declaration: Node): Node | undefined {
   return undefined;
 }
 
+/**
+ * Checks if a declaration is a module augmentation (declare module "...").
+ */
+function isModuleAugmentation(declaration: Node): boolean {
+  if (Node.isModuleDeclaration(declaration)) {
+    // Module augmentations have a string literal as name (e.g., "library-name")
+    const nameNode = declaration.getNameNode();
+    if (Node.isStringLiteral(nameNode)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function checkExportUsage(
   exportName: string,
   declarations: readonly Node[],
   sourceFile: SourceFile,
   tsConfigDir: string,
-  isTestFile: IsTestFileFn
+  isTestFile: IsTestFileFn,
+  options: CheckExportOptions = {}
 ): UnusedExportResult | null {
+  const { ignoreExports = [], ignoreModuleAugmentations = true } = options;
+
   const firstDeclaration: Node | undefined = declarations[0];
   if (!firstDeclaration) {
+    return null;
+  }
+
+  // Check if export should be ignored
+  if (ignoreExports.length > 0 && matchesPattern(exportName, ignoreExports)) {
+    return null;
+  }
+
+  // Check if this is a module augmentation that should be ignored
+  if (ignoreModuleAugmentations && isModuleAugmentation(firstDeclaration)) {
     return null;
   }
 

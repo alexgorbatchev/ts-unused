@@ -1,0 +1,7 @@
+[test]
+# Coverage configuration
+coverage = true
+coverageSkipSourceFiles = [
+  "**/__tests__/**",
+  "**/test-project/**",
+]

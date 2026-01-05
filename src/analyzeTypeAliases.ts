@@ -2,7 +2,13 @@ import path from "node:path";
 import { Node, type Project, type SourceFile, type TypeAliasDeclaration, type TypeElementTypes } from "ts-morph";
 import { extractTodoComment } from "./extractTodoComment";
 import { isPropertyUnused, type PropertyUsageResult } from "./isPropertyUnused";
+import { matchesPattern } from "./patternMatcher";
 import type { IsTestFileFn, Severity, UnusedPropertyResult } from "./types";
+
+export interface AnalyzeTypeAliasesOptions {
+  ignoreProperties?: string[];
+  ignoreTypes?: string[];
+}
 
 export function analyzeTypeLiteralMember(
   member: TypeElementTypes,
@@ -11,9 +17,19 @@ export function analyzeTypeLiteralMember(
   tsConfigDir: string,
   isTestFile: IsTestFileFn,
   results: UnusedPropertyResult[],
-  project: Project
+  project: Project,
+  options: AnalyzeTypeAliasesOptions = {}
 ): void {
+  const { ignoreProperties = [] } = options;
+
   if (!Node.isPropertySignature(member)) {
+    return;
+  }
+
+  const propertyName: string = member.getName();
+
+  // Skip ignored properties
+  if (ignoreProperties.length > 0 && matchesPattern(propertyName, ignoreProperties)) {
     return;
   }
 
@@ -34,7 +50,6 @@ export function analyzeTypeLiteralMember(
     severity = "info";
   }
 
-  const propertyName: string = member.getName();
   const startPos: number = member.getStart();
   const lineStartPos: number = member.getStartLinePos();
   const character: number = startPos - lineStartPos + 1;
@@ -59,9 +74,17 @@ export function analyzeTypeAlias(
   tsConfigDir: string,
   isTestFile: IsTestFileFn,
   results: UnusedPropertyResult[],
-  project: Project
+  project: Project,
+  options: AnalyzeTypeAliasesOptions = {}
 ): void {
+  const { ignoreTypes = [] } = options;
   const typeName: string = typeAlias.getName();
+
+  // Skip ignored types
+  if (ignoreTypes.length > 0 && matchesPattern(typeName, ignoreTypes)) {
+    return;
+  }
+
   const typeNode = typeAlias.getTypeNode();
 
   if (!typeNode) {
@@ -73,7 +96,7 @@ export function analyzeTypeAlias(
   }
 
   for (const member of typeNode.getMembers()) {
-    analyzeTypeLiteralMember(member, typeName, sourceFile, tsConfigDir, isTestFile, results, project);
+    analyzeTypeLiteralMember(member, typeName, sourceFile, tsConfigDir, isTestFile, results, project, options);
   }
 }
 
@@ -82,11 +105,12 @@ export function analyzeTypeAliases(
   tsConfigDir: string,
   isTestFile: IsTestFileFn,
   results: UnusedPropertyResult[],
-  project: Project
+  project: Project,
+  options: AnalyzeTypeAliasesOptions = {}
 ): void {
   const typeAliases: TypeAliasDeclaration[] = sourceFile.getTypeAliases();
 
   for (const typeAlias of typeAliases) {
-    analyzeTypeAlias(typeAlias, sourceFile, tsConfigDir, isTestFile, results, project);
+    analyzeTypeAlias(typeAlias, sourceFile, tsConfigDir, isTestFile, results, project, options);
   }
 }

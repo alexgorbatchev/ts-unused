@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createTestUser, withMockServer } from "../test-helpers";
+import { createTestUser, withMockServer } from "./test-helpers";
 
 describe("User tests", () => {
   withMockServer();
