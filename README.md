@@ -452,6 +452,179 @@ function handler(sourceOpts: SourceOptions) {
 
 In this case, `SourceOptions.timeout` and `SourceOptions.retryCount` are **not** flagged as unused, even though they're never directly accessed. The analyzer recognizes that `ProcessedOptions.timeout` and `ProcessedOptions.retryCount` are structurally equivalent and used, so their counterparts in `SourceOptions` are also considered used.
 
+## Programmatic API
+
+ts-unused can be used as a library in your own tools and scripts.
+
+### Installation
+
+```bash
+npm install ts-unused
+# or
+bun add ts-unused
+```
+
+### Basic Usage
+
+```typescript
+import path from "node:path";
+import { analyzeProject, loadConfigSync, formatResults } from "ts-unused";
+
+// Given a project root with unused.config.ts
+const projectRoot = "/path/to/your/project";
+const tsConfigPath = path.join(projectRoot, "tsconfig.json");
+
+// Load config from unused.config.ts (auto-detected in project directory)
+const config = loadConfigSync(tsConfigPath);
+
+// Analyze with config
+const results = analyzeProject(tsConfigPath, undefined, undefined, { config });
+
+// Format and print results (same output as CLI)
+const output = formatResults(results, projectRoot);
+console.log(output);
+```
+
+### API Reference
+
+#### `analyzeProject(tsConfigPath, onProgress?, targetFilePath?, options?)`
+
+Analyzes a TypeScript project for unused exports, properties, and never-returned types.
+
+```typescript
+import { analyzeProject, type AnalysisResults, type AnalyzeProjectOptions } from "ts-unused";
+
+const options: AnalyzeProjectOptions = {
+  config: {
+    ignoreFilePatterns: ["**/generated/**"],
+    ignoreExports: ["internal*"],
+    analyzeProperties: true,
+  },
+};
+
+const results: AnalysisResults = analyzeProject(
+  "./tsconfig.json",
+  (current, total, filePath) => console.log(`Processing ${current}/${total}: ${filePath}`),
+  undefined, // targetFilePath - analyze all files
+  options
+);
+
+console.log(`Found ${results.unusedExports.length} unused exports`);
+console.log(`Found ${results.unusedProperties.length} unused properties`);
+console.log(`Found ${results.unusedFiles.length} completely unused files`);
+console.log(`Found ${results.neverReturnedTypes?.length ?? 0} never-returned types`);
+```
+
+**Parameters:**
+- `tsConfigPath` - Path to tsconfig.json
+- `onProgress` - Optional callback for progress updates
+- `targetFilePath` - Optional path to analyze a single file
+- `options` - Optional `AnalyzeProjectOptions` object with `config` and/or `isTestFile`
+
+**Returns:** `AnalysisResults` object with arrays of findings
+
+#### `fixProject(tsConfigPath, onProgress?, isTestFile?)`
+
+Automatically removes unused exports, properties, and deletes unused files.
+
+```typescript
+import { fixProject, type FixResults } from "ts-unused";
+
+const results: FixResults = fixProject(
+  "./tsconfig.json",
+  (message) => console.log(message)
+);
+
+console.log(`Fixed ${results.fixedExports} exports`);
+console.log(`Fixed ${results.fixedProperties} properties`);
+console.log(`Fixed ${results.fixedNeverReturnedTypes} never-returned types`);
+console.log(`Deleted ${results.deletedFiles} files`);
+console.log(`Skipped ${results.skippedFiles.length} files (git changes)`);
+```
+
+**Parameters:**
+- `tsConfigPath` - Path to tsconfig.json
+- `onProgress` - Optional callback for status messages
+- `isTestFile` - Optional custom test file detection function
+
+**Returns:** `FixResults` object with counts and lists of changes
+
+#### `formatResults(results, tsConfigDir)`
+
+Formats analysis results into a human-readable string (same format as CLI output).
+
+```typescript
+import { analyzeProject, formatResults } from "ts-unused";
+
+const results = analyzeProject("./tsconfig.json");
+const formatted = formatResults(results, "./");
+console.log(formatted);
+```
+
+#### `loadConfig(tsConfigPath)` / `loadConfigSync(tsConfigPath)`
+
+Loads configuration from `unused.config.ts` in the project directory.
+
+```typescript
+import { loadConfig, loadConfigSync, type UnusedConfig } from "ts-unused";
+
+// Async version
+const config: UnusedConfig = await loadConfig("./tsconfig.json");
+
+// Sync version  
+const configSync: UnusedConfig = loadConfigSync("./tsconfig.json");
+
+// Use with analyzeProject
+const results = an![alt text](image.png)alyzeProject("./tsconfig.json", undefined, undefined, { config });
+```
+
+#### `defineConfig(config)`
+
+Type-safe helper for creating configuration files.
+
+```typescript
+// unused.config.ts
+import { defineConfig } from "ts-unused";
+
+export default defineConfig({
+  ignoreFilePatterns: ["**/generated/**"],
+  ignoreExports: ["internal*"],
+});
+```
+
+#### `createIsTestFile(patterns)`
+
+Creates a custom test file detection function from glob patterns.
+
+```typescript
+import { analyzeProject, createIsTestFile } from "ts-unused";
+
+const isTestFile = createIsTestFile([
+  "**/*.test.ts",
+  "**/*.spec.ts", 
+  "**/test/**",
+]);
+
+const results = analyzeProject("./tsconfig.json", undefined, undefined, { isTestFile });
+```
+
+#### Pattern Matching Utilities
+
+```typescript
+import { matchesPattern, matchesFilePattern, patternToRegex } from "ts-unused";
+
+// Match a name against patterns
+matchesPattern("internalHelper", ["internal*"]); // true
+matchesPattern("publicApi", ["internal*"]); // false
+
+// Match a file path against patterns
+matchesFilePattern("/project/src/generated/types.ts", ["**/generated/**"]); // true
+
+// Convert a glob pattern to RegExp
+const regex = patternToRegex("**/*.test.ts");
+regex.test("src/utils.test.ts"); // true
+```
+
 ## License
 
 MIT License
