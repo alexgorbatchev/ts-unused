@@ -1,6 +1,6 @@
 {
   "name": "ts-unused",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Find unused exports and properties in TypeScript projects",
   "license": "MIT",
   "bin": {
