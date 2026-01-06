@@ -14,8 +14,8 @@ function isTestFileForTests(sourceFile: SourceFile): boolean {
 }
 
 describe("analyzeProject - generic type parameter detection", () => {
-  test("does not report interface as unused when used as generic type parameter", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("does not report interface as unused when used as generic type parameter", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // StepParams is used as a type parameter in: extends BaseStep<StepParams>
     // It should NOT be reported as unused

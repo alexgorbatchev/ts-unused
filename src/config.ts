@@ -114,3 +114,50 @@ export const defaultConfig: Required<UnusedConfig> = {
 export function defineConfig(config: UnusedConfig): UnusedConfig {
   return config;
 }
+
+/**
+ * Deep merges two objects, with source values taking precedence.
+ * Arrays are replaced entirely, not concatenated.
+ */
+function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
+  const result = { ...target };
+
+  for (const key of Object.keys(source) as (keyof T)[]) {
+    const sourceValue = source[key];
+    const targetValue = target[key];
+
+    if (sourceValue === undefined) {
+      continue;
+    }
+
+    if (
+      sourceValue !== null &&
+      typeof sourceValue === "object" &&
+      !Array.isArray(sourceValue) &&
+      targetValue !== null &&
+      typeof targetValue === "object" &&
+      !Array.isArray(targetValue)
+    ) {
+      result[key] = deepMerge(
+        targetValue as Record<string, unknown>,
+        sourceValue as Record<string, unknown>,
+      ) as T[keyof T];
+    } else {
+      result[key] = sourceValue as T[keyof T];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Merges user configuration with default values using deep merge.
+ * Any options not specified in the user config will use the default values.
+ * Nested objects are merged recursively, arrays are replaced entirely.
+ *
+ * @param userConfig - Partial configuration from user
+ * @returns Complete configuration with all options
+ */
+export function mergeConfig(userConfig: UnusedConfig): Required<UnusedConfig> {
+  return deepMerge(defaultConfig, userConfig);
+}

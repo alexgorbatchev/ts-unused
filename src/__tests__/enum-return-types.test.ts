@@ -7,8 +7,8 @@ describe("Enum Return Types", () => {
   const fixturesDir = path.join(process.cwd(), "test-project");
   const tsConfigPath = path.join(fixturesDir, "tsconfig.json");
 
-  test("should not flag enum values as never returned when at least one enum value is returned", () => {
-    const results = analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+  test("should not flag enum values as never returned when at least one enum value is returned", async () => {
+    const results = await analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
 
     expect(results.neverReturnedTypes).toBeDefined();
     if (!results.neverReturnedTypes) {
@@ -24,8 +24,8 @@ describe("Enum Return Types", () => {
     expect(detectPlatformResults.length).toBe(0);
   });
 
-  test("should still flag non-enum types as never returned in enum unions", () => {
-    const results = analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+  test("should still flag non-enum types as never returned in enum unions", async () => {
+    const results = await analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
 
     if (!results.neverReturnedTypes) {
       throw new Error("neverReturnedTypes is undefined");

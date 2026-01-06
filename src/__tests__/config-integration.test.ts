@@ -16,15 +16,15 @@ function isTestFileForTests(sourceFile: SourceFile): boolean {
 setDefaultTimeout(30000);
 
 describe("analyzeProject with config", () => {
-  test("ignores exports matching ignoreExports patterns", () => {
-    const resultsWithoutIgnore = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("ignores exports matching ignoreExports patterns", async () => {
+    const resultsWithoutIgnore = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
     const unusedExportNames = resultsWithoutIgnore.unusedExports.map((e) => e.exportName);
 
     // Verify we have unused exports first
     expect(unusedExportNames).toContain("unusedFunction");
 
     // Now test with ignoreExports
-    const resultsWithIgnore = analyzeProject(TSCONFIG_PATH, undefined, undefined, {
+    const resultsWithIgnore = await analyzeProject(TSCONFIG_PATH, undefined, undefined, {
       isTestFile: isTestFileForTests,
       config: {
         ignoreExports: ["unusedFunction"],
@@ -37,8 +37,8 @@ describe("analyzeProject with config", () => {
     expect(ignoredExportNames).toContain("UNUSED_CONSTANT");
   });
 
-  test("ignores exports matching glob patterns", () => {
-    const resultsWithIgnore = analyzeProject(TSCONFIG_PATH, undefined, undefined, {
+  test("ignores exports matching glob patterns", async () => {
+    const resultsWithIgnore = await analyzeProject(TSCONFIG_PATH, undefined, undefined, {
       isTestFile: isTestFileForTests,
       config: {
         ignoreExports: ["unused*", "UNUSED_*"],
@@ -53,8 +53,8 @@ describe("analyzeProject with config", () => {
     expect(exportNames).toContain("UnusedInterface");
   });
 
-  test("ignores properties matching ignoreProperties patterns", () => {
-    const resultsWithoutIgnore = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("ignores properties matching ignoreProperties patterns", async () => {
+    const resultsWithoutIgnore = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
     const unusedProps = resultsWithoutIgnore.unusedProperties.filter((p) => p.typeName === "UsedInterface");
     expect(unusedProps.length).toBeGreaterThan(0);
 
@@ -62,7 +62,7 @@ describe("analyzeProject with config", () => {
     const propToIgnore = unusedProps[0]?.propertyName ?? "unusedProperty";
 
     // Now test with ignoreProperties
-    const resultsWithIgnore = analyzeProject(TSCONFIG_PATH, undefined, undefined, {
+    const resultsWithIgnore = await analyzeProject(TSCONFIG_PATH, undefined, undefined, {
       isTestFile: isTestFileForTests,
       config: {
         ignoreProperties: [propToIgnore],
@@ -75,8 +75,8 @@ describe("analyzeProject with config", () => {
     expect(ignoredProps).toHaveLength(0);
   });
 
-  test("ignores types matching ignoreTypes patterns", () => {
-    const resultsWithIgnore = analyzeProject(TSCONFIG_PATH, undefined, undefined, {
+  test("ignores types matching ignoreTypes patterns", async () => {
+    const resultsWithIgnore = await analyzeProject(TSCONFIG_PATH, undefined, undefined, {
       isTestFile: isTestFileForTests,
       config: {
         ignoreTypes: ["UsedInterface", "UsedType"],
@@ -90,8 +90,8 @@ describe("analyzeProject with config", () => {
     expect(propsFromIgnoredTypes).toHaveLength(0);
   });
 
-  test("can disable property analysis", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, {
+  test("can disable property analysis", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, {
       isTestFile: isTestFileForTests,
       config: {
         analyzeProperties: false,
@@ -103,8 +103,8 @@ describe("analyzeProject with config", () => {
     expect(results.unusedExports.length).toBeGreaterThan(0);
   });
 
-  test("can disable export analysis", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, {
+  test("can disable export analysis", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, {
       isTestFile: isTestFileForTests,
       config: {
         analyzeExports: false,
@@ -116,10 +116,10 @@ describe("analyzeProject with config", () => {
     expect(results.unusedProperties.length).toBeGreaterThan(0);
   });
 
-  test("can disable unused files detection", () => {
-    const _resultsWithDetection = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("can disable unused files detection", async () => {
+    const _resultsWithDetection = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
-    const resultsWithoutDetection = analyzeProject(TSCONFIG_PATH, undefined, undefined, {
+    const resultsWithoutDetection = await analyzeProject(TSCONFIG_PATH, undefined, undefined, {
       isTestFile: isTestFileForTests,
       config: {
         detectUnusedFiles: false,
@@ -132,9 +132,9 @@ describe("analyzeProject with config", () => {
     expect(resultsWithoutDetection.unusedExports.length).toBeGreaterThan(0);
   });
 
-  test("backward compatible with isTestFile function", () => {
+  test("backward compatible with isTestFile function", async () => {
     // Old API: passing isTestFile directly as 4th argument
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
     expect(results.unusedExports.length).toBeGreaterThan(0);
   });
 });

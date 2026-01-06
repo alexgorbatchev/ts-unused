@@ -15,11 +15,11 @@ export interface FixResults {
   errors: Array<{ file: string; error: string }>;
 }
 
-export function fixProject(
+export async function fixProject(
   tsConfigPath: string,
   onProgress?: (message: string) => void,
   isTestFile: IsTestFileFn = defaultIsTestFile
-): FixResults {
+): Promise<FixResults> {
   const results: FixResults = {
     fixedExports: 0,
     fixedProperties: 0,
@@ -30,7 +30,7 @@ export function fixProject(
   };
 
   // Analyze the project to find unused items
-  const analysis: AnalysisResults = analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+  const analysis: AnalysisResults = await analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
 
   // Get the directory containing tsconfig
   const tsConfigDir = path.dirname(path.resolve(tsConfigPath));

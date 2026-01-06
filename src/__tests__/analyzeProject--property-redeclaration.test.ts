@@ -15,8 +15,8 @@ function isTestFileForTests(sourceFile: SourceFile): boolean {
 setDefaultTimeout(30000);
 
 describe("analyzeProject - property redeclaration", () => {
-  test("does not report properties as unused when structurally equivalent properties are used", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("does not report properties as unused when structurally equivalent properties are used", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // SourceOptions.timeout and retryCount should NOT be reported as unused
     // even though they're only accessed through ProcessedOptions and ConfigOptions

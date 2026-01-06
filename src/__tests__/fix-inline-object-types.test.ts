@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Project } from "ts-morph";
 
 describe("fix inline object types", () => {
-  test("should preserve inline object type text when removing never-returned union branches", () => {
+  test("should preserve inline object type text when removing never-returned union branches", async () => {
     const project = new Project({ useInMemoryFileSystem: true });
     const sourceFile = project.createSourceFile(
       "/test.ts",
@@ -47,7 +47,7 @@ describe("fix inline object types", () => {
     expect(fixedCode).toContain("__type");
   });
 
-  test("should use getText() instead of symbol name for inline objects", () => {
+  test("should use getText() instead of symbol name for inline objects", async () => {
     const project = new Project({ useInMemoryFileSystem: true });
     const sourceFile = project.createSourceFile(
       "/test.ts",

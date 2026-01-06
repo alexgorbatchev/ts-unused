@@ -51,7 +51,7 @@ function parseArgs(args: string[]): {
   };
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {
@@ -82,7 +82,7 @@ function main(): void {
     console.log(`Fixing TypeScript project: ${tsConfigPath}`);
     console.log("");
 
-    const results = fixProject(tsConfigPath, (message) => {
+    const results = await fixProject(tsConfigPath, (message) => {
       console.log(message);
     });
 
@@ -115,7 +115,7 @@ function main(): void {
     }
     console.log("");
 
-    const results = analyzeProject(
+    const results = await analyzeProject(
       tsConfigPath,
       (current, total, filePath) => {
         const percentage = Math.min(100, Math.floor((current / total) * 100));

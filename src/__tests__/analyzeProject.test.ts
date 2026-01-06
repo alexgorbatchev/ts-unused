@@ -17,8 +17,8 @@ function isTestFileForTests(sourceFile: SourceFile): boolean {
 setDefaultTimeout(30000);
 
 describe("analyzeProject", () => {
-  test("finds unused exports", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("finds unused exports", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     const unusedExportNames = results.unusedExports.map((item) => item.exportName);
 
@@ -37,8 +37,8 @@ describe("analyzeProject", () => {
     expect(unusedExportNames).not.toContain("usedVariable");
   });
 
-  test("finds unused properties in interfaces", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("finds unused properties in interfaces", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     const unusedProps = results.unusedProperties.filter((item) => item.typeName === "UsedInterface");
 
@@ -50,8 +50,8 @@ describe("analyzeProject", () => {
     expect(firstProp?.typeName).toBe("UsedInterface");
   });
 
-  test("finds unused properties in type aliases", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("finds unused properties in type aliases", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     const unusedProps = results.unusedProperties.filter((item) => item.typeName === "UsedType");
 
@@ -63,8 +63,8 @@ describe("analyzeProject", () => {
     expect(firstProp?.typeName).toBe("UsedType");
   });
 
-  test("does not report used properties as unused", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("does not report used properties as unused", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     const usedInterfaceProps = results.unusedProperties.filter(
       (item) => item.typeName === "UsedInterface" && item.propertyName === "usedProperty"
@@ -78,8 +78,8 @@ describe("analyzeProject", () => {
     expect(usedTypeProps).toHaveLength(0);
   });
 
-  test("includes file paths and line numbers", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("includes file paths and line numbers", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     expect(results.unusedExports.length).toBeGreaterThan(0);
     expect(results.unusedProperties.length).toBeGreaterThan(0);
@@ -93,8 +93,8 @@ describe("analyzeProject", () => {
     expect(sampleProperty?.line).toBeGreaterThan(0);
   });
 
-  test("does not report re-exported symbols, only original definitions", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("does not report re-exported symbols, only original definitions", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // The originalFunction and ORIGINAL_CONSTANT are re-exported in reexport.ts
     // They should only be reported once in original.ts (if unused), not in both files
@@ -125,8 +125,8 @@ describe("analyzeProject", () => {
     expect(originalConstantInReexport).toBeUndefined();
   });
 
-  test("excludes files with @ts-nocheck on first line", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("excludes files with @ts-nocheck on first line", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // nocheck.ts has unused exports but should be excluded because it has @ts-nocheck
     const nocheckExports = results.unusedExports.filter((item) => item.filePath.includes("nocheck.ts"));

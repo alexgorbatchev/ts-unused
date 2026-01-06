@@ -17,8 +17,8 @@ function isTestFileForTests(sourceFile: SourceFile): boolean {
 setDefaultTimeout(30000);
 
 describe("Test-Only Exports", () => {
-  test("marks exports used only in tests with [INFO] severity and onlyUsedInTests flag", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("marks exports used only in tests with [INFO] severity and onlyUsedInTests flag", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // Find the createTestUser function which is only used in test files
     // test-helpers.ts is in __tests__ folder but not treated as test file due to our custom isTestFile
@@ -31,8 +31,8 @@ describe("Test-Only Exports", () => {
     expect(createTestUser?.severity).toBe("info");
   });
 
-  test("marks completely unused exports with [ERROR] severity", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("marks completely unused exports with [ERROR] severity", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // Find the createTestPost function which is not used anywhere
     const createTestPost = results.unusedExports.find(
@@ -44,8 +44,8 @@ describe("Test-Only Exports", () => {
     expect(createTestPost?.severity).toBe("error");
   });
 
-  test("marks test setup functions (beforeEach/afterEach) used only in tests with [INFO] severity", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("marks test setup functions (beforeEach/afterEach) used only in tests with [INFO] severity", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // Find the withMockServer function which is called in test files but only sets up hooks
     const withMockServer = results.unusedExports.find(
@@ -57,8 +57,8 @@ describe("Test-Only Exports", () => {
     expect(withMockServer?.severity).toBe("info");
   });
 
-  test("does not mark files with test-only exports as completely unused", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("does not mark files with test-only exports as completely unused", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // test-helpers.ts has createTestUser and withMockServer (both onlyUsedInTests: true)
     // and createTestPost (unused). But since not ALL exports are completely unused,

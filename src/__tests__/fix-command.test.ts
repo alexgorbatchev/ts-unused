@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 describe("fixProject", () => {
-  test("removes unused exports from files", () => {
+  test("removes unused exports from files", async () => {
     // Create test files
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
@@ -86,7 +86,7 @@ console.log(usedFunction(), USED_CONSTANT);
     );
 
     // Run fix
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
 
     // Check that unused exports were removed
     const fixedContent = fs.readFileSync(testFile, "utf-8");
@@ -99,7 +99,7 @@ console.log(usedFunction(), USED_CONSTANT);
     expect(results.fixedExports).toBeGreaterThan(0);
   });
 
-  test("removes unused properties from interfaces", () => {
+  test("removes unused properties from interfaces", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = path.join(TEMP_DIR, "tsconfig.json");
@@ -139,7 +139,7 @@ console.log(user.id, user.name);
       })
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
 
     const fixedContent = fs.readFileSync(testFile, "utf-8");
     expect(fixedContent).not.toContain("unusedField");
@@ -149,7 +149,7 @@ console.log(user.id, user.name);
     expect(results.fixedProperties).toBeGreaterThan(0);
   });
 
-  test("deletes completely unused files", () => {
+  test("deletes completely unused files", async () => {
     const usedFile = path.join(TEMP_DIR, "used.ts");
     const unusedFile = path.join(TEMP_DIR, "unused.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
@@ -193,20 +193,20 @@ console.log(usedFunction());
       })
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
 
     expect(fs.existsSync(usedFile)).toBe(true);
     expect(fs.existsSync(unusedFile)).toBe(false);
     expect(results.deletedFiles).toBeGreaterThan(0);
   });
 
-  test("skips files with local git changes", () => {
+  test("skips files with local git changes", async () => {
     // This test will be implemented once we have git integration
     // For now, just ensure the function exists and can be called
     expect(fixProject).toBeDefined();
   });
 
-  test("deletes files that only re-export from deleted files", () => {
+  test("deletes files that only re-export from deleted files", async () => {
     const originalFile = path.join(TEMP_DIR, "original.ts");
     const reexportFile = path.join(TEMP_DIR, "reexport.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
@@ -249,7 +249,7 @@ export const ORIGINAL_CONSTANT = "original";
       })
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
 
     // Both original and reexport should be deleted
     expect(fs.existsSync(originalFile)).toBe(false);
@@ -258,7 +258,7 @@ export const ORIGINAL_CONSTANT = "original";
     expect(results.deletedFiles).toBe(2);
   });
 
-  test("removes broken re-exports but keeps file with other content", () => {
+  test("removes broken re-exports but keeps file with other content", async () => {
     const originalFile = path.join(TEMP_DIR, "original.ts");
     const mixedFile = path.join(TEMP_DIR, "mixed.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
@@ -305,7 +305,7 @@ console.log(ownFunction());
       })
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
 
     // Original should be deleted
     expect(fs.existsSync(originalFile)).toBe(false);
@@ -319,7 +319,7 @@ console.log(ownFunction());
     expect(results.deletedFiles).toBe(1);
   });
 
-  test("removes unused properties from type aliases", () => {
+  test("removes unused properties from type aliases", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
@@ -347,7 +347,7 @@ console.log(config.host, config.port);
 `
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
 
     const fixedContent = fs.readFileSync(testFile, "utf-8");
     expect(fixedContent).not.toContain("unusedOption");
@@ -357,7 +357,7 @@ console.log(config.host, config.port);
     expect(results.fixedProperties).toBeGreaterThan(0);
   });
 
-  test("removes never-returned types from function return type unions", () => {
+  test("removes never-returned types from function return type unions", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
@@ -392,13 +392,13 @@ if (result.status === "success") {
 `
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
 
     // Error type should be removed from union since it's never returned
     expect(results.fixedNeverReturnedTypes).toBeGreaterThanOrEqual(0);
   });
 
-  test("calls progress callback with status messages", () => {
+  test("calls progress callback with status messages", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
@@ -416,13 +416,13 @@ if (result.status === "success") {
     );
 
     const progressMessages: string[] = [];
-    fixProject(tsconfigFile, (msg) => progressMessages.push(msg));
+    await fixProject(tsconfigFile, (msg) => progressMessages.push(msg));
 
     expect(progressMessages.length).toBeGreaterThan(0);
     expect(progressMessages.some((m) => m.includes("Deleting"))).toBe(true);
   });
 
-  test("handles non-existent source files gracefully", () => {
+  test("handles non-existent source files gracefully", async () => {
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
 
@@ -433,11 +433,11 @@ if (result.status === "success") {
     );
 
     // Should not throw
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
     expect(results).toBeDefined();
   });
 
-  test("handles functions without explicit return type", () => {
+  test("handles functions without explicit return type", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
@@ -458,11 +458,11 @@ console.log(noReturnType());
     );
 
     // Should not throw even if function has no explicit return type
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
     expect(results).toBeDefined();
   });
 
-  test("handles Promise return types with union", () => {
+  test("handles Promise return types with union", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
@@ -497,11 +497,11 @@ main();
 `
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
     expect(results).toBeDefined();
   });
 
-  test("handles inline object types in return unions", () => {
+  test("handles inline object types in return unions", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
@@ -525,11 +525,11 @@ if (result.ok) {
 `
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
     expect(results).toBeDefined();
   });
 
-  test("handles removal of boolean literal types", () => {
+  test("handles removal of boolean literal types", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
@@ -552,11 +552,11 @@ if (result === true) {
 `
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
     expect(results).toBeDefined();
   });
 
-  test("handles multiple exports in same file with different severities", () => {
+  test("handles multiple exports in same file with different severities", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
@@ -577,7 +577,7 @@ console.log(usedExport(), USED);
 `
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
     expect(results.fixedExports).toBe(2);
 
     const content = fs.readFileSync(testFile, "utf-8");
@@ -587,7 +587,7 @@ console.log(usedExport(), USED);
     expect(content).not.toContain("UNUSED");
   });
 
-  test("handles class exports", () => {
+  test("handles class exports", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
@@ -612,7 +612,7 @@ console.log(instance.method());
 `
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
     expect(results.fixedExports).toBe(1);
 
     const content = fs.readFileSync(testFile, "utf-8");
@@ -620,7 +620,7 @@ console.log(instance.method());
     expect(content).not.toContain("UnusedClass");
   });
 
-  test("handles enum exports", () => {
+  test("handles enum exports", async () => {
     const testFile = path.join(TEMP_DIR, "test.ts");
     const consumerFile = path.join(TEMP_DIR, "consumer.ts");
     const tsconfigFile = createTsConfig();
@@ -646,7 +646,7 @@ console.log(UsedEnum.A);
 `
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
     expect(results.fixedExports).toBe(1);
 
     const content = fs.readFileSync(testFile, "utf-8");
@@ -654,7 +654,7 @@ console.log(UsedEnum.A);
     expect(content).not.toContain("UnusedEnum");
   });
 
-  test("handles files in subdirectories", () => {
+  test("handles files in subdirectories", async () => {
     const subDir = path.join(TEMP_DIR, "sub");
     fs.mkdirSync(subDir, { recursive: true });
 
@@ -688,7 +688,7 @@ console.log(subFn());
       })
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
     expect(results.fixedExports).toBe(1);
 
     const content = fs.readFileSync(testFile, "utf-8");
@@ -696,7 +696,7 @@ console.log(subFn());
     expect(content).not.toContain("unusedSubFn");
   });
 
-  test("handles index.ts files", () => {
+  test("handles index.ts files", async () => {
     const subDir = path.join(TEMP_DIR, "utils");
     fs.mkdirSync(subDir, { recursive: true });
 
@@ -730,7 +730,7 @@ console.log(utilFn());
       })
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
     expect(results.fixedExports).toBe(1);
 
     const content = fs.readFileSync(indexFile, "utf-8");

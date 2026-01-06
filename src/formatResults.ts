@@ -16,6 +16,11 @@ function getSeverityMarker(severity: Severity): string {
   return markers[severity];
 }
 
+function getRelativePath(filePath: string, tsConfigDir: string, cwd: string): string {
+  const absolutePath = path.resolve(tsConfigDir, filePath);
+  return path.relative(cwd, absolutePath);
+}
+
 function formatExportLine(item: UnusedExportResult): string {
   const marker: string = getSeverityMarker(item.severity);
   if (item.onlyUsedInTests) {
@@ -46,10 +51,7 @@ function formatGroupedItems<T extends { filePath: string }>(
   const grouped = groupByFile(items);
 
   for (const [filePath, groupItems] of grouped.entries()) {
-    // filePath is relative to tsConfigDir, convert to absolute then to relative from cwd
-    const absolutePath = path.resolve(tsConfigDir, filePath);
-    const relativePath = path.relative(cwd, absolutePath);
-    lines.push(relativePath);
+    lines.push(getRelativePath(filePath, tsConfigDir, cwd));
     for (const item of groupItems) {
       lines.push(formatter(item));
     }
@@ -85,10 +87,7 @@ export function formatResults(results: AnalysisResults, tsConfigDir: string): st
     lines.push("Completely Unused Files:");
     lines.push("");
     for (const filePath of results.unusedFiles) {
-      // filePath is relative to tsConfigDir, convert to absolute then to relative from cwd
-      const absolutePath = path.resolve(tsConfigDir, filePath);
-      const relativePath = path.relative(cwd, absolutePath);
-      lines.push(relativePath);
+      lines.push(getRelativePath(filePath, tsConfigDir, cwd));
       lines.push("  file:1:1-1 [ERROR] (All exports unused - file can be deleted)");
       lines.push("");
     }

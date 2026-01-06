@@ -13,7 +13,7 @@ afterAll(() => {
 });
 
 describe("Fix Never-Returned Types", () => {
-  test("removes never-returned types from union return types", () => {
+  test("removes never-returned types from union return types", async () => {
     // Setup temp directory
     if (fs.existsSync(TEMP_DIR)) {
       fs.rmSync(TEMP_DIR, { recursive: true, force: true });
@@ -72,7 +72,7 @@ console.log(alwaysFails());
     );
 
     // Run fix
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
 
     // Check results
     expect(results.fixedNeverReturnedTypes).toBe(2);
@@ -88,7 +88,7 @@ console.log(alwaysFails());
     expect(fixedContent).toContain("function alwaysFails(): ErrorResult");
   });
 
-  test("removes never-returned types from Promise<Union> return types", () => {
+  test("removes never-returned types from Promise<Union> return types", async () => {
     if (fs.existsSync(TEMP_DIR)) {
       fs.rmSync(TEMP_DIR, { recursive: true, force: true });
     }
@@ -135,7 +135,7 @@ asyncAlwaysSucceeds();
       })
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
 
     expect(results.fixedNeverReturnedTypes).toBe(1);
     expect(results.errors).toHaveLength(0);
@@ -144,7 +144,7 @@ asyncAlwaysSucceeds();
     expect(fixedContent).toContain("Promise<SuccessResult>");
   });
 
-  test("removes primitive never-returned types", () => {
+  test("removes primitive never-returned types", async () => {
     if (fs.existsSync(TEMP_DIR)) {
       fs.rmSync(TEMP_DIR, { recursive: true, force: true });
     }
@@ -181,7 +181,7 @@ console.log(onlyReturnsString());
       })
     );
 
-    const results = fixProject(tsconfigFile);
+    const results = await fixProject(tsconfigFile);
 
     // Should remove number and boolean (2 fixes)
     expect(results.fixedNeverReturnedTypes).toBeGreaterThanOrEqual(1);

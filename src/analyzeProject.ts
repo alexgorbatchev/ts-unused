@@ -27,12 +27,12 @@ export interface AnalyzeProjectOptions {
   isTestFile?: IsTestFileFn;
 }
 
-export function analyzeProject(
+export async function analyzeProject(
   tsConfigPath: string,
   onProgress?: (current: number, total: number, filePath: string) => void,
   targetFilePath?: string,
   isTestFileOrOptions?: IsTestFileFn | AnalyzeProjectOptions
-): AnalysisResults {
+): Promise<AnalysisResults> {
   // Handle backward compatibility: can pass IsTestFileFn directly or options object
   let options: AnalyzeProjectOptions = {};
   if (typeof isTestFileOrOptions === "function") {

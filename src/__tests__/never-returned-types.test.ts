@@ -7,8 +7,8 @@ describe("Never-Returned Types Detection", () => {
   const fixturesDir = path.join(process.cwd(), "test-project");
   const tsConfigPath = path.join(fixturesDir, "tsconfig.json");
 
-  test("detects union type branches that are never returned", () => {
-    const results = analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+  test("detects union type branches that are never returned", async () => {
+    const results = await analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
 
     // Should have neverReturnedTypes property
     expect(results.neverReturnedTypes).toBeDefined();
@@ -63,8 +63,8 @@ describe("Never-Returned Types Detection", () => {
     expect(returnsAll.length).toBe(0);
   });
 
-  test("includes file location information", () => {
-    const results = analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+  test("includes file location information", async () => {
+    const results = await analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
 
     if (!results.neverReturnedTypes) {
       throw new Error("neverReturnedTypes is undefined");
@@ -77,8 +77,8 @@ describe("Never-Returned Types Detection", () => {
     expect(result?.character).toBeGreaterThan(0);
   });
 
-  test("displays simple type names without import paths", () => {
-    const results = analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+  test("displays simple type names without import paths", async () => {
+    const results = await analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
 
     if (!results.neverReturnedTypes) {
       throw new Error("neverReturnedTypes is undefined");

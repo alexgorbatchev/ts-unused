@@ -14,8 +14,8 @@ function isTestFileForTests(sourceFile: SourceFile): boolean {
 }
 
 describe("analyzeProject - property access detection", () => {
-  test("does not report properties as unused when they are accessed via property access in same file", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("does not report properties as unused when they are accessed via property access in same file", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // InternalDatabaseRow properties are all accessed via row.id, row.name, etc. in the same file
     const internalRowProps = results.unusedProperties.filter((item) => item.typeName === "InternalDatabaseRow");
@@ -31,8 +31,8 @@ describe("analyzeProject - property access detection", () => {
     expect(internalRowProps.length).toBe(0);
   });
 
-  test("does not report properties as unused when accessed in different file", () => {
-    const results = analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+  test("does not report properties as unused when accessed in different file", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     // UserData properties are accessed in database-processor.ts
     const userDataProps = results.unusedProperties.filter((item) => item.typeName === "UserData");

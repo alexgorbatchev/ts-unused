@@ -8,8 +8,8 @@ describe("Completely Unused Files", () => {
   const fixturesDir = path.join(process.cwd(), "test-project");
   const tsConfigPath = path.join(fixturesDir, "tsconfig.json");
 
-  test("reports files where all exports are completely unused with [ERROR]", () => {
-    const results = analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+  test("reports files where all exports are completely unused with [ERROR]", async () => {
+    const results = await analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
 
     const unusedFile = results.unusedFiles.find((f) => f.endsWith("unused-file.ts"));
     expect(unusedFile).toBeDefined();
