@@ -1,5 +1,5 @@
 import path from "node:path";
-import { Node, type ReferencedSymbol, type SourceFile } from "ts-morph";
+import { Node, type ReferenceEntry, type ReferencedSymbol, type SourceFile, SyntaxKind } from "ts-morph";
 import { matchesPattern } from "./patternMatcher";
 import type { ExportKind, IsTestFileFn, Severity, UnusedExportResult } from "./types";
 
@@ -68,6 +68,45 @@ function isModuleAugmentation(declaration: Node): boolean {
   return false;
 }
 
+/**
+ * Checks if a reference is a re-export (export { X } from './module' or export { X }).
+ * Re-exports should not count as actual usage since they're just forwarding the export.
+ */
+function isReExport(ref: ReferenceEntry): boolean {
+  const node = ref.getNode();
+  let current: Node | undefined = node;
+
+  // Walk up the AST to check if this reference is part of an export declaration
+  while (current) {
+    const kind = current.getKind();
+
+    // Check for named export: export { X } from './module' or export { X }
+    if (kind === SyntaxKind.ExportSpecifier) {
+      return true;
+    }
+
+    // Check for export declaration that contains this reference
+    if (kind === SyntaxKind.ExportDeclaration) {
+      return true;
+    }
+
+    // Stop at statement boundaries to avoid false positives
+    if (
+      kind === SyntaxKind.VariableStatement ||
+      kind === SyntaxKind.FunctionDeclaration ||
+      kind === SyntaxKind.ClassDeclaration ||
+      kind === SyntaxKind.ExpressionStatement ||
+      kind === SyntaxKind.Block
+    ) {
+      break;
+    }
+
+    current = current.getParent();
+  }
+
+  return false;
+}
+
 export function checkExportUsage(
   exportName: string,
   declarations: readonly Node[],
@@ -105,7 +144,7 @@ export function checkExportUsage(
 
   const references: ReferencedSymbol[] = firstDeclaration.findReferences();
 
-  // Count references by type
+  // Count references by type, excluding re-exports which are just forwarding the symbol
   let totalReferences = 0;
   let testReferences = 0;
   let nonTestReferences = 0;
@@ -115,6 +154,12 @@ export function checkExportUsage(
     for (const ref of refs) {
       const refSourceFile: SourceFile = ref.getSourceFile();
       totalReferences++;
+
+      // Check if this reference is a re-export (shouldn't count as actual usage)
+      if (isReExport(ref)) {
+        continue;
+      }
+
       if (isTestFile(refSourceFile)) {
         testReferences++;
       } else {
@@ -123,7 +168,8 @@ export function checkExportUsage(
     }
   }
 
-  // An export is unused if it only has 1 reference (the definition itself)
+  // An export is unused if it only has 1 non-reexport reference (the definition itself)
+  // Re-exports don't count as actual usage since they just forward the symbol
   const onlyUsedInTests: boolean = nonTestReferences === 1 && testReferences > 0;
 
   if (totalReferences > 1 && !onlyUsedInTests) {
