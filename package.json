@@ -20,7 +20,7 @@
   "type": "module",
   "scripts": {
     "clean": "rm -rf dist",
-    "build:cli": "bun build src/cli.ts --outdir dist --target node --external ts-morph --external typescript",
+    "build:cli": "bun build src/cli.ts --outdir dist --target node --external ts-morph --external typescript --minify --sourcemap=external",
     "build:lib": "tsgo --project tsconfig.build.json",
     "build": "bun clean && bun build:cli && bun build:lib",
     "typecheck": "tsgo --noEmit",

@@ -1,9 +1,10 @@
 import path from "node:path";
-import { Project } from "ts-morph";
+import { Project, SyntaxKind } from "ts-morph";
+import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes";
+import { analyzeInterfaces } from "./analyzeInterfaces";
+import { analyzeTypeAliases } from "./analyzeTypeAliases";
+import { checkExportUsage } from "./checkExportUsage";
 import { defaultConfig, type UnusedConfig } from "./config";
-import { findNeverReturnedTypes } from "./findNeverReturnedTypes";
-import { findUnusedExports } from "./findUnusedExports";
-import { findUnusedProperties } from "./findUnusedProperties";
 import { hasNoCheck } from "./hasNoCheck";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile";
 import { matchesFilePattern } from "./patternMatcher";
@@ -80,47 +81,67 @@ export async function analyzeProject(
   const totalFiles: number = filesToAnalyze.length;
 
   let currentFile = 0;
-  const filesProcessed = new Set<string>();
-  const progressCallback = onProgress
-    ? (filePath: string) => {
-        // Only increment once per file (called from both exports and properties analysis)
-        if (!filesProcessed.has(filePath)) {
-          filesProcessed.add(filePath);
-          currentFile++;
-          onProgress(currentFile, totalFiles, filePath);
-        }
-      }
-    : undefined;
 
-  // Build options for child functions
-  const exportOptions = {
-    ignoreFilePatterns: config.ignoreFilePatterns,
+  // Build options for analysis
+  const exportCheckOptions = {
     ignoreExports: config.ignoreExports,
     ignoreModuleAugmentations: config.ignoreModuleAugmentations,
   };
 
-  const propertyOptions = {
-    ignoreFilePatterns: config.ignoreFilePatterns,
+  const propertyAnalyzeOptions = {
     ignoreProperties: config.ignoreProperties,
     ignoreTypes: config.ignoreTypes,
   };
 
-  const neverReturnedOptions = {
-    ignoreFilePatterns: config.ignoreFilePatterns,
-  };
+  // Results arrays
+  const unusedExports: UnusedExportResult[] = [];
+  const unusedProperties: UnusedPropertyResult[] = [];
+  const neverReturnedTypes: NeverReturnedTypeResult[] = [];
 
-  // Analyze based on config flags
-  const unusedExports: UnusedExportResult[] = config.analyzeExports
-    ? findUnusedExports(project, tsConfigDir, isTestFile, progressCallback, targetFilePath, exportOptions)
-    : [];
+  // Single pass over all files - much more efficient than 3 separate passes
+  for (const sourceFile of filesToAnalyze) {
+    const filePath = sourceFile.getFilePath();
+    const relativePath = path.relative(tsConfigDir, filePath);
 
-  const unusedProperties: UnusedPropertyResult[] = config.analyzeProperties
-    ? findUnusedProperties(project, tsConfigDir, isTestFile, progressCallback, targetFilePath, propertyOptions)
-    : [];
+    // Report progress
+    if (onProgress) {
+      currentFile++;
+      onProgress(currentFile, totalFiles, relativePath);
+    }
 
-  const neverReturnedTypes: NeverReturnedTypeResult[] = config.analyzeNeverReturnedTypes
-    ? findNeverReturnedTypes(project, tsConfigDir, isTestFile, progressCallback, targetFilePath, neverReturnedOptions)
-    : [];
+    // Analyze exports
+    if (config.analyzeExports) {
+      const exports = sourceFile.getExportedDeclarations();
+      for (const [exportName, declarations] of exports.entries()) {
+        const unusedExport = checkExportUsage(
+          exportName,
+          declarations,
+          sourceFile,
+          tsConfigDir,
+          isTestFile,
+          exportCheckOptions
+        );
+        if (unusedExport) {
+          unusedExports.push(unusedExport);
+        }
+      }
+    }
+
+    // Analyze properties
+    if (config.analyzeProperties) {
+      analyzeInterfaces(sourceFile, tsConfigDir, isTestFile, unusedProperties, project, propertyAnalyzeOptions);
+      analyzeTypeAliases(sourceFile, tsConfigDir, isTestFile, unusedProperties, project, propertyAnalyzeOptions);
+    }
+
+    // Analyze never-returned types
+    if (config.analyzeNeverReturnedTypes) {
+      const functions = sourceFile.getDescendantsOfKind(SyntaxKind.FunctionDeclaration);
+      for (const func of functions) {
+        const funcResults = analyzeFunctionReturnTypes(func, sourceFile, tsConfigDir);
+        neverReturnedTypes.push(...funcResults);
+      }
+    }
+  }
 
   // Identify completely unused files (where all exports are unused)
   const unusedFiles: string[] = [];

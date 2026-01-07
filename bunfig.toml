@@ -1,7 +1,9 @@
 [test]
 # Coverage configuration
 coverage = true
+coverageSkipTests = true
 coverageSkipSourceFiles = [
   "**/__tests__/**",
   "**/test-project/**",
+  "**/ts-unused-test-*/**",
 ]

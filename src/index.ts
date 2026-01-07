@@ -2,8 +2,6 @@ export type { AnalyzeProjectOptions } from "./analyzeProject";
 export { analyzeProject } from "./analyzeProject";
 export type { UnusedConfig } from "./config";
 export { defaultConfig, defineConfig, mergeConfig } from "./config";
-export { findUnusedExports } from "./findUnusedExports";
-export { findUnusedProperties } from "./findUnusedProperties";
 export type { FixResults } from "./fixProject";
 export { fixProject } from "./fixProject";
 export { formatResults } from "./formatResults";

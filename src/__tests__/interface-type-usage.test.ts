@@ -1,18 +1,54 @@
-import { describe, expect, test } from "bun:test";
-import { Project } from "ts-morph";
-import { findUnusedExports } from "../findUnusedExports";
-import { findUnusedProperties } from "../findUnusedProperties";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import fs from "node:fs";
+import path from "node:path";
+import { analyzeProject } from "../analyzeProject";
 import { formatResults } from "../formatResults";
-import { isTestFile } from "../isTestFile";
-import type { AnalysisResults } from "../types";
+
+const TEMP_DIR = path.join(import.meta.dir, "../../temp-test-interface-usage");
+
+function createTempDir() {
+  if (fs.existsSync(TEMP_DIR)) {
+    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
+  }
+  fs.mkdirSync(TEMP_DIR, { recursive: true });
+}
+
+function cleanupTempDir() {
+  if (fs.existsSync(TEMP_DIR)) {
+    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
+  }
+}
+
+function createTsConfig() {
+  const tsconfigFile = path.join(TEMP_DIR, "tsconfig.json");
+  fs.writeFileSync(
+    tsconfigFile,
+    JSON.stringify({
+      compilerOptions: {
+        target: "ES2020",
+        module: "ESNext",
+        moduleResolution: "bundler",
+        strict: true,
+      },
+      include: ["*.ts"],
+    })
+  );
+  return tsconfigFile;
+}
+
+beforeEach(() => {
+  createTempDir();
+});
+
+afterEach(() => {
+  cleanupTempDir();
+});
 
 describe("Interface and Type Usage", () => {
-  test("does not report properties as unused when the entire interface is used", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-
+  test("does not report properties as unused when the entire interface is used", async () => {
     // Create interface with properties
-    project.createSourceFile(
-      "/types.ts",
+    fs.writeFileSync(
+      path.join(TEMP_DIR, "types.ts"),
       `
         export interface Config {
           timeout: number;
@@ -23,37 +59,36 @@ describe("Interface and Type Usage", () => {
     );
 
     // Use the entire interface (not individual properties)
-    project.createSourceFile(
-      "/usage.ts",
+    fs.writeFileSync(
+      path.join(TEMP_DIR, "usage.ts"),
       `
         import type { Config } from './types';
-        
+
         function processConfig(config: Config): void {
           console.log('Processing config');
         }
-        
+
         const myConfig: Config = {
           timeout: 5000,
           retries: 3,
           debug: true
         };
-        
+
         processConfig(myConfig);
       `
     );
 
-    const unusedProperties = findUnusedProperties(project, "/", isTestFile);
+    const tsconfigFile = createTsConfig();
+    const results = await analyzeProject(tsconfigFile);
 
     // The interface Config is used, so its properties should NOT be reported as unused
-    expect(unusedProperties).toHaveLength(0);
+    expect(results.unusedProperties).toHaveLength(0);
   });
 
-  test("does not report properties as unused when the entire type alias is used", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-
+  test("does not report properties as unused when the entire type alias is used", async () => {
     // Create type alias with properties
-    project.createSourceFile(
-      "/types.ts",
+    fs.writeFileSync(
+      path.join(TEMP_DIR, "types.ts"),
       `
         export type Config = {
           timeout: number;
@@ -64,58 +99,71 @@ describe("Interface and Type Usage", () => {
     );
 
     // Use the entire type (not individual properties)
-    project.createSourceFile(
-      "/usage.ts",
+    fs.writeFileSync(
+      path.join(TEMP_DIR, "usage.ts"),
       `
         import type { Config } from './types';
-        
+
         function processConfig(config: Config): void {
           console.log('Processing config');
         }
-        
+
         const myConfig: Config = {
           timeout: 5000,
           retries: 3,
           debug: true
         };
-        
+
         processConfig(myConfig);
       `
     );
 
-    const unusedProperties = findUnusedProperties(project, "/", isTestFile);
+    const tsconfigFile = createTsConfig();
+    const results = await analyzeProject(tsconfigFile);
 
     // The type Config is used, so its properties should NOT be reported as unused
-    expect(unusedProperties).toHaveLength(0);
+    expect(results.unusedProperties).toHaveLength(0);
   });
 
-  test("reports properties as unused when interface is not used", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-
+  test("reports interface as unused but filters properties from output", async () => {
     // Create unused interface
-    project.createSourceFile(
-      "/types.ts",
+    fs.writeFileSync(
+      path.join(TEMP_DIR, "types.ts"),
       `
         export interface UnusedConfig {
           timeout: number;
           retries: number;
         }
+
+        // Add a used export so the file isn't marked as completely unused
+        export const USED_VALUE = 42;
       `
     );
 
-    const unusedExports = findUnusedExports(project, "/", isTestFile);
-    const unusedProperties = findUnusedProperties(project, "/", isTestFile);
+    // Consumer file that uses USED_VALUE but not UnusedConfig
+    fs.writeFileSync(
+      path.join(TEMP_DIR, "main.ts"),
+      `
+        import { USED_VALUE } from './types';
+        console.log(USED_VALUE);
+      `
+    );
 
-    const results: AnalysisResults = { unusedFiles: [], unusedExports, unusedProperties };
-    const output = formatResults(results, "/");
+    const tsconfigFile = createTsConfig();
+    const results = await analyzeProject(tsconfigFile);
+    const output = formatResults(results, TEMP_DIR);
 
     // The interface is unused, so it should be in unusedExports
-    // but we shouldn't also report each property as unused
-    expect(unusedExports).toHaveLength(1);
-    expect(unusedExports[0]?.exportName).toBe("UnusedConfig");
-    expect(unusedProperties).toHaveLength(2); // Properties ARE found by analysis
-    expect(output).toContain("UnusedConfig"); // But only the interface appears in output
-    expect(output).not.toContain("timeout"); // Properties are filtered out
-    expect(output).not.toContain("retries");
+    const unusedConfigExport = results.unusedExports.find((e) => e.exportName === "UnusedConfig");
+    expect(unusedConfigExport).toBeDefined();
+
+    // Properties are found by analysis
+    const configProperties = results.unusedProperties.filter((p) => p.typeName === "UnusedConfig");
+    expect(configProperties).toHaveLength(2);
+
+    // But formatResults filters out properties from unused types
+    expect(output).toContain("UnusedConfig");
+    expect(output).not.toContain("UnusedConfig.timeout");
+    expect(output).not.toContain("UnusedConfig.retries");
   });
 });
