@@ -25,7 +25,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 ## Limitations
 
 - **Dynamic Access**: Properties accessed via computed property names (`obj[key]`) may not be detected
-- **Re-exports**: Items that are re-exported through barrel files are considered used
+- **Re-exports**: By default, items that are only re-exported through barrel files are reported as unused. Use `packageMode` to treat public API exports as used.
 - **Type Narrowing**: Properties accessed after type guards or conditional checks may not always be tracked through complex control flow
 
 ## Comparison With Similar Tools
@@ -162,6 +162,10 @@ export default defineConfig({
   analyzeProperties: true,
   analyzeNeverReturnedTypes: true,
   detectUnusedFiles: true,
+
+  // Enable package mode for library development
+  // Treats exports re-exported through barrel files to package entry points as "used"
+  packageMode: true,
 });
 ```
 
@@ -179,6 +183,7 @@ export default defineConfig({
 | `analyzeProperties` | `boolean` | `true` | Enable/disable unused property detection |
 | `analyzeNeverReturnedTypes` | `boolean` | `true` | Enable/disable never-returned type detection |
 | `detectUnusedFiles` | `boolean` | `true` | Enable/disable completely unused file detection |
+| `packageMode` | `boolean` | `false` | Treat exports re-exported to package entry points as used (for libraries) |
 
 ### Pattern Syntax
 
@@ -415,6 +420,49 @@ export function processData(): SuccessResult {
 }
 ```
 
+### Package Mode (Library Development)
+
+When developing npm packages or libraries, you typically export a public API through barrel files (index.ts) that re-export from internal modules. By default, ts-unused would report these internal exports as "unused" since they're only re-exported, not directly used.
+
+Enable `packageMode: true` to treat exports as "used" if they are part of your package's public API:
+
+```typescript
+// unused.config.ts
+import { defineConfig } from "ts-unused";
+
+export default defineConfig({
+  packageMode: true,
+});
+```
+
+**How it works:**
+
+1. Finds `package.json` in your project directory
+2. Parses entry points from `main`, `module`, or `exports` fields
+3. Traces all re-exports from entry point files through barrel chains
+4. Marks exports that reach a package entry point as "used"
+
+**Example project structure:**
+
+```
+package.json          # { "main": "./dist/index.js", "exports": { ".": "./dist/index.js" } }
+src/
+  index.ts            # export { formatDate } from "./utils";
+  utils.ts            # export function formatDate() { ... }  ← Considered USED
+  internal.ts         # export function helper() { ... }      ← Reported as UNUSED
+```
+
+In this example:
+- `formatDate` is NOT reported as unused because it's re-exported through `src/index.ts` (the package entry point)
+- `helper` IS reported as unused because it's not part of the public API
+
+**Supports:**
+- Multiple entry points via `exports` field (e.g., `"."`, `"./utils"`)
+- Nested barrel files (`src/utils/index.ts` → `src/index.ts`)
+- `export *` statements
+- Mixed named and star exports
+- Types and interfaces
+
 ### Structural Property Equivalence
 
 The analyzer handles cases where properties are re-declared across multiple interfaces with the same name and type. This commonly occurs with:
@@ -575,7 +623,7 @@ const config: UnusedConfig = await loadConfig("./tsconfig.json");
 const configSync: UnusedConfig = loadConfigSync("./tsconfig.json");
 
 // Use with analyzeProject
-const results = an![alt text](image.png)alyzeProject("./tsconfig.json", undefined, undefined, { config });
+const results = analyzeProject("./tsconfig.json", undefined, undefined, { config });
 ```
 
 #### `defineConfig(config)`
@@ -592,20 +640,53 @@ export default defineConfig({
 });
 ```
 
-#### `createIsTestFile(patterns)`
+#### `mergeConfig(userConfig)`
 
-Creates a custom test file detection function from glob patterns.
+Merges user configuration with default values. Useful when programmatically building config.
 
 ```typescript
-import { analyzeProject, createIsTestFile } from "ts-unused";
+import { mergeConfig, defaultConfig, type UnusedConfig } from "ts-unused";
 
-const isTestFile = createIsTestFile([
+const partialConfig: UnusedConfig = {
+  packageMode: true,
+  ignoreExports: ["internal*"],
+};
+
+// Returns complete config with all defaults filled in
+const fullConfig = mergeConfig(partialConfig);
+```
+
+#### `defaultConfig`
+
+The default configuration values used when no config is provided.
+
+```typescript
+import { defaultConfig } from "ts-unused";
+
+console.log(defaultConfig.testFilePatterns);
+// ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/__tests__/**"]
+```
+
+#### `createIsTestFile(patterns)` / `isTestFile`
+
+Creates a custom test file detection function from glob patterns, or use the default `isTestFile`.
+
+```typescript
+import { analyzeProject, createIsTestFile, isTestFile } from "ts-unused";
+
+// Use default test file detection
+isTestFile(sourceFile); // checks against default patterns
+
+// Create custom test file detector
+const customIsTestFile = createIsTestFile([
   "**/*.test.ts",
   "**/*.spec.ts", 
   "**/test/**",
 ]);
 
-const results = analyzeProject("./tsconfig.json", undefined, undefined, { isTestFile });
+const results = analyzeProject("./tsconfig.json", undefined, undefined, { 
+  isTestFile: customIsTestFile 
+});
 ```
 
 #### Pattern Matching Utilities
@@ -623,6 +704,29 @@ matchesFilePattern("/project/src/generated/types.ts", ["**/generated/**"]); // t
 // Convert a glob pattern to RegExp
 const regex = patternToRegex("**/*.test.ts");
 regex.test("src/utils.test.ts"); // true
+```
+
+#### Exported Types
+
+```typescript
+import type {
+  // Main result types
+  AnalysisResults,        // Return type of analyzeProject()
+  UnusedExportResult,     // Individual unused export finding
+  UnusedPropertyResult,   // Individual unused property finding
+  NeverReturnedTypeResult,// Individual never-returned type finding
+  FixResults,             // Return type of fixProject()
+  
+  // Configuration types
+  UnusedConfig,           // Configuration options interface
+  AnalyzeProjectOptions,  // Options for analyzeProject()
+  
+  // Utility types
+  ExportKind,             // "function" | "class" | "interface" | "type" | ...
+  Severity,               // "error" | "warning" | "info"
+  IsTestFileFn,           // (sourceFile: SourceFile) => boolean
+  PropertyUsageResult,    // Result of property usage check
+} from "ts-unused";
 ```
 
 ## License

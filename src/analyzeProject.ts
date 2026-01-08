@@ -7,7 +7,9 @@ import { checkExportUsage } from "./checkExportUsage";
 import { defaultConfig, type UnusedConfig } from "./config";
 import { hasNoCheck } from "./hasNoCheck";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile";
+import { findPackageJson, getPackageEntryPoints } from "./packageEntryPoints";
 import { matchesFilePattern } from "./patternMatcher";
+import { tracePublicExports } from "./tracePublicExports";
 import type {
   AnalysisResults,
   IsTestFileFn,
@@ -60,6 +62,30 @@ export async function analyzeProject(
 
   const tsConfigDir: string = path.dirname(tsConfigPath);
 
+  // Handle package mode
+  let publicExports: Set<string> | undefined;
+  if (config.packageMode) {
+    const packageJsonPath = findPackageJson(tsConfigDir);
+    if (!packageJsonPath) {
+      throw new Error(
+        `Package mode is enabled but no package.json was found. ` +
+          `Searched from: ${tsConfigDir}`
+      );
+    }
+
+    const entryPoints = getPackageEntryPoints(packageJsonPath);
+    if (entryPoints.length === 0) {
+      throw new Error(
+        `Package mode is enabled but package.json has no entry points. ` +
+          `Expected 'main', 'module', or 'exports' field in: ${packageJsonPath}`
+      );
+    }
+
+    const packageDir = path.dirname(packageJsonPath);
+    const entryPointFiles = entryPoints.map((ep) => ep.sourceFile);
+    publicExports = tracePublicExports(project, entryPointFiles, packageDir);
+  }
+
   // Get total file count for progress reporting
   const allSourceFiles = project.getSourceFiles();
   const filesToAnalyze = allSourceFiles.filter((sf) => {
@@ -86,6 +112,7 @@ export async function analyzeProject(
   const exportCheckOptions = {
     ignoreExports: config.ignoreExports,
     ignoreModuleAugmentations: config.ignoreModuleAugmentations,
+    publicExports: publicExports,
   };
 
   const propertyAnalyzeOptions = {

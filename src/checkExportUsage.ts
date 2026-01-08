@@ -1,11 +1,14 @@
 import path from "node:path";
 import { Node, type ReferenceEntry, type ReferencedSymbol, type SourceFile, SyntaxKind } from "ts-morph";
 import { matchesPattern } from "./patternMatcher";
+import { isPublicExport } from "./tracePublicExports";
 import type { ExportKind, IsTestFileFn, Severity, UnusedExportResult } from "./types";
 
 export interface CheckExportOptions {
   ignoreExports?: string[];
   ignoreModuleAugmentations?: boolean;
+  /** Set of public exports in package mode (format: "relativePath::exportName") */
+  publicExports?: Set<string>;
 }
 
 function getExportKind(declaration: Node): ExportKind {
@@ -115,7 +118,7 @@ export function checkExportUsage(
   isTestFile: IsTestFileFn,
   options: CheckExportOptions = {}
 ): UnusedExportResult | null {
-  const { ignoreExports = [], ignoreModuleAugmentations = true } = options;
+  const { ignoreExports = [], ignoreModuleAugmentations = true, publicExports } = options;
 
   const firstDeclaration: Node | undefined = declarations[0];
   if (!firstDeclaration) {
@@ -124,6 +127,13 @@ export function checkExportUsage(
 
   // Check if export should be ignored
   if (ignoreExports.length > 0 && matchesPattern(exportName, ignoreExports)) {
+    return null;
+  }
+
+  const relativePath: string = path.relative(tsConfigDir, sourceFile.getFilePath());
+
+  // In package mode, check if this export is part of the public API
+  if (publicExports && isPublicExport(publicExports, relativePath, exportName)) {
     return null;
   }
 
@@ -177,7 +187,6 @@ export function checkExportUsage(
   }
 
   const kind: ExportKind = getExportKind(firstDeclaration);
-  const relativePath: string = path.relative(tsConfigDir, sourceFile.getFilePath());
 
   // Determine severity: info for test-only, error for completely unused
   const severity: Severity = onlyUsedInTests ? "info" : "error";

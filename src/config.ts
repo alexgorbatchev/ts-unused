@@ -79,6 +79,23 @@ export interface UnusedConfig {
    * @default true
    */
   detectUnusedFiles?: boolean;
+
+  /**
+   * Enable package mode to treat exports as "used" if they are re-exported
+   * through barrel files up to a package entry point (defined in package.json).
+   *
+   * When enabled, the analyzer will:
+   * 1. Look for package.json in the project directory
+   * 2. Parse entry points from `main`, `module`, and `exports` fields
+   * 3. Consider any export that is re-exported through the barrel chain
+   *    to a package entry point as "used" (part of the public API)
+   *
+   * This is useful for library authors who want to ensure their public API
+   * is properly exposed while still detecting truly unused internal code.
+   *
+   * @default false
+   */
+  packageMode?: boolean;
 }
 
 /**
@@ -95,6 +112,7 @@ export const defaultConfig: Required<UnusedConfig> = {
   analyzeExports: true,
   analyzeNeverReturnedTypes: true,
   detectUnusedFiles: true,
+  packageMode: false,
 };
 
 /**
