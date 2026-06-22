@@ -5,10 +5,10 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "declaration": true,
+    "rootDir": "src",
     "outDir": "dist",
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "downlevelIteration": true,
     "noEmit": false,
     "allowImportingTsExtensions": false
   },
