@@ -138,6 +138,26 @@ async function main(): Promise<void> {
     const output = formatResults(results, tsConfigDir);
 
     console.log(output);
+
+    // Exit with 1 if there are any error-level violations
+    const unusedExportNames = new Set<string>();
+    for (const exportItem of results.unusedExports) {
+      unusedExportNames.add(exportItem.exportName);
+    }
+    const propertiesToReport = results.unusedProperties.filter((prop) => !unusedExportNames.has(prop.typeName));
+
+    const unusedFileSet = new Set(results.unusedFiles);
+    const exportsToReport = results.unusedExports.filter((exp) => !unusedFileSet.has(exp.filePath));
+
+    const hasErrors =
+      results.unusedFiles.length > 0 ||
+      exportsToReport.some((exp) => exp.severity === "error") ||
+      propertiesToReport.some((prop) => prop.severity === "error") ||
+      (results.neverReturnedTypes || []).some((item) => item.severity === "error");
+
+    if (hasErrors) {
+      process.exit(1);
+    }
   }
 }
 
