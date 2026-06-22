@@ -117,23 +117,27 @@ async function main(): Promise<void> {
     }
     console.log("");
 
-    const results = await analyzeProject(
-      tsConfigPath,
-      (current, total, filePath) => {
-        const percentage = Math.min(100, Math.floor((current / total) * 100));
-        const barLength = 40;
-        const filledLength = Math.min(barLength, Math.max(0, Math.floor((current / total) * barLength)));
-        const emptyLength = Math.max(0, barLength - filledLength);
-        const bar = "█".repeat(filledLength) + "░".repeat(emptyLength);
-        const fileName = path.basename(filePath);
-        process.stdout.write(`\r\x1b[KProgress: [${bar}] ${percentage}% (${current}/${total}) ${fileName}`);
-      },
-      targetFilePath,
-      { config },
-    );
+    const showProgress =
+      process.env.CLAUDECODE !== "1" && process.env.REPL_ID === undefined && process.env.AGENT !== "1";
+
+    const progressCallback = showProgress
+      ? (current: number, total: number, filePath: string) => {
+          const percentage = Math.min(100, Math.floor((current / total) * 100));
+          const barLength = 40;
+          const filledLength = Math.min(barLength, Math.max(0, Math.floor((current / total) * barLength)));
+          const emptyLength = Math.max(0, barLength - filledLength);
+          const bar = "█".repeat(filledLength) + "░".repeat(emptyLength);
+          const fileName = path.basename(filePath);
+          process.stdout.write(`\r\x1b[KProgress: [${bar}] ${percentage}% (${current}/${total}) ${fileName}`);
+        }
+      : undefined;
+
+    const results = await analyzeProject(tsConfigPath, progressCallback, targetFilePath, { config });
 
     // Clear the progress bar line
-    process.stdout.write("\r\x1b[K");
+    if (showProgress) {
+      process.stdout.write("\r\x1b[K");
+    }
 
     const output = formatResults(results, tsConfigDir);
 
