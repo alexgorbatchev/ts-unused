@@ -2,9 +2,9 @@ import path from "node:path";
 import { Node, type ReferenceEntry, type ReferencedSymbol, type SourceFile, SyntaxKind } from "ts-morph";
 import { matchesPattern } from "./patternMatcher";
 import { isPublicExport } from "./tracePublicExports";
-import type { ExportKind, IsTestFileFn, Severity, UnusedExportResult } from "./types";
+import type { ExportKind, IsTestFileFn, Severity, IUnusedExportResult } from "./types";
 
-export interface CheckExportOptions {
+export interface ICheckExportOptions {
   ignoreExports?: string[];
   ignoreModuleAugmentations?: boolean;
   /** Set of public exports in package mode (format: "relativePath::exportName") */
@@ -116,8 +116,8 @@ export function checkExportUsage(
   sourceFile: SourceFile,
   tsConfigDir: string,
   isTestFile: IsTestFileFn,
-  options: CheckExportOptions = {}
-): UnusedExportResult | null {
+  options: ICheckExportOptions = {},
+): IUnusedExportResult | null {
   const { ignoreExports = [], ignoreModuleAugmentations = true, publicExports } = options;
 
   const firstDeclaration: Node | undefined = declarations[0];
@@ -199,7 +199,7 @@ export function checkExportUsage(
   const character: number = startPos - lineStartPos + 1;
   const endCharacter: number = character + exportName.length;
 
-  const result: UnusedExportResult = {
+  const result: IUnusedExportResult = {
     filePath: relativePath,
     exportName,
     line: firstDeclaration.getStartLineNumber(),

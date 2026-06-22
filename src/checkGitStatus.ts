@@ -46,7 +46,7 @@ export function checkGitStatus(workingDir: string): Set<string> {
         changedFiles.add(absolutePath);
       }
     }
-  } catch (_error) {
+  } catch {
     // If git command fails (e.g., not in a git repo), return empty set
     // This allows the tool to work in non-git directories
     return changedFiles;

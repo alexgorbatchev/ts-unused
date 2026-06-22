@@ -4,9 +4,11 @@ import { Project, type SourceFile, SyntaxKind } from "ts-morph";
 import { analyzeProject } from "./analyzeProject";
 import { checkGitStatus } from "./checkGitStatus";
 import { isTestFile as defaultIsTestFile } from "./isTestFile";
-import type { AnalysisResults, IsTestFileFn } from "./types";
+import type { IAnalysisResults, IsTestFileFn } from "./types";
 
-export interface FixResults {
+export type FixProgressCallback = (message: string) => void;
+
+export interface IFixResults {
   fixedExports: number;
   fixedProperties: number;
   fixedNeverReturnedTypes: number;
@@ -17,10 +19,10 @@ export interface FixResults {
 
 export async function fixProject(
   tsConfigPath: string,
-  onProgress?: (message: string) => void,
-  isTestFile: IsTestFileFn = defaultIsTestFile
-): Promise<FixResults> {
-  const results: FixResults = {
+  onProgress?: FixProgressCallback,
+  isTestFile: IsTestFileFn = defaultIsTestFile,
+): Promise<IFixResults> {
+  const results: IFixResults = {
     fixedExports: 0,
     fixedProperties: 0,
     fixedNeverReturnedTypes: 0,
@@ -30,7 +32,7 @@ export async function fixProject(
   };
 
   // Analyze the project to find unused items
-  const analysis: AnalysisResults = await analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+  const analysis: IAnalysisResults = await analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
 
   // Get the directory containing tsconfig
   const tsConfigDir = path.dirname(path.resolve(tsConfigPath));
@@ -127,7 +129,7 @@ export async function fixProject(
 
           if (removeNeverReturnedType(sourceFile, neverReturned.functionName, neverReturned.neverReturnedType)) {
             onProgress?.(
-              `  ✓ Removed never-returned type '${neverReturned.neverReturnedType}' from ${neverReturned.functionName}`
+              `  ✓ Removed never-returned type '${neverReturned.neverReturnedType}' from ${neverReturned.functionName}`,
             );
             results.fixedNeverReturnedTypes++;
           }
@@ -386,7 +388,7 @@ function removeNeverReturnedType(sourceFile: SourceFile, functionName: string, n
 
         // Normalize the type to remove for comparison
         const normalizedRemove = normalizeTypeText(
-          neverReturnedType === "true" || neverReturnedType === "false" ? "boolean" : neverReturnedType
+          neverReturnedType === "true" || neverReturnedType === "false" ? "boolean" : neverReturnedType,
         );
 
         // Filter out the branch to remove
@@ -528,8 +530,8 @@ function cleanupBrokenImports(
   tsConfigDir: string,
   deletedFiles: Set<string>,
   filesWithChanges: Set<string>,
-  onProgress?: (message: string) => void,
-  results?: FixResults
+  onProgress?: FixProgressCallback,
+  results?: IFixResults,
 ): void {
   // Refresh the project to detect errors after deletions
   const sourceFiles = project.getSourceFiles();

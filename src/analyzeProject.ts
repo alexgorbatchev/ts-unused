@@ -4,25 +4,27 @@ import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes";
 import { analyzeInterfaces } from "./analyzeInterfaces";
 import { analyzeTypeAliases } from "./analyzeTypeAliases";
 import { checkExportUsage } from "./checkExportUsage";
-import { defaultConfig, type UnusedConfig } from "./config";
+import { defaultConfig, type IUnusedConfig } from "./config";
 import { hasNoCheck } from "./hasNoCheck";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile";
 import { findPackageJson, getPackageEntryPoints } from "./packageEntryPoints";
 import { matchesFilePattern } from "./patternMatcher";
 import { tracePublicExports } from "./tracePublicExports";
 import type {
-  AnalysisResults,
+  IAnalysisResults,
   IsTestFileFn,
-  NeverReturnedTypeResult,
-  UnusedExportResult,
-  UnusedPropertyResult,
+  INeverReturnedTypeResult,
+  IUnusedExportResult,
+  IUnusedPropertyResult,
 } from "./types";
 
-export interface AnalyzeProjectOptions {
+export type ProgressCallback = (current: number, total: number, filePath: string) => void;
+
+export interface IAnalyzeProjectOptions {
   /**
    * Configuration options for the analysis.
    */
-  config?: UnusedConfig;
+  config?: IUnusedConfig;
 
   /**
    * Custom test file detection function (overrides config.testFilePatterns).
@@ -30,21 +32,23 @@ export interface AnalyzeProjectOptions {
   isTestFile?: IsTestFileFn;
 }
 
+export type IsTestFileFnOrOptions = IsTestFileFn | IAnalyzeProjectOptions;
+
 export async function analyzeProject(
   tsConfigPath: string,
-  onProgress?: (current: number, total: number, filePath: string) => void,
+  onProgress?: ProgressCallback,
   targetFilePath?: string,
-  isTestFileOrOptions?: IsTestFileFn | AnalyzeProjectOptions
-): Promise<AnalysisResults> {
+  isTestFileOrOptions?: IsTestFileFnOrOptions,
+): Promise<IAnalysisResults> {
   // Handle backward compatibility: can pass IsTestFileFn directly or options object
-  let options: AnalyzeProjectOptions = {};
+  let options: IAnalyzeProjectOptions = {};
   if (typeof isTestFileOrOptions === "function") {
     options = { isTestFile: isTestFileOrOptions };
   } else if (isTestFileOrOptions) {
     options = isTestFileOrOptions;
   }
 
-  const config: Required<UnusedConfig> = {
+  const config: Required<IUnusedConfig> = {
     ...defaultConfig,
     ...options.config,
   };
@@ -67,17 +71,14 @@ export async function analyzeProject(
   if (config.packageMode) {
     const packageJsonPath = findPackageJson(tsConfigDir);
     if (!packageJsonPath) {
-      throw new Error(
-        `Package mode is enabled but no package.json was found. ` +
-          `Searched from: ${tsConfigDir}`
-      );
+      throw new Error(`Package mode is enabled but no package.json was found. ` + `Searched from: ${tsConfigDir}`);
     }
 
     const entryPoints = getPackageEntryPoints(packageJsonPath);
     if (entryPoints.length === 0) {
       throw new Error(
         `Package mode is enabled but package.json has no entry points. ` +
-          `Expected 'main', 'module', or 'exports' field in: ${packageJsonPath}`
+          `Expected 'main', 'module', or 'exports' field in: ${packageJsonPath}`,
       );
     }
 
@@ -121,9 +122,9 @@ export async function analyzeProject(
   };
 
   // Results arrays
-  const unusedExports: UnusedExportResult[] = [];
-  const unusedProperties: UnusedPropertyResult[] = [];
-  const neverReturnedTypes: NeverReturnedTypeResult[] = [];
+  const unusedExports: IUnusedExportResult[] = [];
+  const unusedProperties: IUnusedPropertyResult[] = [];
+  const neverReturnedTypes: INeverReturnedTypeResult[] = [];
 
   // Single pass over all files - much more efficient than 3 separate passes
   for (const sourceFile of filesToAnalyze) {
@@ -146,7 +147,7 @@ export async function analyzeProject(
           sourceFile,
           tsConfigDir,
           isTestFile,
-          exportCheckOptions
+          exportCheckOptions,
         );
         if (unusedExport) {
           unusedExports.push(unusedExport);
@@ -170,11 +171,17 @@ export async function analyzeProject(
     }
   }
 
+  interface IFileExportCount {
+    total: number;
+    unused: number;
+    testOnly: number;
+  }
+
   // Identify completely unused files (where all exports are unused)
   const unusedFiles: string[] = [];
 
   if (config.detectUnusedFiles) {
-    const fileExportCounts = new Map<string, { total: number; unused: number; testOnly: number }>();
+    const fileExportCounts = new Map<string, IFileExportCount>();
 
     // Count total exports per file
     for (const sourceFile of filesToAnalyze) {
@@ -213,7 +220,7 @@ export async function analyzeProject(
     }
   }
 
-  const results: AnalysisResults = {
+  const results: IAnalysisResults = {
     unusedExports,
     unusedProperties,
     unusedFiles,

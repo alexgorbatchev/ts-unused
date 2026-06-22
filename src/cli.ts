@@ -7,12 +7,14 @@ import { fixProject } from "./fixProject";
 import { formatResults } from "./formatResults";
 import { loadConfigSync } from "./loadConfig";
 
-function parseArgs(args: string[]): {
+interface IParsedArgs {
   command: string;
   tsConfigPath: string;
   targetFilePath?: string;
   configPath?: string;
-} {
+}
+
+function parseArgs(args: string[]): IParsedArgs {
   let command = "check";
   let tsConfigArg = "";
   let configPath: string | undefined;
@@ -127,7 +129,7 @@ async function main(): Promise<void> {
         process.stdout.write(`\r\x1b[KProgress: [${bar}] ${percentage}% (${current}/${total}) ${fileName}`);
       },
       targetFilePath,
-      { config }
+      { config },
     );
 
     // Clear the progress bar line

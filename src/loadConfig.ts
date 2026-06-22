@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { defaultConfig, mergeConfig, type UnusedConfig } from "./config";
+import { defaultConfig, mergeConfig, type IUnusedConfig } from "./config";
 
 const CONFIG_FILE_NAME = "unused.config.ts";
 
@@ -13,7 +13,7 @@ const CONFIG_FILE_NAME = "unused.config.ts";
  * @param configPath - Optional explicit path to config file
  * @returns The merged configuration
  */
-export async function loadConfig(targetDir: string, configPath?: string): Promise<Required<UnusedConfig>> {
+export async function loadConfig(targetDir: string, configPath?: string): Promise<Required<IUnusedConfig>> {
   const resolvedConfigPath = configPath ? path.resolve(configPath) : path.join(targetDir, CONFIG_FILE_NAME);
 
   if (!fs.existsSync(resolvedConfigPath)) {
@@ -24,7 +24,7 @@ export async function loadConfig(targetDir: string, configPath?: string): Promis
     // Use dynamic import to load the TypeScript config file
     // Bun natively supports TypeScript imports
     const configModule = await import(resolvedConfigPath);
-    const userConfig: UnusedConfig = configModule.default ?? configModule;
+    const userConfig: IUnusedConfig = configModule.default ?? configModule;
 
     return mergeConfig(userConfig);
   } catch (error) {
@@ -41,7 +41,7 @@ export async function loadConfig(targetDir: string, configPath?: string): Promis
  * @param configPath - Optional explicit path to config file
  * @returns The merged configuration
  */
-export function loadConfigSync(targetDir: string, configPath?: string): Required<UnusedConfig> {
+export function loadConfigSync(targetDir: string, configPath?: string): Required<IUnusedConfig> {
   const resolvedConfigPath = configPath ? path.resolve(configPath) : path.join(targetDir, CONFIG_FILE_NAME);
 
   if (!fs.existsSync(resolvedConfigPath)) {
@@ -51,7 +51,7 @@ export function loadConfigSync(targetDir: string, configPath?: string): Required
   try {
     // Bun supports synchronous require of TypeScript files
     const configModule = require(resolvedConfigPath);
-    const userConfig: UnusedConfig = configModule.default ?? configModule;
+    const userConfig: IUnusedConfig = configModule.default ?? configModule;
 
     return mergeConfig(userConfig);
   } catch (error) {

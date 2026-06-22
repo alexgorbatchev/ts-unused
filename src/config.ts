@@ -1,7 +1,7 @@
 /**
  * Configuration options for ts-unused analysis.
  */
-export interface UnusedConfig {
+export interface IUnusedConfig {
   /**
    * Patterns to identify test files. Supports glob patterns.
    * Files matching these patterns will be treated as test files
@@ -101,7 +101,7 @@ export interface UnusedConfig {
 /**
  * Default configuration values.
  */
-export const defaultConfig: Required<UnusedConfig> = {
+export const defaultConfig: Required<IUnusedConfig> = {
   testFilePatterns: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/__tests__/**"],
   ignoreFilePatterns: [],
   ignoreExports: [],
@@ -129,7 +129,7 @@ export const defaultConfig: Required<UnusedConfig> = {
  * });
  * ```
  */
-export function defineConfig(config: UnusedConfig): UnusedConfig {
+export function defineConfig(config: IUnusedConfig): IUnusedConfig {
   return config;
 }
 
@@ -176,6 +176,6 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
  * @param userConfig - Partial configuration from user
  * @returns Complete configuration with all options
  */
-export function mergeConfig(userConfig: UnusedConfig): Required<UnusedConfig> {
+export function mergeConfig(userConfig: IUnusedConfig): Required<IUnusedConfig> {
   return deepMerge(defaultConfig, userConfig);
 }

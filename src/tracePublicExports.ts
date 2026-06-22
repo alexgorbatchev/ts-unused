@@ -1,25 +1,11 @@
 import path from "node:path";
-import { Project, type SourceFile, SyntaxKind } from "ts-morph";
-
-/**
- * Represents a public export that should be considered "used" in package mode.
- */
-export interface PublicExport {
-  /** The name of the exported symbol */
-  exportName: string;
-  /** The file path where the symbol is originally defined (relative to project root) */
-  definitionFilePath: string;
-}
+import { Project, type SourceFile } from "ts-morph";
 
 /**
  * Traces all exports from package entry point files and builds a set of public exports.
  * This follows re-exports through barrel files to find the original definitions.
  */
-export function tracePublicExports(
-  project: Project,
-  entryPointFiles: string[],
-  projectRoot: string
-): Set<string> {
+export function tracePublicExports(project: Project, entryPointFiles: string[], projectRoot: string): Set<string> {
   const publicExports = new Set<string>();
   const visitedFiles = new Set<string>();
 
@@ -48,15 +34,13 @@ function traceExportsFromFile(
   sourceFile: SourceFile,
   publicExports: Set<string>,
   visitedFiles: Set<string>,
-  projectRoot: string
+  projectRoot: string,
 ): void {
   const filePath = sourceFile.getFilePath();
   if (visitedFiles.has(filePath)) {
     return;
   }
   visitedFiles.add(filePath);
-
-  const relativePath = path.relative(projectRoot, filePath);
 
   // Get all exported declarations
   const exportedDeclarations = sourceFile.getExportedDeclarations();
@@ -95,11 +79,7 @@ function traceExportsFromFile(
 /**
  * Checks if a given export is part of the public API.
  */
-export function isPublicExport(
-  publicExports: Set<string>,
-  filePath: string,
-  exportName: string
-): boolean {
+export function isPublicExport(publicExports: Set<string>, filePath: string, exportName: string): boolean {
   const exportKey = createExportKey(filePath, exportName);
   return publicExports.has(exportKey);
 }

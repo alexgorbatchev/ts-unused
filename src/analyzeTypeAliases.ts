@@ -1,11 +1,11 @@
 import path from "node:path";
 import { Node, type Project, type SourceFile, type TypeAliasDeclaration, type TypeElementTypes } from "ts-morph";
 import { extractTodoComment } from "./extractTodoComment";
-import { isPropertyUnused, type PropertyUsageResult } from "./isPropertyUnused";
+import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused";
 import { matchesPattern } from "./patternMatcher";
-import type { IsTestFileFn, Severity, UnusedPropertyResult } from "./types";
+import type { IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
 
-export interface AnalyzeTypeAliasesOptions {
+export interface IAnalyzeTypeAliasesOptions {
   ignoreProperties?: string[];
   ignoreTypes?: string[];
 }
@@ -16,9 +16,9 @@ export function analyzeTypeLiteralMember(
   sourceFile: SourceFile,
   tsConfigDir: string,
   isTestFile: IsTestFileFn,
-  results: UnusedPropertyResult[],
+  results: IUnusedPropertyResult[],
   project: Project,
-  options: AnalyzeTypeAliasesOptions = {}
+  options: IAnalyzeTypeAliasesOptions = {},
 ): void {
   const { ignoreProperties = [] } = options;
 
@@ -33,7 +33,7 @@ export function analyzeTypeLiteralMember(
     return;
   }
 
-  const usage: PropertyUsageResult = isPropertyUnused(member, isTestFile, project);
+  const usage: IPropertyUsageResult = isPropertyUnused(member, isTestFile, project);
 
   if (!usage.isUnusedOrTestOnly) {
     return;
@@ -54,7 +54,7 @@ export function analyzeTypeLiteralMember(
   const lineStartPos: number = member.getStartLinePos();
   const character: number = startPos - lineStartPos + 1;
   const endCharacter: number = character + propertyName.length;
-  const result: UnusedPropertyResult = {
+  const result: IUnusedPropertyResult = {
     filePath: relativePath,
     typeName,
     propertyName,
@@ -73,9 +73,9 @@ export function analyzeTypeAlias(
   sourceFile: SourceFile,
   tsConfigDir: string,
   isTestFile: IsTestFileFn,
-  results: UnusedPropertyResult[],
+  results: IUnusedPropertyResult[],
   project: Project,
-  options: AnalyzeTypeAliasesOptions = {}
+  options: IAnalyzeTypeAliasesOptions = {},
 ): void {
   const { ignoreTypes = [] } = options;
   const typeName: string = typeAlias.getName();
@@ -104,9 +104,9 @@ export function analyzeTypeAliases(
   sourceFile: SourceFile,
   tsConfigDir: string,
   isTestFile: IsTestFileFn,
-  results: UnusedPropertyResult[],
+  results: IUnusedPropertyResult[],
   project: Project,
-  options: AnalyzeTypeAliasesOptions = {}
+  options: IAnalyzeTypeAliasesOptions = {},
 ): void {
   const typeAliases: TypeAliasDeclaration[] = sourceFile.getTypeAliases();
 

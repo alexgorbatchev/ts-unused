@@ -1,20 +1,20 @@
-export type { AnalyzeProjectOptions } from "./analyzeProject";
+export type { IAnalyzeProjectOptions } from "./analyzeProject";
 export { analyzeProject } from "./analyzeProject";
-export type { UnusedConfig } from "./config";
+export type { IUnusedConfig } from "./config";
 export { defaultConfig, defineConfig, mergeConfig } from "./config";
-export type { FixResults } from "./fixProject";
+export type { IFixResults } from "./fixProject";
 export { fixProject } from "./fixProject";
 export { formatResults } from "./formatResults";
-export type { PropertyUsageResult } from "./isPropertyUnused";
+export type { IPropertyUsageResult } from "./isPropertyUnused";
 export { createIsTestFile, isTestFile } from "./isTestFile";
 export { loadConfig, loadConfigSync } from "./loadConfig";
 export { matchesFilePattern, matchesPattern, patternToRegex } from "./patternMatcher";
 export type {
-  AnalysisResults,
+  IAnalysisResults,
   ExportKind,
   IsTestFileFn,
-  NeverReturnedTypeResult,
+  INeverReturnedTypeResult,
   Severity,
-  UnusedExportResult,
-  UnusedPropertyResult,
+  IUnusedExportResult,
+  IUnusedPropertyResult,
 } from "./types";

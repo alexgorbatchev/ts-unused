@@ -1,23 +1,22 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export interface PackageEntryPoint {
+export interface IPackageEntryPoint {
   /** The export path (e.g., ".", "./utils") */
   exportPath: string;
   /** The resolved source file path relative to package root */
   sourceFile: string;
 }
 
-export interface PackageJson {
-  name?: string;
+export interface IPackageJson {
   main?: string;
   module?: string;
   exports?: PackageExports;
 }
 
-type PackageExports = string | Record<string, string | PackageExportConditions>;
+type PackageExports = string | Record<string, string | IPackageExportConditions>;
 
-interface PackageExportConditions {
+interface IPackageExportConditions {
   types?: string;
   import?: string;
   require?: string;
@@ -70,7 +69,11 @@ export function resolveDistToSource(distPath: string, packageDir: string): strin
   }
 
   // Convert .js to .ts and .d.ts to .ts
-  normalized = normalized.replace(/\.d\.ts$/, ".ts").replace(/\.js$/, ".ts").replace(/\.mjs$/, ".ts").replace(/\.cjs$/, ".ts");
+  normalized = normalized
+    .replace(/\.d\.ts$/, ".ts")
+    .replace(/\.js$/, ".ts")
+    .replace(/\.mjs$/, ".ts")
+    .replace(/\.cjs$/, ".ts");
 
   // Check if the source file exists
   const fullPath = path.join(packageDir, normalized);
@@ -90,11 +93,8 @@ export function resolveDistToSource(distPath: string, packageDir: string): strin
 /**
  * Extracts entry points from package.json exports field.
  */
-function extractExportsEntryPoints(
-  exports: PackageExports,
-  packageDir: string
-): PackageEntryPoint[] {
-  const entryPoints: PackageEntryPoint[] = [];
+function extractExportsEntryPoints(exports: PackageExports, packageDir: string): IPackageEntryPoint[] {
+  const entryPoints: IPackageEntryPoint[] = [];
 
   if (typeof exports === "string") {
     // Simple string export: "exports": "./dist/index.js"
@@ -136,12 +136,12 @@ function extractExportsEntryPoints(
  * Parses package.json and extracts all entry points.
  * Returns entry points with their corresponding source file paths.
  */
-export function getPackageEntryPoints(packageJsonPath: string): PackageEntryPoint[] {
+export function getPackageEntryPoints(packageJsonPath: string): IPackageEntryPoint[] {
   const packageDir = path.dirname(packageJsonPath);
   const content = fs.readFileSync(packageJsonPath, "utf-8");
-  const packageJson: PackageJson = JSON.parse(content);
+  const packageJson: IPackageJson = JSON.parse(content);
 
-  const entryPoints: PackageEntryPoint[] = [];
+  const entryPoints: IPackageEntryPoint[] = [];
 
   // Handle "exports" field (takes precedence)
   if (packageJson.exports) {

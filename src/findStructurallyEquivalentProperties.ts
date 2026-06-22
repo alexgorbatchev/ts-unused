@@ -8,12 +8,14 @@ import type {
 } from "ts-morph";
 import { SyntaxKind } from "ts-morph";
 
+type PropertyNode = PropertySignature | PropertyDeclaration;
+
 function checkInterfaceProperties(
   iface: InterfaceDeclaration,
   propName: string,
   propType: string,
-  originalProp: PropertySignature | PropertyDeclaration,
-  equivalentProps: Array<PropertySignature | PropertyDeclaration>
+  originalProp: PropertyNode,
+  equivalentProps: PropertyNode[],
 ): void {
   const properties = iface.getProperties();
   for (const p of properties) {
@@ -33,8 +35,8 @@ function checkTypeAliasProperties(
   typeAlias: TypeAliasDeclaration,
   propName: string,
   propType: string,
-  originalProp: PropertySignature | PropertyDeclaration,
-  equivalentProps: Array<PropertySignature | PropertyDeclaration>
+  originalProp: PropertyNode,
+  equivalentProps: PropertyNode[],
 ): void {
   const typeNode: Node | undefined = typeAlias.getTypeNode();
   if (!typeNode || typeNode.getKind() !== SyntaxKind.TypeLiteral) {
@@ -66,13 +68,10 @@ function checkTypeAliasProperties(
  * such as when one interface extends another and re-declares properties,
  * or when spread operations flow values between structurally similar types.
  */
-export function findStructurallyEquivalentProperties(
-  prop: PropertySignature | PropertyDeclaration,
-  project: Project
-): Array<PropertySignature | PropertyDeclaration> {
+export function findStructurallyEquivalentProperties(prop: PropertyNode, project: Project): PropertyNode[] {
   const propName: string = prop.getName();
   const propType: string = prop.getType().getText();
-  const equivalentProps: Array<PropertySignature | PropertyDeclaration> = [];
+  const equivalentProps: PropertyNode[] = [];
 
   const sourceFiles = project.getSourceFiles();
 

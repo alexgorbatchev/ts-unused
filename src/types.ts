@@ -13,7 +13,7 @@ export type ExportKind =
   | "namespace"
   | "export";
 
-export interface UnusedExportResult {
+export interface IUnusedExportResult {
   filePath: string;
   exportName: string;
   line: number;
@@ -24,7 +24,7 @@ export interface UnusedExportResult {
   onlyUsedInTests: boolean;
 }
 
-export interface UnusedPropertyResult {
+export interface IUnusedPropertyResult {
   filePath: string;
   typeName: string;
   propertyName: string;
@@ -36,7 +36,7 @@ export interface UnusedPropertyResult {
   onlyUsedInTests: boolean;
 }
 
-export interface NeverReturnedTypeResult {
+export interface INeverReturnedTypeResult {
   filePath: string;
   functionName: string;
   neverReturnedType: string;
@@ -46,11 +46,11 @@ export interface NeverReturnedTypeResult {
   severity: Severity;
 }
 
-export interface AnalysisResults {
-  unusedExports: UnusedExportResult[];
-  unusedProperties: UnusedPropertyResult[];
+export interface IAnalysisResults {
+  unusedExports: IUnusedExportResult[];
+  unusedProperties: IUnusedPropertyResult[];
   unusedFiles: string[];
-  neverReturnedTypes?: NeverReturnedTypeResult[];
+  neverReturnedTypes?: INeverReturnedTypeResult[];
 }
 
 export type IsTestFileFn = (sourceFile: SourceFile) => boolean;

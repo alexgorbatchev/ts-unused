@@ -2,17 +2,10 @@ import { defineConfig } from "./src/config";
 
 export default defineConfig({
   // Ignore test file patterns (default patterns are sufficient)
-  testFilePatterns: [
-    "**/__tests__/**",
-  ],
+  testFilePatterns: ["**/__tests__/**"],
 
-  // Ignore generated files, test fixtures, and scripts
-  ignoreFilePatterns: [
-    "**/test-project/**",
-    "**/scripts/**",
-    "**/dist/**",
-    "**/*.d.ts",
-  ],
+  // Ignore generated files and test fixtures
+  ignoreFilePatterns: ["**/test-project/**", "**/dist/**", "**/*.d.ts"],
 
   // No ignoreExports - let's see what's actually unused
   ignoreExports: [],

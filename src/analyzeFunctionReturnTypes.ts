@@ -1,6 +1,6 @@
 import path from "node:path";
 import { type FunctionDeclaration, type SourceFile, SyntaxKind, type Type } from "ts-morph";
-import type { NeverReturnedTypeResult } from "./types";
+import type { INeverReturnedTypeResult } from "./types";
 
 /**
  * Analyzes a function to detect union type branches in the return type that are never actually returned
@@ -8,9 +8,9 @@ import type { NeverReturnedTypeResult } from "./types";
 export function analyzeFunctionReturnTypes(
   func: FunctionDeclaration,
   sourceFile: SourceFile,
-  tsConfigDir: string
-): NeverReturnedTypeResult[] {
-  const results: NeverReturnedTypeResult[] = [];
+  tsConfigDir: string,
+): INeverReturnedTypeResult[] {
+  const results: INeverReturnedTypeResult[] = [];
   const functionName = func.getName();
 
   // Skip functions without names

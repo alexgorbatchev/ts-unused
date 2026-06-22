@@ -1,10 +1,10 @@
 import path from "node:path";
 import type {
-  AnalysisResults,
-  NeverReturnedTypeResult,
+  IAnalysisResults,
+  INeverReturnedTypeResult,
   Severity,
-  UnusedExportResult,
-  UnusedPropertyResult,
+  IUnusedExportResult,
+  IUnusedPropertyResult,
 } from "./types";
 
 function getSeverityMarker(severity: Severity): string {
@@ -21,7 +21,7 @@ function getRelativePath(filePath: string, tsConfigDir: string, cwd: string): st
   return path.relative(cwd, absolutePath);
 }
 
-function formatExportLine(item: UnusedExportResult): string {
+function formatExportLine(item: IUnusedExportResult): string {
   const marker: string = getSeverityMarker(item.severity);
   if (item.onlyUsedInTests) {
     return `  ${item.exportName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (Used only in tests)`;
@@ -29,23 +29,29 @@ function formatExportLine(item: UnusedExportResult): string {
   return `  ${item.exportName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (Unused ${item.kind})`;
 }
 
-function formatPropertyLine(item: UnusedPropertyResult): string {
+function formatPropertyLine(item: IUnusedPropertyResult): string {
   const status: string = item.onlyUsedInTests ? "Used only in tests" : "Unused property";
   const todoSuffix: string = item.todoComment ? `: [TODO] ${item.todoComment}` : "";
   const marker: string = getSeverityMarker(item.severity);
   return `  ${item.typeName}.${item.propertyName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (${status}${todoSuffix})`;
 }
 
-function formatNeverReturnedLine(item: NeverReturnedTypeResult): string {
+function formatNeverReturnedLine(item: INeverReturnedTypeResult): string {
   const marker: string = getSeverityMarker(item.severity);
   return `  ${item.functionName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (Type '${item.neverReturnedType}' in return type is never returned)`;
 }
 
-function formatGroupedItems<T extends { filePath: string }>(
+interface IFilePathItem {
+  filePath: string;
+}
+
+type ItemFormatter<T> = (item: T) => string;
+
+function formatGroupedItems<T extends IFilePathItem>(
   items: T[],
-  formatter: (item: T) => string,
+  formatter: ItemFormatter<T>,
   tsConfigDir: string,
-  cwd: string
+  cwd: string,
 ): string[] {
   const lines: string[] = [];
   const grouped = groupByFile(items);
@@ -61,7 +67,7 @@ function formatGroupedItems<T extends { filePath: string }>(
   return lines;
 }
 
-export function formatResults(results: AnalysisResults, tsConfigDir: string): string {
+export function formatResults(results: IAnalysisResults, tsConfigDir: string): string {
   const lines: string[] = [];
   const cwd = process.cwd();
 
@@ -72,8 +78,8 @@ export function formatResults(results: AnalysisResults, tsConfigDir: string): st
   }
 
   // Filter out properties whose parent type/interface is already reported as unused
-  const propertiesToReport: UnusedPropertyResult[] = results.unusedProperties.filter(
-    (prop) => !unusedExportNames.has(prop.typeName)
+  const propertiesToReport: IUnusedPropertyResult[] = results.unusedProperties.filter(
+    (prop) => !unusedExportNames.has(prop.typeName),
   );
 
   // Create a set of completely unused files to exclude from export reporting
@@ -130,7 +136,7 @@ export function formatResults(results: AnalysisResults, tsConfigDir: string): st
   return lines.join("\n");
 }
 
-function groupByFile<T extends { filePath: string }>(items: T[]): Map<string, T[]> {
+function groupByFile<T extends IFilePathItem>(items: T[]): Map<string, T[]> {
   const grouped = new Map<string, T[]>();
 
   for (const item of items) {

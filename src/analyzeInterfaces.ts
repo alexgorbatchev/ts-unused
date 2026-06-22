@@ -1,11 +1,11 @@
 import path from "node:path";
 import type { InterfaceDeclaration, Project, SourceFile } from "ts-morph";
 import { extractTodoComment } from "./extractTodoComment";
-import { isPropertyUnused, type PropertyUsageResult } from "./isPropertyUnused";
+import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused";
 import { matchesPattern } from "./patternMatcher";
-import type { IsTestFileFn, Severity, UnusedPropertyResult } from "./types";
+import type { IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
 
-export interface AnalyzeInterfacesOptions {
+export interface IAnalyzeInterfacesOptions {
   ignoreProperties?: string[];
   ignoreTypes?: string[];
 }
@@ -14,9 +14,9 @@ export function analyzeInterfaces(
   sourceFile: SourceFile,
   tsConfigDir: string,
   isTestFile: IsTestFileFn,
-  results: UnusedPropertyResult[],
+  results: IUnusedPropertyResult[],
   project: Project,
-  options: AnalyzeInterfacesOptions = {}
+  options: IAnalyzeInterfacesOptions = {},
 ): void {
   const { ignoreProperties = [], ignoreTypes = [] } = options;
   const interfaces: InterfaceDeclaration[] = sourceFile.getInterfaces();
@@ -37,7 +37,7 @@ export function analyzeInterfaces(
         continue;
       }
 
-      const usage: PropertyUsageResult = isPropertyUnused(prop, isTestFile, project);
+      const usage: IPropertyUsageResult = isPropertyUnused(prop, isTestFile, project);
 
       if (usage.isUnusedOrTestOnly) {
         const relativePath: string = path.relative(tsConfigDir, sourceFile.getFilePath());
@@ -55,7 +55,7 @@ export function analyzeInterfaces(
         const lineStartPos: number = prop.getStartLinePos();
         const character: number = startPos - lineStartPos + 1;
         const endCharacter: number = character + propertyName.length;
-        const result: UnusedPropertyResult = {
+        const result: IUnusedPropertyResult = {
           filePath: relativePath,
           typeName: interfaceName,
           propertyName,

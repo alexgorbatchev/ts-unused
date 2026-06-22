@@ -1,10 +1,12 @@
 import type { PropertyDeclaration, PropertySignature } from "ts-morph";
 
+type PropertyNode = PropertySignature | PropertyDeclaration;
+
 /**
  * Extracts TODO comment text from the leading comments of a property.
  * Returns undefined if no TODO comment is found.
  */
-export function extractTodoComment(prop: PropertySignature | PropertyDeclaration): string | undefined {
+export function extractTodoComment(prop: PropertyNode): string | undefined {
   const leadingComments = prop.getLeadingCommentRanges();
 
   for (const comment of leadingComments) {
