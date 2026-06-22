@@ -21,10 +21,10 @@ describe("analyzeProject - property redeclaration", () => {
     // SourceOptions.timeout and retryCount should NOT be reported as unused
     // even though they're only accessed through ProcessedOptions and ConfigOptions
     const sourceTimeoutProps = results.unusedProperties.filter(
-      (item) => item.typeName === "SourceOptions" && item.propertyName === "timeout"
+      (item) => item.typeName === "SourceOptions" && item.propertyName === "timeout",
     );
     const sourceRetryProps = results.unusedProperties.filter(
-      (item) => item.typeName === "SourceOptions" && item.propertyName === "retryCount"
+      (item) => item.typeName === "SourceOptions" && item.propertyName === "retryCount",
     );
 
     expect(sourceTimeoutProps).toHaveLength(0);
@@ -32,7 +32,7 @@ describe("analyzeProject - property redeclaration", () => {
 
     // But SourceOptions.unused SHOULD be reported as unused
     const sourceUnusedProps = results.unusedProperties.filter(
-      (item) => item.typeName === "SourceOptions" && item.propertyName === "unused"
+      (item) => item.typeName === "SourceOptions" && item.propertyName === "unused",
     );
     expect(sourceUnusedProps).toHaveLength(1);
 
@@ -42,17 +42,17 @@ describe("analyzeProject - property redeclaration", () => {
     // ConfigOptions.timeout and retryCount should NOT be reported as unused
     // because they're structurally equivalent to used properties
     const configTimeoutProps = results.unusedProperties.filter(
-      (item) => item.typeName === "ConfigOptions" && item.propertyName === "timeout"
+      (item) => item.typeName === "ConfigOptions" && item.propertyName === "timeout",
     );
     const configRetryProps = results.unusedProperties.filter(
-      (item) => item.typeName === "ConfigOptions" && item.propertyName === "retryCount"
+      (item) => item.typeName === "ConfigOptions" && item.propertyName === "retryCount",
     );
     expect(configTimeoutProps).toHaveLength(0);
     expect(configRetryProps).toHaveLength(0);
 
     // But ConfigOptions.configSpecific SHOULD be reported as unused
     const configSpecificProps = results.unusedProperties.filter(
-      (item) => item.typeName === "ConfigOptions" && item.propertyName === "configSpecific"
+      (item) => item.typeName === "ConfigOptions" && item.propertyName === "configSpecific",
     );
     expect(configSpecificProps).toHaveLength(1);
   });

@@ -20,7 +20,7 @@ describe("analyzeProject - generic type parameter detection", () => {
     // StepParams is used as a type parameter in: extends BaseStep<StepParams>
     // It should NOT be reported as unused
     const stepParamsExport = results.unusedExports.find(
-      (item) => item.exportName === "StepParams" && item.filePath.includes("generic-types.ts")
+      (item) => item.exportName === "StepParams" && item.filePath.includes("generic-types.ts"),
     );
 
     expect(stepParamsExport).toBeUndefined();

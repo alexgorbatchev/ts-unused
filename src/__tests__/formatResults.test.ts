@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import path from "node:path";
 import { formatResults } from "../formatResults";
-import type { AnalysisResults } from "../types";
+import type { IAnalysisResults } from "../types";
 
 describe("formatResults", () => {
   test("formats file paths relative to process.cwd", () => {
     const cwd = process.cwd();
     const tsConfigDir = cwd; // Simulating tsconfig in project root
 
-    const results: AnalysisResults = {
+    const results: IAnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {
@@ -35,7 +35,7 @@ describe("formatResults", () => {
 
   test("formats results with unused exports and properties", () => {
     const tsConfigDir = "/path/to/project";
-    const results: AnalysisResults = {
+    const results: IAnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {
@@ -91,7 +91,7 @@ describe("formatResults", () => {
 
   test("formats results with no unused items", () => {
     const tsConfigDir = "/path/to/project";
-    const results: AnalysisResults = {
+    const results: IAnalysisResults = {
       unusedFiles: [],
       unusedExports: [],
       unusedProperties: [],
@@ -106,7 +106,7 @@ describe("formatResults", () => {
 
   test("formats results with only unused exports", () => {
     const tsConfigDir = "/path/to/project";
-    const results: AnalysisResults = {
+    const results: IAnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {
@@ -134,7 +134,7 @@ describe("formatResults", () => {
 
   test("formats results with only unused properties", () => {
     const tsConfigDir = "/path/to/project";
-    const results: AnalysisResults = {
+    const results: IAnalysisResults = {
       unusedFiles: [],
       unusedExports: [],
       unusedProperties: [

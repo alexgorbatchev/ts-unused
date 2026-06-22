@@ -6,16 +6,12 @@ import { analyzeProject } from "../analyzeProject";
 const TEMP_DIR = path.join(import.meta.dir, "../../temp-test-helper-files");
 
 function createTempDir() {
-  if (fs.existsSync(TEMP_DIR)) {
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-  }
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
 function cleanupTempDir() {
-  if (fs.existsSync(TEMP_DIR)) {
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-  }
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
 }
 
 function createTsConfig(include: string[] = ["src/**/*.ts"]) {
@@ -30,7 +26,7 @@ function createTsConfig(include: string[] = ["src/**/*.ts"]) {
         strict: true,
       },
       include,
-    })
+    }),
   );
   return tsconfigFile;
 }
@@ -74,7 +70,7 @@ describe("Test Helper Files", () => {
             }
           };
         }
-      `
+      `,
     );
 
     // Create a test file that uses the helper
@@ -90,7 +86,7 @@ describe("Test Helper Files", () => {
             expect(registry.getFile('/test.ts')).toBe('content');
           });
         });
-      `
+      `,
     );
 
     // Create a regular source file (so the project has non-test files)
@@ -100,16 +96,14 @@ describe("Test Helper Files", () => {
         export function realFunction(): string {
           return 'production code';
         }
-      `
+      `,
     );
 
     const tsconfigFile = createTsConfig();
     const results = await analyzeProject(tsconfigFile);
 
     // Find the createMockFileRegistry export
-    const createMockFileRegistry = results.unusedExports.find(
-      (item) => item.exportName === "createMockFileRegistry"
-    );
+    const createMockFileRegistry = results.unusedExports.find((item) => item.exportName === "createMockFileRegistry");
 
     // This should be marked as onlyUsedInTests with severity "info"
     // NOT as completely unused with severity "error"
@@ -118,9 +112,7 @@ describe("Test Helper Files", () => {
     expect(createMockFileRegistry?.severity).toBe("info");
 
     // The helper file should NOT be in unusedFiles list since it has test-only exports
-    const helperFileInUnusedFiles = results.unusedFiles.find((file) =>
-      file.includes("createMockFileRegistry.ts")
-    );
+    const helperFileInUnusedFiles = results.unusedFiles.find((file) => file.includes("createMockFileRegistry.ts"));
     expect(helperFileInUnusedFiles).toBeUndefined();
   });
 
@@ -147,7 +139,7 @@ describe("Test Helper Files", () => {
             ...overrides
           };
         }
-      `
+      `,
     );
 
     // Index file for the testing-helpers package
@@ -155,7 +147,7 @@ describe("Test Helper Files", () => {
       path.join(TEMP_DIR, "src", "packages", "testing-helpers", "src", "index.ts"),
       `
         export { createMockUser, type MockUser } from './createMockUser';
-      `
+      `,
     );
 
     // Test file that uses the helper
@@ -170,7 +162,7 @@ describe("Test Helper Files", () => {
             expect(user.name).toBe('Alice');
           });
         });
-      `
+      `,
     );
 
     // Regular app code
@@ -180,7 +172,7 @@ describe("Test Helper Files", () => {
         export function getUsers(): string[] {
           return [];
         }
-      `
+      `,
     );
 
     const tsconfigFile = createTsConfig(["src/**/*.ts"]);
@@ -188,9 +180,7 @@ describe("Test Helper Files", () => {
 
     // Find the createMockUser export from the source file
     const createMockUser = results.unusedExports.find(
-      (item) =>
-        item.exportName === "createMockUser" &&
-        item.filePath.includes("createMockUser.ts")
+      (item) => item.exportName === "createMockUser" && item.filePath.includes("createMockUser.ts"),
     );
 
     // BUG: The helper is either:

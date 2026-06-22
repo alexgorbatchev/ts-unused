@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import assert from "node:assert";
 import { Project } from "ts-morph";
 
 describe("fix inline object types", () => {
@@ -12,30 +13,26 @@ describe("fix inline object types", () => {
         | { status: "error"; reason: string } {
         return { status: "success", value: "ok" };
       }
-      `
+      `,
     );
 
     // Simulate what fixProject does
     const func = sourceFile.getFunctions()[0];
-    if (!func) throw new Error("Function not found");
+    assert(func, "Function not found");
 
     const returnTypeNode = func.getReturnTypeNode();
-    if (!returnTypeNode) throw new Error("Return type not found");
+    assert(returnTypeNode, "Return type not found");
 
     const returnType = returnTypeNode.getType();
     const unionTypes = returnType.getUnionTypes();
 
     // Get the types as they would be collected
-    const typesToKeep: string[] = [];
-    for (const ut of unionTypes) {
-      const symbol = ut.getSymbol();
-      const typeName = symbol?.getName() || ut.getText();
-
-      // This is the current buggy behavior - it uses symbol name which could be __type
-      if (typeName !== '{ status: "error"; reason: string; }') {
-        typesToKeep.push(typeName);
-      }
-    }
+    const typesToKeep: string[] = unionTypes
+      .map((ut) => {
+        const symbol = ut.getSymbol();
+        return symbol?.getName() || ut.getText();
+      })
+      .filter((typeName) => typeName !== '{ status: "error"; reason: string; }');
 
     // This test documents the bug: typeName for inline objects is __type
     expect(typesToKeep[0]).toBe("__type");
@@ -57,28 +54,22 @@ describe("fix inline object types", () => {
         | { status: "error"; reason: string } {
         return { status: "success", value: "ok" };
       }
-      `
+      `,
     );
 
     const func = sourceFile.getFunctions()[0];
-    if (!func) throw new Error("Function not found");
+    assert(func, "Function not found");
 
     const returnTypeNode = func.getReturnTypeNode();
-    if (!returnTypeNode) throw new Error("Return type not found");
+    assert(returnTypeNode, "Return type not found");
 
     const returnType = returnTypeNode.getType();
     const unionTypes = returnType.getUnionTypes();
 
     // Get the types using getText() - the correct approach
-    const typesToKeep: string[] = [];
-    for (const ut of unionTypes) {
-      const typeText = ut.getText();
-
-      // Use getText() which gives us the actual type structure
-      if (typeText !== '{ status: "error"; reason: string; }') {
-        typesToKeep.push(typeText);
-      }
-    }
+    const typesToKeep: string[] = unionTypes
+      .map((ut) => ut.getText())
+      .filter((typeText) => typeText !== '{ status: "error"; reason: string; }');
 
     // getText() gives us the actual type text
     expect(typesToKeep[0]).toBe('{ status: "success"; value: string; }');

@@ -7,17 +7,13 @@ const TEMP_DIR = path.join(process.cwd(), ".test-temp-fix-never-returned");
 
 // Cleanup after tests
 afterAll(() => {
-  if (fs.existsSync(TEMP_DIR)) {
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-  }
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
 });
 
 describe("Fix Never-Returned Types", () => {
   test("removes never-returned types from union return types", async () => {
     // Setup temp directory
-    if (fs.existsSync(TEMP_DIR)) {
-      fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-    }
+    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 
     const testFile = path.join(TEMP_DIR, "test.ts");
@@ -47,7 +43,7 @@ export function alwaysSucceeds(): ResultType {
 export function alwaysFails(): ResultType {
   return { success: false, error: "failed" };
 }
-`
+`,
     );
 
     // Add a consumer to prevent functions from being removed as unused
@@ -56,7 +52,7 @@ export function alwaysFails(): ResultType {
       `import { alwaysSucceeds, alwaysFails } from "./test";
 console.log(alwaysSucceeds());
 console.log(alwaysFails());
-`
+`,
     );
 
     fs.writeFileSync(
@@ -68,7 +64,7 @@ console.log(alwaysFails());
           moduleResolution: "bundler",
         },
         include: ["*.ts"],
-      })
+      }),
     );
 
     // Run fix
@@ -89,9 +85,7 @@ console.log(alwaysFails());
   });
 
   test("removes never-returned types from Promise<Union> return types", async () => {
-    if (fs.existsSync(TEMP_DIR)) {
-      fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-    }
+    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 
     const testFile = path.join(TEMP_DIR, "test.ts");
@@ -113,14 +107,14 @@ export interface ErrorResult {
 export async function asyncAlwaysSucceeds(): Promise<SuccessResult | ErrorResult> {
   return { success: true, data: "test" };
 }
-`
+`,
     );
 
     fs.writeFileSync(
       consumerFile,
       `import { asyncAlwaysSucceeds } from "./test";
 asyncAlwaysSucceeds();
-`
+`,
     );
 
     fs.writeFileSync(
@@ -132,7 +126,7 @@ asyncAlwaysSucceeds();
           moduleResolution: "bundler",
         },
         include: ["*.ts"],
-      })
+      }),
     );
 
     const results = await fixProject(tsconfigFile);
@@ -145,9 +139,7 @@ asyncAlwaysSucceeds();
   });
 
   test("removes primitive never-returned types", async () => {
-    if (fs.existsSync(TEMP_DIR)) {
-      fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-    }
+    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 
     const testFile = path.join(TEMP_DIR, "test.ts");
@@ -159,14 +151,14 @@ asyncAlwaysSucceeds();
       `export function onlyReturnsString(): string | number | boolean {
   return "always a string";
 }
-`
+`,
     );
 
     fs.writeFileSync(
       consumerFile,
       `import { onlyReturnsString } from "./test";
 console.log(onlyReturnsString());
-`
+`,
     );
 
     fs.writeFileSync(
@@ -178,7 +170,7 @@ console.log(onlyReturnsString());
           moduleResolution: "bundler",
         },
         include: ["*.ts"],
-      })
+      }),
     );
 
     const results = await fixProject(tsconfigFile);

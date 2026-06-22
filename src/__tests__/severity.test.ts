@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { formatResults } from "../formatResults";
-import type { AnalysisResults } from "../types";
+import type { IAnalysisResults } from "../types";
 
 describe("Severity system", () => {
   test("shows [ERROR] for completely unused items", () => {
     const tsConfigDir = "/path/to/project";
-    const results: AnalysisResults = {
+    const results: IAnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {
@@ -41,7 +41,7 @@ describe("Severity system", () => {
 
   test("shows [WARNING] for items with TODO comments", () => {
     const tsConfigDir = "/path/to/project";
-    const results: AnalysisResults = {
+    const results: IAnalysisResults = {
       unusedFiles: [],
       unusedExports: [],
       unusedProperties: [
@@ -66,7 +66,7 @@ describe("Severity system", () => {
 
   test("shows [INFO] for test-only items", () => {
     const tsConfigDir = "/path/to/project";
-    const results: AnalysisResults = {
+    const results: IAnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {
@@ -102,7 +102,7 @@ describe("Severity system", () => {
 
   test("handles mixed severity levels", () => {
     const tsConfigDir = "/path/to/project";
-    const results: AnalysisResults = {
+    const results: IAnalysisResults = {
       unusedFiles: [],
       unusedExports: [
         {

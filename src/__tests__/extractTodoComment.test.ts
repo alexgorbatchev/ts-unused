@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import assert from "node:assert";
 import { Node, Project } from "ts-morph";
 import { extractTodoComment } from "../extractTodoComment";
 
@@ -10,7 +11,7 @@ describe("extractTodoComment", () => {
       `export interface TestInterface {
   // TODO implement this feature
   prop: string;
-}`
+}`,
     );
 
     const iface = sourceFile.getInterfaces()[0];
@@ -29,7 +30,7 @@ describe("extractTodoComment", () => {
       `export interface TestInterface {
   //   TODO   this has extra spaces
   prop: string;
-}`
+}`,
     );
 
     const iface = sourceFile.getInterfaces()[0];
@@ -48,7 +49,7 @@ describe("extractTodoComment", () => {
   /* TODO this is a
      multi-line comment */
   prop: string;
-}`
+}`,
     );
 
     const iface = sourceFile.getInterfaces()[0];
@@ -66,7 +67,7 @@ describe("extractTodoComment", () => {
       `export interface TestInterface {
   /** TODO document this property */
   prop: string;
-}`
+}`,
     );
 
     const iface = sourceFile.getInterfaces()[0];
@@ -84,7 +85,7 @@ describe("extractTodoComment", () => {
       `export interface TestInterface {
   // Regular comment
   prop: string;
-}`
+}`,
     );
 
     const iface = sourceFile.getInterfaces()[0];
@@ -101,7 +102,7 @@ describe("extractTodoComment", () => {
       "test.ts",
       `export interface TestInterface {
   prop: string;
-}`
+}`,
     );
 
     const iface = sourceFile.getInterfaces()[0];
@@ -119,7 +120,7 @@ describe("extractTodoComment", () => {
       `export interface TestInterface {
   // todo implement this
   prop: string;
-}`
+}`,
     );
 
     const iface = sourceFile.getInterfaces()[0];
@@ -137,7 +138,7 @@ describe("extractTodoComment", () => {
       `export interface TestInterface {
   // Todo implement this
   prop: string;
-}`
+}`,
     );
 
     const iface = sourceFile.getInterfaces()[0];
@@ -156,7 +157,7 @@ describe("extractTodoComment", () => {
   // TODO first todo
   // Another comment
   prop: string;
-}`
+}`,
     );
 
     const iface = sourceFile.getInterfaces()[0];
@@ -174,28 +175,24 @@ describe("extractTodoComment", () => {
       `export type TestType = {
   // TODO implement this property
   prop: string;
-};`
+};`,
     );
 
     const typeAlias = sourceFile.getTypeAliases()[0];
     const typeNode = typeAlias?.getTypeNode();
 
     // Get the type literal and its members
-    if (typeNode && Node.isTypeLiteral(typeNode)) {
-      const members = typeNode.getMembers();
-      const prop = members?.[0];
+    assert(typeNode && Node.isTypeLiteral(typeNode), "Expected type literal");
+    const members = typeNode.getMembers();
+    const prop = members?.[0];
 
-      expect(prop).toBeDefined();
-      expect(Node.isPropertySignature(prop!)).toBe(true);
+    expect(prop).toBeDefined();
+    expect(Node.isPropertySignature(prop!)).toBe(true);
 
-      if (Node.isPropertySignature(prop!)) {
-        const result: string | undefined = extractTodoComment(prop);
+    assert(Node.isPropertySignature(prop!));
+    const result: string | undefined = extractTodoComment(prop);
 
-        expect(result).toBe("implement this property");
-      }
-    } else {
-      throw new Error("Expected type literal");
-    }
+    expect(result).toBe("implement this property");
   });
 
   test("extracts real-world TODO comment", () => {
@@ -206,7 +203,7 @@ describe("extractTodoComment", () => {
   // TODO --yes is not yet implemented
   yes: boolean;
   shimMode: boolean;
-}`
+}`,
     );
 
     const iface = sourceFile.getInterfaces()[0];

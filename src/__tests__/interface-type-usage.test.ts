@@ -7,16 +7,12 @@ import { formatResults } from "../formatResults";
 const TEMP_DIR = path.join(import.meta.dir, "../../temp-test-interface-usage");
 
 function createTempDir() {
-  if (fs.existsSync(TEMP_DIR)) {
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-  }
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
 function cleanupTempDir() {
-  if (fs.existsSync(TEMP_DIR)) {
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-  }
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
 }
 
 function createTsConfig() {
@@ -31,7 +27,7 @@ function createTsConfig() {
         strict: true,
       },
       include: ["*.ts"],
-    })
+    }),
   );
   return tsconfigFile;
 }
@@ -55,7 +51,7 @@ describe("Interface and Type Usage", () => {
           retries: number;
           debug: boolean;
         }
-      `
+      `,
     );
 
     // Use the entire interface (not individual properties)
@@ -75,7 +71,7 @@ describe("Interface and Type Usage", () => {
         };
 
         processConfig(myConfig);
-      `
+      `,
     );
 
     const tsconfigFile = createTsConfig();
@@ -95,7 +91,7 @@ describe("Interface and Type Usage", () => {
           retries: number;
           debug: boolean;
         };
-      `
+      `,
     );
 
     // Use the entire type (not individual properties)
@@ -115,7 +111,7 @@ describe("Interface and Type Usage", () => {
         };
 
         processConfig(myConfig);
-      `
+      `,
     );
 
     const tsconfigFile = createTsConfig();
@@ -137,7 +133,7 @@ describe("Interface and Type Usage", () => {
 
         // Add a used export so the file isn't marked as completely unused
         export const USED_VALUE = 42;
-      `
+      `,
     );
 
     // Consumer file that uses USED_VALUE but not UnusedConfig
@@ -146,7 +142,7 @@ describe("Interface and Type Usage", () => {
       `
         import { USED_VALUE } from './types';
         console.log(USED_VALUE);
-      `
+      `,
     );
 
     const tsconfigFile = createTsConfig();

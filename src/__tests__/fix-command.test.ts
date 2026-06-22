@@ -7,16 +7,12 @@ import { fixProject } from "../fixProject";
 const TEMP_DIR = path.join(import.meta.dir, "../../temp-test-fix");
 
 function createTempDir() {
-  if (fs.existsSync(TEMP_DIR)) {
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-  }
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
 function cleanupTempDir() {
-  if (fs.existsSync(TEMP_DIR)) {
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-  }
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
 }
 
 function createTsConfig(dir: string = TEMP_DIR) {
@@ -30,7 +26,7 @@ function createTsConfig(dir: string = TEMP_DIR) {
         moduleResolution: "bundler",
       },
       include: ["*.ts"],
-    })
+    }),
   );
   return tsconfigFile;
 }
@@ -62,7 +58,7 @@ export function unusedFunction() {
 
 export const USED_CONSTANT = 42;
 export const UNUSED_CONSTANT = 99;
-`
+`,
     );
 
     fs.writeFileSync(
@@ -70,7 +66,7 @@ export const UNUSED_CONSTANT = 99;
       `import { usedFunction, USED_CONSTANT } from "./test";
 
 console.log(usedFunction(), USED_CONSTANT);
-`
+`,
     );
 
     fs.writeFileSync(
@@ -82,7 +78,7 @@ console.log(usedFunction(), USED_CONSTANT);
           moduleResolution: "bundler",
         },
         include: ["*.ts"],
-      })
+      }),
     );
 
     // Run fix
@@ -111,7 +107,7 @@ console.log(usedFunction(), USED_CONSTANT);
   name: string;
   unusedField: string;
 }
-`
+`,
     );
 
     fs.writeFileSync(
@@ -124,7 +120,7 @@ const user: Partial<User> = {
 };
 
 console.log(user.id, user.name);
-`
+`,
     );
 
     fs.writeFileSync(
@@ -136,7 +132,7 @@ console.log(user.id, user.name);
           moduleResolution: "bundler",
         },
         include: ["*.ts"],
-      })
+      }),
     );
 
     const results = await fixProject(tsconfigFile);
@@ -160,7 +156,7 @@ console.log(user.id, user.name);
       `export function usedFunction() {
   return "used";
 }
-`
+`,
     );
 
     fs.writeFileSync(
@@ -170,7 +166,7 @@ console.log(user.id, user.name);
 }
 
 export const UNUSED = 42;
-`
+`,
     );
 
     fs.writeFileSync(
@@ -178,7 +174,7 @@ export const UNUSED = 42;
       `import { usedFunction } from "./used";
 
 console.log(usedFunction());
-`
+`,
     );
 
     fs.writeFileSync(
@@ -190,7 +186,7 @@ console.log(usedFunction());
           moduleResolution: "bundler",
         },
         include: ["*.ts"],
-      })
+      }),
     );
 
     const results = await fixProject(tsconfigFile);
@@ -220,21 +216,21 @@ console.log(usedFunction());
 }
 
 export const ORIGINAL_CONSTANT = "original";
-`
+`,
     );
 
     // Create a file that only re-exports from the unused file
     fs.writeFileSync(
       reexportFile,
       `export * from "./original";
-`
+`,
     );
 
     // Consumer that doesn't use anything
     fs.writeFileSync(
       consumerFile,
       `console.log("nothing imported");
-`
+`,
     );
 
     fs.writeFileSync(
@@ -246,7 +242,7 @@ export const ORIGINAL_CONSTANT = "original";
           moduleResolution: "bundler",
         },
         include: ["*.ts"],
-      })
+      }),
     );
 
     const results = await fixProject(tsconfigFile);
@@ -270,7 +266,7 @@ export const ORIGINAL_CONSTANT = "original";
       `export function originalFunction() {
   return "original";
 }
-`
+`,
     );
 
     // Create a file that re-exports from unused file but also has its own exports
@@ -281,7 +277,7 @@ export const ORIGINAL_CONSTANT = "original";
 export function ownFunction() {
   return "own";
 }
-`
+`,
     );
 
     // Consumer uses the own function
@@ -290,7 +286,7 @@ export function ownFunction() {
       `import { ownFunction } from "./mixed";
 
 console.log(ownFunction());
-`
+`,
     );
 
     fs.writeFileSync(
@@ -302,7 +298,7 @@ console.log(ownFunction());
           moduleResolution: "bundler",
         },
         include: ["*.ts"],
-      })
+      }),
     );
 
     const results = await fixProject(tsconfigFile);
@@ -331,7 +327,7 @@ console.log(ownFunction());
   port: number;
   unusedOption: boolean;
 };
-`
+`,
     );
 
     fs.writeFileSync(
@@ -344,7 +340,7 @@ const config: Partial<Config> = {
 };
 
 console.log(config.host, config.port);
-`
+`,
     );
 
     const results = await fixProject(tsconfigFile);
@@ -377,7 +373,7 @@ export interface Error {
 export function fetchData(): Success | Error {
   return { status: "success", data: "hello" };
 }
-`
+`,
     );
 
     fs.writeFileSync(
@@ -389,7 +385,7 @@ if (result.status === "success") {
   const data: Success = result;
   console.log(data.data);
 }
-`
+`,
     );
 
     const results = await fixProject(tsconfigFile);
@@ -406,13 +402,13 @@ if (result.status === "success") {
     fs.writeFileSync(
       testFile,
       `export function unusedFn() { return 1; }
-`
+`,
     );
 
     fs.writeFileSync(
       consumerFile,
       `console.log("nothing used");
-`
+`,
     );
 
     const progressMessages: string[] = [];
@@ -429,7 +425,7 @@ if (result.status === "success") {
     fs.writeFileSync(
       consumerFile,
       `console.log("hello");
-`
+`,
     );
 
     // Should not throw
@@ -447,14 +443,14 @@ if (result.status === "success") {
       `export function noReturnType() {
   return "hello";
 }
-`
+`,
     );
 
     fs.writeFileSync(
       consumerFile,
       `import { noReturnType } from "./test";
 console.log(noReturnType());
-`
+`,
     );
 
     // Should not throw even if function has no explicit return type
@@ -480,7 +476,7 @@ export interface Err {
 export async function fetchAsync(): Promise<Data | Err> {
   return { value: "test" };
 }
-`
+`,
     );
 
     fs.writeFileSync(
@@ -494,7 +490,7 @@ async function main() {
 }
 
 main();
-`
+`,
     );
 
     const results = await fixProject(tsconfigFile);
@@ -511,7 +507,7 @@ main();
       `export function getData(): { ok: true; data: string } | { ok: false; error: string } {
   return { ok: true, data: "success" };
 }
-`
+`,
     );
 
     fs.writeFileSync(
@@ -522,7 +518,7 @@ const result = getData();
 if (result.ok) {
   console.log(result.data);
 }
-`
+`,
     );
 
     const results = await fixProject(tsconfigFile);
@@ -539,7 +535,7 @@ if (result.ok) {
       `export function check(): true | false {
   return true;
 }
-`
+`,
     );
 
     fs.writeFileSync(
@@ -549,7 +545,7 @@ const result = check();
 if (result === true) {
   console.log("yes");
 }
-`
+`,
     );
 
     const results = await fixProject(tsconfigFile);
@@ -567,14 +563,14 @@ if (result === true) {
 export function unusedExport() { return 2; }
 export const USED = "used";
 export const UNUSED = "unused";
-`
+`,
     );
 
     fs.writeFileSync(
       consumerFile,
       `import { usedExport, USED } from "./test";
 console.log(usedExport(), USED);
-`
+`,
     );
 
     const results = await fixProject(tsconfigFile);
@@ -601,7 +597,7 @@ console.log(usedExport(), USED);
 export class UnusedClass {
   method() { return 2; }
 }
-`
+`,
     );
 
     fs.writeFileSync(
@@ -609,7 +605,7 @@ export class UnusedClass {
       `import { UsedClass } from "./test";
 const instance = new UsedClass();
 console.log(instance.method());
-`
+`,
     );
 
     const results = await fixProject(tsconfigFile);
@@ -636,14 +632,14 @@ export enum UnusedEnum {
   X = "x",
   Y = "y",
 }
-`
+`,
     );
 
     fs.writeFileSync(
       consumerFile,
       `import { UsedEnum } from "./test";
 console.log(UsedEnum.A);
-`
+`,
     );
 
     const results = await fixProject(tsconfigFile);
@@ -665,14 +661,14 @@ console.log(UsedEnum.A);
       testFile,
       `export function subFn() { return 1; }
 export function unusedSubFn() { return 2; }
-`
+`,
     );
 
     fs.writeFileSync(
       consumerFile,
       `import { subFn } from "./sub/test";
 console.log(subFn());
-`
+`,
     );
 
     const tsconfigFile = path.join(TEMP_DIR, "tsconfig.json");
@@ -685,7 +681,7 @@ console.log(subFn());
           moduleResolution: "bundler",
         },
         include: ["*.ts", "**/*.ts"],
-      })
+      }),
     );
 
     const results = await fixProject(tsconfigFile);
@@ -707,14 +703,14 @@ console.log(subFn());
       indexFile,
       `export function utilFn() { return 1; }
 export function unusedUtilFn() { return 2; }
-`
+`,
     );
 
     fs.writeFileSync(
       consumerFile,
       `import { utilFn } from "./utils";
 console.log(utilFn());
-`
+`,
     );
 
     const tsconfigFile = path.join(TEMP_DIR, "tsconfig.json");
@@ -727,7 +723,7 @@ console.log(utilFn());
           moduleResolution: "bundler",
         },
         include: ["*.ts", "**/*.ts"],
-      })
+      }),
     );
 
     const results = await fixProject(tsconfigFile);

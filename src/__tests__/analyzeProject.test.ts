@@ -67,11 +67,11 @@ describe("analyzeProject", () => {
     const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
 
     const usedInterfaceProps = results.unusedProperties.filter(
-      (item) => item.typeName === "UsedInterface" && item.propertyName === "usedProperty"
+      (item) => item.typeName === "UsedInterface" && item.propertyName === "usedProperty",
     );
 
     const usedTypeProps = results.unusedProperties.filter(
-      (item) => item.typeName === "UsedType" && item.propertyName === "usedField"
+      (item) => item.typeName === "UsedType" && item.propertyName === "usedField",
     );
 
     expect(usedInterfaceProps).toHaveLength(0);
@@ -115,10 +115,10 @@ describe("analyzeProject", () => {
 
     // If original exports are unused, they should only appear in original.ts, not reexport.ts
     const originalFunctionInReexport = results.unusedExports.find(
-      (item) => item.exportName === "originalFunction" && item.filePath.includes("reexport.ts")
+      (item) => item.exportName === "originalFunction" && item.filePath.includes("reexport.ts"),
     );
     const originalConstantInReexport = results.unusedExports.find(
-      (item) => item.exportName === "ORIGINAL_CONSTANT" && item.filePath.includes("reexport.ts")
+      (item) => item.exportName === "ORIGINAL_CONSTANT" && item.filePath.includes("reexport.ts"),
     );
 
     expect(originalFunctionInReexport).toBeUndefined();

@@ -23,7 +23,7 @@ describe("Test-Only Exports", () => {
     // Find the createTestUser function which is only used in test files
     // test-helpers.ts is in __tests__ folder but not treated as test file due to our custom isTestFile
     const createTestUser = results.unusedExports.find(
-      (item) => item.exportName === "createTestUser" && item.filePath.includes("test-helpers.ts")
+      (item) => item.exportName === "createTestUser" && item.filePath.includes("test-helpers.ts"),
     );
 
     expect(createTestUser).toBeDefined();
@@ -36,7 +36,7 @@ describe("Test-Only Exports", () => {
 
     // Find the createTestPost function which is not used anywhere
     const createTestPost = results.unusedExports.find(
-      (item) => item.exportName === "createTestPost" && item.filePath.includes("test-helpers.ts")
+      (item) => item.exportName === "createTestPost" && item.filePath.includes("test-helpers.ts"),
     );
 
     expect(createTestPost).toBeDefined();
@@ -49,7 +49,7 @@ describe("Test-Only Exports", () => {
 
     // Find the withMockServer function which is called in test files but only sets up hooks
     const withMockServer = results.unusedExports.find(
-      (item) => item.exportName === "withMockServer" && item.filePath.includes("test-helpers.ts")
+      (item) => item.exportName === "withMockServer" && item.filePath.includes("test-helpers.ts"),
     );
 
     expect(withMockServer).toBeDefined();

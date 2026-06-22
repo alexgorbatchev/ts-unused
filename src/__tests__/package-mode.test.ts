@@ -6,16 +6,12 @@ import { analyzeProject } from "../analyzeProject";
 const TEMP_DIR = path.join(import.meta.dir, "../../temp-test-package-mode");
 
 function createTempDir() {
-  if (fs.existsSync(TEMP_DIR)) {
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-  }
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
 function cleanupTempDir() {
-  if (fs.existsSync(TEMP_DIR)) {
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-  }
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
 }
 
 function createTsConfig(includePatterns: string[] = ["src/**/*.ts"]) {
@@ -32,17 +28,17 @@ function createTsConfig(includePatterns: string[] = ["src/**/*.ts"]) {
         outDir: "./dist",
       },
       include: includePatterns,
-    })
+    }),
   );
   return tsconfigFile;
 }
 
-function createPackageJson(
-  options: {
-    main?: string;
-    exports?: Record<string, unknown> | string;
-  } = {}
-) {
+interface IPackageJsonOptions {
+  main?: string;
+  exports?: Record<string, unknown> | string;
+}
+
+function createPackageJson(options: IPackageJsonOptions = {}) {
   const packageJson = path.join(TEMP_DIR, "package.json");
   fs.writeFileSync(
     packageJson,
@@ -54,8 +50,8 @@ function createPackageJson(
         ...options,
       },
       null,
-      2
-    )
+      2,
+    ),
   );
   return packageJson;
 }
@@ -88,22 +84,26 @@ describe("Package Mode", () => {
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/utils.ts"),
       `
-export function formatDate(date: Date): string {
-  return date.toISOString();
-}
 
-export function parseDate(str: string): Date {
-  return new Date(str);
-}
-      `.trim()
+        export function formatDate(date: Date): string {
+        return date.toISOString();
+        }
+
+        export function parseDate(str: string): Date {
+        return new Date(str);
+        }
+
+      `.trim(),
     );
 
     // Create the main barrel file that re-exports
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/index.ts"),
       `
-export { formatDate, parseDate } from "./utils";
-      `.trim()
+
+        export { formatDate, parseDate } from "./utils";
+
+      `.trim(),
     );
 
     const tsconfigFile = createTsConfig();
@@ -139,38 +139,46 @@ export { formatDate, parseDate } from "./utils";
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/utils/string/capitalize.ts"),
       `
-export function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
 
-export function lowercase(str: string): string {
-  return str.toLowerCase();
-}
-      `.trim()
+        export function capitalize(str: string): string {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        export function lowercase(str: string): string {
+        return str.toLowerCase();
+        }
+
+      `.trim(),
     );
 
     // Create barrel file for string utils
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/utils/string/index.ts"),
       `
-export { capitalize, lowercase } from "./capitalize";
-      `.trim()
+
+        export { capitalize, lowercase } from "./capitalize";
+
+      `.trim(),
     );
 
     // Create barrel file for utils
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/utils/index.ts"),
       `
-export * from "./string";
-      `.trim()
+
+        export * from "./string";
+
+      `.trim(),
     );
 
     // Create main barrel file
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/index.ts"),
       `
-export * from "./utils";
-      `.trim()
+
+        export * from "./utils";
+
+      `.trim(),
     );
 
     const tsconfigFile = createTsConfig();
@@ -206,22 +214,26 @@ export * from "./utils";
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/utils.ts"),
       `
-export function publicFunction(): string {
-  return "public";
-}
 
-export function internalFunction(): string {
-  return "internal";
-}
-      `.trim()
+        export function publicFunction(): string {
+        return "public";
+        }
+
+        export function internalFunction(): string {
+        return "internal";
+        }
+
+      `.trim(),
     );
 
     // Create the main barrel file that only re-exports publicFunction
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/index.ts"),
       `
-export { publicFunction } from "./utils";
-      `.trim()
+
+        export { publicFunction } from "./utils";
+
+      `.trim(),
     );
 
     const tsconfigFile = createTsConfig();
@@ -260,36 +272,44 @@ export { publicFunction } from "./utils";
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/core.ts"),
       `
-export function coreFunction(): string {
-  return "core";
-}
-      `.trim()
+
+        export function coreFunction(): string {
+        return "core";
+        }
+
+      `.trim(),
     );
 
     // Create util function
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/utils/helper.ts"),
       `
-export function helperFunction(): string {
-  return "helper";
-}
-      `.trim()
+
+        export function helperFunction(): string {
+        return "helper";
+        }
+
+      `.trim(),
     );
 
     // Create utils barrel
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/utils/index.ts"),
       `
-export { helperFunction } from "./helper";
-      `.trim()
+
+        export { helperFunction } from "./helper";
+
+      `.trim(),
     );
 
     // Create main barrel
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/index.ts"),
       `
-export { coreFunction } from "./core";
-      `.trim()
+
+        export { coreFunction } from "./core";
+
+      `.trim(),
     );
 
     const tsconfigFile = createTsConfig();
@@ -326,25 +346,29 @@ export { coreFunction } from "./core";
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/types.ts"),
       `
-export interface User {
-  id: string;
-  name: string;
-}
 
-export type UserRole = "admin" | "user" | "guest";
+        export interface User {
+        id: string;
+        name: string;
+        }
 
-export interface InternalConfig {
-  debug: boolean;
-}
-      `.trim()
+        export type UserRole = "admin" | "user" | "guest";
+
+        export interface InternalConfig {
+        debug: boolean;
+        }
+
+      `.trim(),
     );
 
     // Create main barrel file that only exports public types
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/index.ts"),
       `
-export type { User, UserRole } from "./types";
-      `.trim()
+
+        export type { User, UserRole } from "./types";
+
+      `.trim(),
     );
 
     const tsconfigFile = createTsConfig();
@@ -375,18 +399,22 @@ export type { User, UserRole } from "./types";
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/utils.ts"),
       `
-export function helper(): string {
-  return "helper";
-}
-      `.trim()
+
+        export function helper(): string {
+        return "helper";
+        }
+
+      `.trim(),
     );
 
     // Create the main barrel file that re-exports
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/index.ts"),
       `
-export { helper } from "./utils";
-      `.trim()
+
+        export { helper } from "./utils";
+
+      `.trim(),
     );
 
     const tsconfigFile = createTsConfig();
@@ -411,17 +439,21 @@ export { helper } from "./utils";
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/utils.ts"),
       `
-export function helper(): string {
-  return "helper";
-}
-      `.trim()
+
+        export function helper(): string {
+        return "helper";
+        }
+
+      `.trim(),
     );
 
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/index.ts"),
       `
-export { helper } from "./utils";
-      `.trim()
+
+        export { helper } from "./utils";
+
+      `.trim(),
     );
 
     const tsconfigFile = createTsConfig();
@@ -432,7 +464,7 @@ export { helper } from "./utils";
         config: {
           packageMode: true,
         },
-      })
+      }),
     ).rejects.toThrow(/package\.json/i);
   });
 
@@ -446,17 +478,21 @@ export { helper } from "./utils";
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/utils.ts"),
       `
-export function helper(): string {
-  return "helper";
-}
-      `.trim()
+
+        export function helper(): string {
+        return "helper";
+        }
+
+      `.trim(),
     );
 
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/index.ts"),
       `
-export { helper } from "./utils";
-      `.trim()
+
+        export { helper } from "./utils";
+
+      `.trim(),
     );
 
     const tsconfigFile = createTsConfig();
@@ -467,7 +503,7 @@ export { helper } from "./utils";
         config: {
           packageMode: true,
         },
-      })
+      }),
     ).rejects.toThrow(/entry point|main|exports/i);
   });
 
@@ -484,22 +520,26 @@ export { helper } from "./utils";
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/types.ts"),
       `
-export interface Config {
-  name: string;
-}
 
-export type Status = "active" | "inactive";
+        export interface Config {
+        name: string;
+        }
 
-export const VERSION = "1.0.0";
-      `.trim()
+        export type Status = "active" | "inactive";
+
+        export const VERSION = "1.0.0";
+
+      `.trim(),
     );
 
     // Create main barrel file using export *
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/index.ts"),
       `
-export * from "./types";
-      `.trim()
+
+        export * from "./types";
+
+      `.trim(),
     );
 
     const tsconfigFile = createTsConfig();
@@ -529,33 +569,39 @@ export * from "./types";
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/moduleA.ts"),
       `
-export function funcA(): string {
-  return "A";
-}
-      `.trim()
+
+        export function funcA(): string {
+        return "A";
+        }
+
+      `.trim(),
     );
 
     // Create second module
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/moduleB.ts"),
       `
-export function funcB(): string {
-  return "B";
-}
 
-export function internalB(): string {
-  return "internal";
-}
-      `.trim()
+        export function funcB(): string {
+        return "B";
+        }
+
+        export function internalB(): string {
+        return "internal";
+        }
+
+      `.trim(),
     );
 
     // Create main barrel file with mixed exports
     fs.writeFileSync(
       path.join(TEMP_DIR, "src/index.ts"),
       `
-export * from "./moduleA";
-export { funcB } from "./moduleB";
-      `.trim()
+
+        export * from "./moduleA";
+        export { funcB } from "./moduleB";
+
+      `.trim(),
     );
 
     const tsconfigFile = createTsConfig();

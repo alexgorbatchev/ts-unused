@@ -28,7 +28,7 @@ describe("loadConfigSync", () => {
         `export default {
           testFilePatterns: ["**/Test*.ts"],
           ignoreExports: ["formatLogMessage"],
-        };`
+        };`,
       );
 
       const result = loadConfigSync(tempDir);
@@ -51,7 +51,7 @@ describe("loadConfigSync", () => {
         configPath,
         `export default {
           ignoreProperties: ["message"],
-        };`
+        };`,
       );
 
       const result = loadConfigSync("/some/other/dir", configPath);
@@ -70,7 +70,7 @@ describe("loadConfigSync", () => {
         configPath,
         `export default {
           analyzeProperties: false,
-        };`
+        };`,
       );
 
       const result = loadConfigSync(tempDir);
@@ -125,7 +125,7 @@ describe("loadConfig (async)", () => {
         `export default {
           testFilePatterns: ["**/Test*.ts"],
           ignoreExports: ["formatLogMessage"],
-        };`
+        };`,
       );
 
       const result = await loadConfig(tempDir);
@@ -146,7 +146,7 @@ describe("loadConfig (async)", () => {
         configPath,
         `export default {
           ignoreProperties: ["message"],
-        };`
+        };`,
       );
 
       const result = await loadConfig("/some/other/dir", configPath);
@@ -177,7 +177,7 @@ describe("loadConfig (async)", () => {
       fs.writeFileSync(
         configPath,
         `export const testFilePatterns = ["**/Test*.ts"];
-         export const ignoreExports = ["test"];`
+         export const ignoreExports = ["test"];`,
       );
 
       const result = await loadConfig(tempDir);

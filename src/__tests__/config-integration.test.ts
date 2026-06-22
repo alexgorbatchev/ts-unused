@@ -70,7 +70,7 @@ describe("analyzeProject with config", () => {
     });
 
     const ignoredProps = resultsWithIgnore.unusedProperties.filter(
-      (p) => p.typeName === "UsedInterface" && p.propertyName === propToIgnore
+      (p) => p.typeName === "UsedInterface" && p.propertyName === propToIgnore,
     );
     expect(ignoredProps).toHaveLength(0);
   });
@@ -85,7 +85,7 @@ describe("analyzeProject with config", () => {
 
     // Properties from ignored types should not be reported
     const propsFromIgnoredTypes = resultsWithIgnore.unusedProperties.filter(
-      (p) => p.typeName === "UsedInterface" || p.typeName === "UsedType"
+      (p) => p.typeName === "UsedInterface" || p.typeName === "UsedType",
     );
     expect(propsFromIgnoredTypes).toHaveLength(0);
   });
