@@ -1,27 +1,32 @@
 # User Prompt
-> a function used only in tests that is outside of __tests__ folder is reported as unused, make failing test
+
+> a function used only in tests that is outside of **tests** folder is reported as unused, make failing test
 
 # Primary Objective
+
 Create a failing test that demonstrates the issue where a function used only in test files but located outside of the `__tests__` folder is incorrectly reported as unused.
 
 # Open Questions
+
 - [x] Should the function be in the `src/` directory or elsewhere? **Answer: In src/ with production code**
-- [x] Should the test file be in the `__tests__` folder or can it be anywhere? **Answer: In __tests__**
+- [x] Should the test file be in the `__tests__` folder or can it be anywhere? **Answer: In `__tests__`**
 - [x] What is the expected behavior - should such functions be reported as used or unused? **Answer: Should be reported as used in tests only, similar to how type properties are handled**
 
 # Tasks
+
 - [x] **TS001**: Identify the root cause of the problem
 - [x] **TS002**: Create a failing test to isolate the problem, if unable to create a failing test STOP and report to the user
 - [x] **TS003**: Confirm the root cause of the problem based on the failing test
 - [x] **TS004**: Think very hard, step by step, to identify a solution, then STOP and:
-    - Describe the problem as you understand it
-    - Describe proposed solution
-    - Iterate with the user on proposed solution
+  - Describe the problem as you understand it
+  - Describe proposed solution
+  - Iterate with the user on proposed solution
 - [x] **TS005**: Write down follow up tasks needed to implement the solution
 - [x] **TS006**: Implement the solution
 - [x] **TS007**: Verify the solution works
 
 # Acceptance Criteria
+
 - [x] Primary objective is met
 - [x] All temporary code is removed
 - [x] All tasks are complete
@@ -34,6 +39,7 @@ Create a failing test that demonstrates the issue where a function used only in 
 - [ ] All acceptance criteria are met
 
 # Change Log
+
 - Created feature branch and worktree
 - Created work file
 - Answered clarification questions

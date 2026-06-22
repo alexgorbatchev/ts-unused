@@ -1,13 +1,17 @@
 # Task
+
 > Add support for a strongly-typed configuration file `unused.config.ts` that is auto-detected in the target directory. If not present, defaults are assumed.
 
 # Primary Objective
+
 Implement configuration file support (`unused.config.ts`) to address false positives by allowing users to configure test file patterns, module augmentation handling, and other analysis behaviors.
 
 # Open Questions
+
 - [x] None at this time
 
 # Tasks
+
 - [x] **TS001**: Identify the root cause of the problem
   - False positives occur due to:
     1. Test file detection patterns being too rigid (e.g., `TestLogger.ts` not recognized)
@@ -72,6 +76,7 @@ Implement configuration file support (`unused.config.ts`) to address false posit
   - Exported pattern matcher utilities
 
 # Acceptance Criteria
+
 - [x] Primary objective is met
 - [x] All temporary code is removed
 - [x] All tasks are complete
@@ -84,5 +89,6 @@ Implement configuration file support (`unused.config.ts`) to address false posit
 - [x] `bun lint`, `bun typecheck` and `bun test` commands runs successfully in the new worktree
 
 # Change Log
+
 - 2026-01-04: Created task file and set up worktree
 - 2026-01-04: Implemented configuration file support with all features complete

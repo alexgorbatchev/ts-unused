@@ -21,6 +21,7 @@ TypeScript infers an anonymous type for `configWithoutPlatforms` that is structu
 ## Root Cause
 
 The current `isTypeAssignableTo()` function (lines 137-193) doesn't properly handle structural type compatibility for:
+
 - Inferred types from object destructuring
 - Anonymous object types that are structurally equivalent to declared types
 - Union type matching with structural compatibility
@@ -40,6 +41,7 @@ Improve `isTypeAssignableTo()` to properly check structural compatibility using 
 ## Verification
 
 Test with real-world case:
+
 ```bash
 bun cli /Users/agorbatchev/Development/github/dotfiles-tool-installer/tsconfig.json
 ```
