@@ -4,6 +4,7 @@ coverage = true
 coverageSkipTests = true
 coverageSkipSourceFiles = [
   "**/__tests__/**",
+  "**/tmp/**",
   "**/test-project/**",
   "**/ts-unused-test-*/**",
 ]
