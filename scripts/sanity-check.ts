@@ -82,7 +82,7 @@ async function main() {
   } catch (error) {
     console.error("\n❌ Sanity check failed with error:");
     console.error(error);
-    
+
     // Try to restore test-project on error
     try {
       await $`git -C ${TEST_PROJECT_DIR} restore .`.quiet();
@@ -90,7 +90,7 @@ async function main() {
     } catch {
       console.error("⚠️  Warning: Could not restore test-project");
     }
-    
+
     process.exit(1);
   }
 }
