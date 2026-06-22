@@ -32,19 +32,19 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 
 ### Feature Comparison
 
-| Feature | `ts-unused` | [`tsr`](https://github.com/line/tsr) | [`ts-unused-exports`](https://github.com/pzavolinsky/ts-unused-exports) |
-| :--- | :--- | :--- | :--- |
-| **Goal** | **Report & Analyze** | **Remove (Tree-Shake)** | **Report** |
-| **Unused Exports** | ✅ Detects and reports | ✅ Detects and removes | ✅ Detects and reports |
-| **Unused Properties** | ✅ **Unique:** Checks `interface`/`type` properties | ❌ No property checks | ❌ No property checks |
-| **Never-Returned Types** | ✅ **Unique:** Detects unused union branches | ❌ Not supported | ❌ Not supported |
-| **Test-Only Usage** | ✅ **Unique:** Identifies "Used only in tests" | ⚠️ May delete if not entrypoint | ❌ No distinction |
-| **Comment Support** | ✅ **Unique:** TODOs change severity | ✅ Skip/Ignore only | ✅ Skip/Ignore only |
-| **Unused Files** | ✅ Reports completely unused files | ✅ Deletes unreachable files | ✅ Explicit report flag |
-| **VS Code Integration** | ✅ **Problem Matcher provided** | ❌ Manual setup required | ❌ Manual setup / ESLint plugin |
-| **Auto-Fix** | ✅ Removes unused code safely | ✅ **Primary Feature:** Auto-removes code | ❌ Manual removal required |
-| **Accuracy** | ⭐️ **High** (Language Service) | ⚡️ **Fast** (Custom Graph) | ⚡️ **Fast** (Custom Parser) |
-| **Entrypoints** | 🟢 Not required (Global scan) | 🔴 **Required** (Reachability graph) | 🟢 Not required (Global scan) |
+| Feature                  | `ts-unused`                                         | [`tsr`](https://github.com/line/tsr)      | [`ts-unused-exports`](https://github.com/pzavolinsky/ts-unused-exports) |
+| :----------------------- | :-------------------------------------------------- | :---------------------------------------- | :---------------------------------------------------------------------- |
+| **Goal**                 | **Report & Analyze**                                | **Remove (Tree-Shake)**                   | **Report**                                                              |
+| **Unused Exports**       | ✅ Detects and reports                              | ✅ Detects and removes                    | ✅ Detects and reports                                                  |
+| **Unused Properties**    | ✅ **Unique:** Checks `interface`/`type` properties | ❌ No property checks                     | ❌ No property checks                                                   |
+| **Never-Returned Types** | ✅ **Unique:** Detects unused union branches        | ❌ Not supported                          | ❌ Not supported                                                        |
+| **Test-Only Usage**      | ✅ **Unique:** Identifies "Used only in tests"      | ⚠️ May delete if not entrypoint           | ❌ No distinction                                                       |
+| **Comment Support**      | ✅ **Unique:** TODOs change severity                | ✅ Skip/Ignore only                       | ✅ Skip/Ignore only                                                     |
+| **Unused Files**         | ✅ Reports completely unused files                  | ✅ Deletes unreachable files              | ✅ Explicit report flag                                                 |
+| **VS Code Integration**  | ✅ **Problem Matcher provided**                     | ❌ Manual setup required                  | ❌ Manual setup / ESLint plugin                                         |
+| **Auto-Fix**             | ✅ Removes unused code safely                       | ✅ **Primary Feature:** Auto-removes code | ❌ Manual removal required                                              |
+| **Accuracy**             | ⭐️ **High** (Language Service)                      | ⚡️ **Fast** (Custom Graph)                | ⚡️ **Fast** (Custom Parser)                                             |
+| **Entrypoints**          | 🟢 Not required (Global scan)                       | 🔴 **Required** (Reachability graph)      | 🟢 Not required (Global scan)                                           |
 
 ### vs [tsr](https://github.com/line/tsr)
 
@@ -90,6 +90,7 @@ ts-unused fix <path-to-tsconfig.json>
 ```
 
 **Safety Features:**
+
 - Checks git status before modifying each file
 - Skips files with uncommitted local changes
 - Reports which files were skipped
@@ -130,26 +131,23 @@ export default defineConfig({
   ],
 
   // Files to completely ignore during analysis
-  ignoreFilePatterns: [
-    "**/generated/**",
-    "**/*.d.ts",
-  ],
+  ignoreFilePatterns: ["**/generated/**", "**/*.d.ts"],
 
   // Export names to ignore (supports glob patterns)
   ignoreExports: [
     "formatLogMessage", // Specific export
-    "internal*",        // All exports starting with "internal"
+    "internal*", // All exports starting with "internal"
   ],
 
   // Property names to ignore in interfaces/types
   ignoreProperties: [
-    "message",    // Common error property
-    "_*",         // Private-like properties
+    "message", // Common error property
+    "_*", // Private-like properties
   ],
 
   // Type names to skip property analysis for
   ignoreTypes: [
-    "*Config",    // Skip all config types
+    "*Config", // Skip all config types
     "Options",
   ],
 
@@ -171,19 +169,19 @@ export default defineConfig({
 
 ### Configuration Options
 
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `testFilePatterns` | `string[]` | `["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/__tests__/**"]` | Glob patterns for test file detection |
-| `ignoreFilePatterns` | `string[]` | `[]` | Files to completely ignore during analysis |
-| `ignoreExports` | `string[]` | `[]` | Export names to ignore (supports glob patterns) |
-| `ignoreProperties` | `string[]` | `[]` | Property names to ignore (supports glob patterns) |
-| `ignoreTypes` | `string[]` | `[]` | Type names to skip property analysis for |
-| `ignoreModuleAugmentations` | `boolean` | `true` | Whether to ignore `declare module` blocks |
-| `analyzeExports` | `boolean` | `true` | Enable/disable unused export detection |
-| `analyzeProperties` | `boolean` | `true` | Enable/disable unused property detection |
-| `analyzeNeverReturnedTypes` | `boolean` | `true` | Enable/disable never-returned type detection |
-| `detectUnusedFiles` | `boolean` | `true` | Enable/disable completely unused file detection |
-| `packageMode` | `boolean` | `false` | Treat exports re-exported to package entry points as used (for libraries) |
+| Option                      | Type       | Default                                                                                 | Description                                                               |
+| --------------------------- | ---------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `testFilePatterns`          | `string[]` | `["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/__tests__/**"]` | Glob patterns for test file detection                                     |
+| `ignoreFilePatterns`        | `string[]` | `[]`                                                                                    | Files to completely ignore during analysis                                |
+| `ignoreExports`             | `string[]` | `[]`                                                                                    | Export names to ignore (supports glob patterns)                           |
+| `ignoreProperties`          | `string[]` | `[]`                                                                                    | Property names to ignore (supports glob patterns)                         |
+| `ignoreTypes`               | `string[]` | `[]`                                                                                    | Type names to skip property analysis for                                  |
+| `ignoreModuleAugmentations` | `boolean`  | `true`                                                                                  | Whether to ignore `declare module` blocks                                 |
+| `analyzeExports`            | `boolean`  | `true`                                                                                  | Enable/disable unused export detection                                    |
+| `analyzeProperties`         | `boolean`  | `true`                                                                                  | Enable/disable unused property detection                                  |
+| `analyzeNeverReturnedTypes` | `boolean`  | `true`                                                                                  | Enable/disable never-returned type detection                              |
+| `detectUnusedFiles`         | `boolean`  | `true`                                                                                  | Enable/disable completely unused file detection                           |
+| `packageMode`               | `boolean`  | `false`                                                                                 | Treat exports re-exported to package entry points as used (for libraries) |
 
 ### Pattern Syntax
 
@@ -194,6 +192,7 @@ The configuration supports glob-like patterns:
 - `?` - Matches any single character
 
 Examples:
+
 - `**/*.test.ts` - All `.test.ts` files in any directory
 - `**/Test*.ts` - All files starting with `Test` and ending with `.ts`
 - `internal*` - Names starting with `internal`
@@ -208,6 +207,25 @@ Options:
   --config, -c <path>  Path to configuration file (default: unused.config.ts in project dir)
 ```
 
+### CI/CD and Automation Support
+
+`ts-unused` is optimized for continuous integration (CI) pipelines and AI agent automated development.
+
+#### Exit Codes
+
+- **`0`**: Executed successfully with no `ERROR` severity violations.
+- **`1`**: Executed successfully but found one or more `ERROR` severity violations (e.g., completely unused files, unused exports, unused properties, or never-returned types).
+
+#### Interactive Progress Bar Suppression
+
+By default, `ts-unused check` displays an interactive progress bar showing analysis status. When running under CI/CD environments, Claude Code, Replit, or other AI agents, the interactive progress bar is automatically suppressed to keep output clean, reduce terminal buffer noise, and conserve token usage.
+
+The progress bar is suppressed if any of the following environment variables are set:
+
+- **`CLAUDECODE=1`** (Claude Code)
+- **`REPL_ID`** (Replit environments)
+- **`AGENT=1`** (Generic AI agents or custom pipeline flags)
+
 ## Output
 
 ### Check Command Output
@@ -221,6 +239,7 @@ The script outputs:
 5. **Summary**: Total count of unused items found
 
 Each finding includes:
+
 - File path relative to the project root
 - Export/property name with location (`name:line:startColumn-endColumn`)
 - Severity level (`[ERROR]`, `[WARNING]`, or `[INFO]`)
@@ -361,6 +380,7 @@ Add this task to your `.vscode/tasks.json` to run the analyzer with problem matc
 ```
 
 This will:
+
 - Display results in VS Code's Problems panel
 - Show severity indicators (error, warning, info)
 - Allow clicking to navigate to the exact file location
@@ -400,6 +420,7 @@ export function processData(): ResultType {
 ```
 
 **Detection Capabilities:**
+
 - Analyzes all function return statements to determine actual return types
 - Handles `Promise<Union>` types for async functions
 - Works with type aliases and direct union declarations
@@ -408,12 +429,14 @@ export function processData(): ResultType {
 - Normalizes boolean literals (`true | false` → `boolean`)
 
 **Auto-Fix Behavior:**
+
 - Removes never-returned types from the union declaration
 - Preserves `Promise<>` wrapper for async functions
 - Simplifies to single type when only one branch remains
 - Skips functions that are completely unused (they get removed entirely)
 
 After fixing the example above, the return type would become:
+
 ```typescript
 export function processData(): SuccessResult {
   return { success: true, data: "processed" };
@@ -453,10 +476,12 @@ src/
 ```
 
 In this example:
+
 - `formatDate` is NOT reported as unused because it's re-exported through `src/index.ts` (the package entry point)
 - `helper` IS reported as unused because it's not part of the public API
 
 **Supports:**
+
 - Multiple entry points via `exports` field (e.g., `"."`, `"./utils"`)
 - Nested barrel files (`src/utils/index.ts` → `src/index.ts`)
 - `export *` statements
@@ -482,19 +507,19 @@ interface SourceOptions {
 
 // Different interface with same properties
 interface ProcessedOptions {
-  timeout: number;      // Same name and type
-  retryCount: number;   // Same name and type
+  timeout: number; // Same name and type
+  retryCount: number; // Same name and type
   additionalOption: string;
 }
 
 // Usage through type conversion
 function handler(sourceOpts: SourceOptions) {
   const processedOpts: ProcessedOptions = {
-    ...sourceOpts,  // timeout and retryCount flow here
-    additionalOption: 'value'
+    ...sourceOpts, // timeout and retryCount flow here
+    additionalOption: "value",
   };
-  
-  console.log(processedOpts.timeout);  // Accesses ProcessedOptions.timeout
+
+  console.log(processedOpts.timeout); // Accesses ProcessedOptions.timeout
 }
 ```
 
@@ -540,9 +565,9 @@ console.log(output);
 Analyzes a TypeScript project for unused exports, properties, and never-returned types.
 
 ```typescript
-import { analyzeProject, type AnalysisResults, type AnalyzeProjectOptions } from "ts-unused";
+import { analyzeProject, type IAnalysisResults, type IAnalyzeProjectOptions } from "ts-unused";
 
-const options: AnalyzeProjectOptions = {
+const options: IAnalyzeProjectOptions = {
   config: {
     ignoreFilePatterns: ["**/generated/**"],
     ignoreExports: ["internal*"],
@@ -550,11 +575,11 @@ const options: AnalyzeProjectOptions = {
   },
 };
 
-const results: AnalysisResults = analyzeProject(
+const results: IAnalysisResults = analyzeProject(
   "./tsconfig.json",
   (current, total, filePath) => console.log(`Processing ${current}/${total}: ${filePath}`),
   undefined, // targetFilePath - analyze all files
-  options
+  options,
 );
 
 console.log(`Found ${results.unusedExports.length} unused exports`);
@@ -564,24 +589,22 @@ console.log(`Found ${results.neverReturnedTypes?.length ?? 0} never-returned typ
 ```
 
 **Parameters:**
+
 - `tsConfigPath` - Path to tsconfig.json
 - `onProgress` - Optional callback for progress updates
 - `targetFilePath` - Optional path to analyze a single file
-- `options` - Optional `AnalyzeProjectOptions` object with `config` and/or `isTestFile`
+- `options` - Optional `IAnalyzeProjectOptions` object with `config` and/or `isTestFile`
 
-**Returns:** `AnalysisResults` object with arrays of findings
+**Returns:** `IAnalysisResults` object with arrays of findings
 
 #### `fixProject(tsConfigPath, onProgress?, isTestFile?)`
 
 Automatically removes unused exports, properties, and deletes unused files.
 
 ```typescript
-import { fixProject, type FixResults } from "ts-unused";
+import { fixProject, type IFixResults } from "ts-unused";
 
-const results: FixResults = fixProject(
-  "./tsconfig.json",
-  (message) => console.log(message)
-);
+const results: IFixResults = fixProject("./tsconfig.json", (message) => console.log(message));
 
 console.log(`Fixed ${results.fixedExports} exports`);
 console.log(`Fixed ${results.fixedProperties} properties`);
@@ -591,11 +614,12 @@ console.log(`Skipped ${results.skippedFiles.length} files (git changes)`);
 ```
 
 **Parameters:**
+
 - `tsConfigPath` - Path to tsconfig.json
 - `onProgress` - Optional callback for status messages
 - `isTestFile` - Optional custom test file detection function
 
-**Returns:** `FixResults` object with counts and lists of changes
+**Returns:** `IFixResults` object with counts and lists of changes
 
 #### `formatResults(results, tsConfigDir)`
 
@@ -614,13 +638,13 @@ console.log(formatted);
 Loads configuration from `unused.config.ts` in the project directory.
 
 ```typescript
-import { loadConfig, loadConfigSync, type UnusedConfig } from "ts-unused";
+import { loadConfig, loadConfigSync, type IUnusedConfig } from "ts-unused";
 
 // Async version
-const config: UnusedConfig = await loadConfig("./tsconfig.json");
+const config: IUnusedConfig = await loadConfig("./tsconfig.json");
 
-// Sync version  
-const configSync: UnusedConfig = loadConfigSync("./tsconfig.json");
+// Sync version
+const configSync: IUnusedConfig = loadConfigSync("./tsconfig.json");
 
 // Use with analyzeProject
 const results = analyzeProject("./tsconfig.json", undefined, undefined, { config });
@@ -645,9 +669,9 @@ export default defineConfig({
 Merges user configuration with default values. Useful when programmatically building config.
 
 ```typescript
-import { mergeConfig, defaultConfig, type UnusedConfig } from "ts-unused";
+import { mergeConfig, defaultConfig, type IUnusedConfig } from "ts-unused";
 
-const partialConfig: UnusedConfig = {
+const partialConfig: IUnusedConfig = {
   packageMode: true,
   ignoreExports: ["internal*"],
 };
@@ -678,14 +702,10 @@ import { analyzeProject, createIsTestFile, isTestFile } from "ts-unused";
 isTestFile(sourceFile); // checks against default patterns
 
 // Create custom test file detector
-const customIsTestFile = createIsTestFile([
-  "**/*.test.ts",
-  "**/*.spec.ts", 
-  "**/test/**",
-]);
+const customIsTestFile = createIsTestFile(["**/*.test.ts", "**/*.spec.ts", "**/test/**"]);
 
-const results = analyzeProject("./tsconfig.json", undefined, undefined, { 
-  isTestFile: customIsTestFile 
+const results = analyzeProject("./tsconfig.json", undefined, undefined, {
+  isTestFile: customIsTestFile,
 });
 ```
 
@@ -711,21 +731,21 @@ regex.test("src/utils.test.ts"); // true
 ```typescript
 import type {
   // Main result types
-  AnalysisResults,        // Return type of analyzeProject()
-  UnusedExportResult,     // Individual unused export finding
-  UnusedPropertyResult,   // Individual unused property finding
-  NeverReturnedTypeResult,// Individual never-returned type finding
-  FixResults,             // Return type of fixProject()
-  
+  IAnalysisResults, // Return type of analyzeProject()
+  IUnusedExportResult, // Individual unused export finding
+  IUnusedPropertyResult, // Individual unused property finding
+  INeverReturnedTypeResult, // Individual never-returned type finding
+  IFixResults, // Return type of fixProject()
+
   // Configuration types
-  UnusedConfig,           // Configuration options interface
-  AnalyzeProjectOptions,  // Options for analyzeProject()
-  
+  IUnusedConfig, // Configuration options interface
+  IAnalyzeProjectOptions, // Options for analyzeProject()
+
   // Utility types
-  ExportKind,             // "function" | "class" | "interface" | "type" | ...
-  Severity,               // "error" | "warning" | "info"
-  IsTestFileFn,           // (sourceFile: SourceFile) => boolean
-  PropertyUsageResult,    // Result of property usage check
+  ExportKind, // "function" | "class" | "interface" | "type" | ...
+  Severity, // "error" | "warning" | "info"
+  IsTestFileFn, // (sourceFile: SourceFile) => boolean
+  IPropertyUsageResult, // Result of property usage check
 } from "ts-unused";
 ```
 
