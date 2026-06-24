@@ -2,5 +2,15 @@ import createOxlintConfig, { FilenameStyle } from "@alexgorbatchev/typescript-ai
 
 export default createOxlintConfig({
   filenameStyle: FilenameStyle.PascalCase,
-  ignorePatterns: ["dist/**", "coverage/**", "test-project/**", "node_modules/**"],
+  ignorePatterns: [
+    "dist/**",
+    "coverage/**",
+    "test-project/**",
+    "node_modules/**",
+    ".features/**",
+    ".tmp/**",
+    ".workspaces/**",
+    "bunfig.toml",
+    "README.md",
+  ],
 });

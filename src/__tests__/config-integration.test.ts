@@ -117,8 +117,6 @@ describe("analyzeProject with config", () => {
   });
 
   test("can disable unused files detection", async () => {
-    const _resultsWithDetection = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
-
     const resultsWithoutDetection = await analyzeProject(TSCONFIG_PATH, undefined, undefined, {
       isTestFile: isTestFileForTests,
       config: {
