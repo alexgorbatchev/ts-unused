@@ -322,6 +322,40 @@ Skipped files (have local git changes):
   - Defined outside test files but only referenced from tests
   - Not necessarily a problem, but good to know
 
+## Magic Comments
+
+The analyzer respects specific magic comments to bypass files or control warning severities.
+
+### File-Level Skip (`// @ts-nocheck`)
+
+Placing `// @ts-nocheck` on the first line of a file completely excludes that file from analysis. It is never checked for unused exports, properties, or union types.
+
+```typescript
+// @ts-nocheck
+export const unusedValue = "this file is skipped";
+```
+
+### Technical Debt Tracking (`// TODO`)
+
+Adding a `TODO` comment above an unused property or export changes its analysis severity from `[ERROR]` to `[WARNING]`. This helps track planned work or known technical debt and prevents the `fix` command from automatically removing it.
+
+Both single-line and multi-line comment formats are supported:
+
+```typescript
+export interface UserProfile {
+  id: string;
+  name: string;
+  
+  // TODO implement profile avatar loading later
+  avatarUrl?: string;
+  
+  /**
+   * TODO: support OAuth provider integration
+   */
+  oauthProvider?: string;
+}
+```
+
 ## How It Works
 
 1. **Project Loading**: Uses ts-morph to load the TypeScript project based on the provided tsconfig.json
