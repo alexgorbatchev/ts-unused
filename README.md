@@ -363,7 +363,7 @@ export interface UserProfile {
 
 ### Selective Ignore (`// @ts-unused-ignore <required reason>`)
 
-Placing `// @ts-unused-ignore` followed by a required reason comment directly above any property or exported declaration completely excludes it from analysis. It is never reported as unused.
+Placing `// @ts-unused-ignore` followed by a required reason comment directly above any property or exported declaration downgrades its severity from `[ERROR]` to `[WARNING]` and prints the ignore reason with the warning output. This keeps ignored elements visible under your technical debt tracking and prevents the `fix` command from deleting them.
 
 Both single-line and multi-line formats are supported, provided a non-empty reason is specified after the ignore keyword:
 
