@@ -1,6 +1,6 @@
 import path from "node:path";
 import { Node, type Project, type SourceFile, type TypeAliasDeclaration, type TypeElementTypes } from "ts-morph";
-import { extractTodoComment } from "./extractTodoComment";
+import { extractTodoComment, hasUnusedIgnoreComment } from "./extractTodoComment";
 import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused";
 import { matchesPattern } from "./patternMatcher";
 import type { IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
@@ -30,6 +30,11 @@ export function analyzeTypeLiteralMember(
 
   // Skip ignored properties
   if (ignoreProperties.length > 0 && matchesPattern(propertyName, ignoreProperties)) {
+    return;
+  }
+
+  // Skip if has @ts-unused-ignore comment
+  if (hasUnusedIgnoreComment(member)) {
     return;
   }
 

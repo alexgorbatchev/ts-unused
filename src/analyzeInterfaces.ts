@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { InterfaceDeclaration, Project, SourceFile } from "ts-morph";
-import { extractTodoComment } from "./extractTodoComment";
+import { extractTodoComment, hasUnusedIgnoreComment } from "./extractTodoComment";
 import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused";
 import { matchesPattern } from "./patternMatcher";
 import type { IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
@@ -34,6 +34,11 @@ export function analyzeInterfaces(
 
       // Skip ignored properties
       if (ignoreProperties.length > 0 && matchesPattern(propertyName, ignoreProperties)) {
+        continue;
+      }
+
+      // Skip if has @ts-unused-ignore comment
+      if (hasUnusedIgnoreComment(prop)) {
         continue;
       }
 

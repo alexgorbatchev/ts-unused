@@ -39,6 +39,8 @@ export class ParamProcessor {
 export interface UserData {
   userId: number;
   userName: string;
+  // @ts-unused-ignore used by database serialization
+  internalToken?: string;
 }
 
 export interface IReactFiberNode {

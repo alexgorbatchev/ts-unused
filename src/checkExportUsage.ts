@@ -1,5 +1,6 @@
 import path from "node:path";
 import { Node, type ReferenceEntry, type ReferencedSymbol, type SourceFile, SyntaxKind } from "ts-morph";
+import { extractTodoComment, hasUnusedIgnoreComment } from "./extractTodoComment";
 import { matchesPattern } from "./patternMatcher";
 import { isPublicExport } from "./tracePublicExports";
 import type { ExportKind, IsTestFileFn, Severity, IUnusedExportResult } from "./types";
@@ -125,6 +126,11 @@ export function checkExportUsage(
     return null;
   }
 
+  // Check if there is an ignore comment (e.g., // @ts-unused-ignore <required comment>)
+  if (hasUnusedIgnoreComment(firstDeclaration)) {
+    return null;
+  }
+
   // Check if export should be ignored
   if (ignoreExports.length > 0 && matchesPattern(exportName, ignoreExports)) {
     return null;
@@ -188,8 +194,15 @@ export function checkExportUsage(
 
   const kind: ExportKind = getExportKind(firstDeclaration);
 
-  // Determine severity: info for test-only, error for completely unused
-  const severity: Severity = onlyUsedInTests ? "info" : "error";
+  const todoComment: string | undefined = extractTodoComment(firstDeclaration);
+
+  // Determine severity: warning for TODO, info for test-only, error for completely unused
+  let severity: Severity = "error";
+  if (todoComment) {
+    severity = "warning";
+  } else if (onlyUsedInTests) {
+    severity = "info";
+  }
 
   // Get the name node for accurate position highlighting
   const nameNode: Node | undefined = getNameNode(firstDeclaration);
@@ -206,6 +219,7 @@ export function checkExportUsage(
     character,
     endCharacter,
     kind,
+    todoComment,
     severity,
     onlyUsedInTests,
   };

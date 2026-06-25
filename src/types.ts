@@ -20,6 +20,7 @@ export interface IUnusedExportResult {
   character: number;
   endCharacter: number;
   kind: ExportKind;
+  todoComment?: string;
   severity: Severity;
   onlyUsedInTests: boolean;
 }

@@ -70,4 +70,22 @@ describe("Test-Only Exports", () => {
     // The bug: test-helpers.ts appears in unusedFiles even though it has exports used in tests
     expect(testHelpersInUnusedFiles).toBeUndefined();
   });
+
+  test("handles TODO comments on unused exports and @ts-unused-ignore comments correctly", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+
+    // syncDatabase should be warning because of TODO
+    const syncDb = results.unusedExports.find((item) => item.exportName === "syncDatabase");
+    expect(syncDb).toBeDefined();
+    expect(syncDb?.severity).toBe("warning");
+    expect(syncDb?.todoComment).toBe("implement dynamic sync later");
+
+    // dynamicHook should be ignored completely
+    const dynHook = results.unusedExports.find((item) => item.exportName === "dynamicHook");
+    expect(dynHook).toBeUndefined();
+
+    // internalToken should be ignored completely
+    const tokenProp = results.unusedProperties.find((item) => item.propertyName === "internalToken");
+    expect(tokenProp).toBeUndefined();
+  });
 });

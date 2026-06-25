@@ -23,10 +23,9 @@ function getRelativePath(filePath: string, tsConfigDir: string, cwd: string): st
 
 function formatExportLine(item: IUnusedExportResult): string {
   const marker: string = getSeverityMarker(item.severity);
-  if (item.onlyUsedInTests) {
-    return `  ${item.exportName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (Used only in tests)`;
-  }
-  return `  ${item.exportName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (Unused ${item.kind})`;
+  const status = item.onlyUsedInTests ? "Used only in tests" : `Unused ${item.kind}`;
+  const todoSuffix = item.todoComment ? `: [TODO] ${item.todoComment}` : "";
+  return `  ${item.exportName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (${status}${todoSuffix})`;
 }
 
 function formatPropertyLine(item: IUnusedPropertyResult): string {

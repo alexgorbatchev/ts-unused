@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import assert from "node:assert";
 import { Node, Project } from "ts-morph";
-import { extractTodoComment } from "../extractTodoComment";
+import { extractTodoComment, hasUnusedIgnoreComment } from "../extractTodoComment";
 
 describe("extractTodoComment", () => {
   test("extracts single-line TODO comment", () => {
@@ -212,5 +212,64 @@ describe("extractTodoComment", () => {
     const result: string | undefined = extractTodoComment(yesProp!);
 
     expect(result).toBe("--yes is not yet implemented");
+  });
+
+  test("extracts TODO comment from a function", () => {
+    const project: Project = new Project({ useInMemoryFileSystem: true });
+    const sourceFile = project.createSourceFile(
+      "test.ts",
+      `// TODO implement this helper function
+export function myHelper() {}`,
+    );
+
+    const func = sourceFile.getFunctions()[0];
+    expect(func).toBeDefined();
+
+    const result: string | undefined = extractTodoComment(func!);
+    expect(result).toBe("implement this helper function");
+  });
+});
+
+describe("hasUnusedIgnoreComment", () => {
+  test("returns true for single-line @ts-unused-ignore with required comment", () => {
+    const project: Project = new Project({ useInMemoryFileSystem: true });
+    const sourceFile = project.createSourceFile(
+      "test.ts",
+      `// @ts-unused-ignore expected dynamic usage
+export function unusedFunc() {}`,
+    );
+
+    const func = sourceFile.getFunctions()[0];
+    expect(func).toBeDefined();
+    expect(hasUnusedIgnoreComment(func!)).toBe(true);
+  });
+
+  test("returns false for @ts-unused-ignore without a required comment", () => {
+    const project: Project = new Project({ useInMemoryFileSystem: true });
+    const sourceFile = project.createSourceFile(
+      "test.ts",
+      `// @ts-unused-ignore
+export function unusedFunc() {}`,
+    );
+
+    const func = sourceFile.getFunctions()[0];
+    expect(func).toBeDefined();
+    expect(hasUnusedIgnoreComment(func!)).toBe(false);
+  });
+
+  test("returns true for multi-line @ts-unused-ignore with required comment", () => {
+    const project: Project = new Project({ useInMemoryFileSystem: true });
+    const sourceFile = project.createSourceFile(
+      "test.ts",
+      `export interface MyInterface {
+  /* @ts-unused-ignore needed for dynamic reflection */
+  prop: string;
+}`,
+    );
+
+    const iface = sourceFile.getInterfaces()[0];
+    const prop = iface?.getProperties()[0];
+    expect(prop).toBeDefined();
+    expect(hasUnusedIgnoreComment(prop!)).toBe(true);
   });
 });
