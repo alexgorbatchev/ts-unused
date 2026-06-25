@@ -40,3 +40,8 @@ export interface UserData {
   userId: number;
   userName: string;
 }
+
+export interface IReactFiberNode {
+  _debugOwner?: IReactFiberNode | null;
+  return?: IReactFiberNode | null;
+}

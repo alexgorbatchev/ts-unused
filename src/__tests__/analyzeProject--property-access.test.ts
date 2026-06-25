@@ -41,4 +41,14 @@ describe("analyzeProject - property access detection", () => {
     expect(unusedPropNames).not.toContain("userId");
     expect(unusedPropNames).not.toContain("userName");
   });
+
+  test("does not report properties as unused when accessed via Reflect.get or template literals in different file", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+
+    const fiberProps = results.unusedProperties.filter((item) => item.typeName === "IReactFiberNode");
+
+    const unusedPropNames = fiberProps.map((p) => p.propertyName);
+    expect(unusedPropNames).not.toContain("_debugOwner");
+    expect(unusedPropNames).not.toContain("return");
+  });
 });
