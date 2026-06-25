@@ -337,11 +337,16 @@ export const unusedValue = "this file is skipped";
 
 ### Technical Debt Tracking (`// TODO`)
 
-Adding a `TODO` comment above an unused property or export changes its analysis severity from `[ERROR]` to `[WARNING]`. This helps track planned work or known technical debt and prevents the `fix` command from automatically removing it.
+Adding a `TODO` comment above an unused property or exported declaration (such as a function, class, type, interface, etc.) changes its analysis severity from `[ERROR]` to `[WARNING]`. This helps track planned work or known technical debt and prevents the `fix` command from automatically removing it.
 
 Both single-line and multi-line comment formats are supported:
 
 ```typescript
+// TODO implement dynamic sync later
+export function syncDatabase(): void {
+  console.log("synced");
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -353,6 +358,27 @@ export interface UserProfile {
    * TODO: support OAuth provider integration
    */
   oauthProvider?: string;
+}
+```
+
+### Selective Ignore (`// @ts-unused-ignore <required reason>`)
+
+Placing `// @ts-unused-ignore` followed by a required reason comment directly above any property or exported declaration completely excludes it from analysis. It is never reported as unused.
+
+Both single-line and multi-line formats are supported, provided a non-empty reason is specified after the ignore keyword:
+
+```typescript
+export interface UserData {
+  userId: number;
+  userName: string;
+  
+  // @ts-unused-ignore used by external database serialization
+  internalToken?: string;
+}
+
+// @ts-unused-ignore expected to be used by dynamic plugins
+export function dynamicHook(): void {
+  console.log("hook");
 }
 ```
 
