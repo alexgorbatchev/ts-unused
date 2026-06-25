@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import assert from "node:assert";
 import { Node, Project } from "ts-morph";
-import { extractTodoComment, hasUnusedIgnoreComment } from "../extractTodoComment";
+import { extractTodoComment, extractIgnoreComment } from "../extractTodoComment";
 
 describe("extractTodoComment", () => {
   test("extracts single-line TODO comment", () => {
@@ -230,8 +230,8 @@ export function myHelper() {}`,
   });
 });
 
-describe("hasUnusedIgnoreComment", () => {
-  test("returns true for single-line @ts-unused-ignore with required comment", () => {
+describe("extractIgnoreComment", () => {
+  test("extracts reason for single-line @ts-unused-ignore with required comment", () => {
     const project: Project = new Project({ useInMemoryFileSystem: true });
     const sourceFile = project.createSourceFile(
       "test.ts",
@@ -241,10 +241,10 @@ export function unusedFunc() {}`,
 
     const func = sourceFile.getFunctions()[0];
     expect(func).toBeDefined();
-    expect(hasUnusedIgnoreComment(func!)).toBe(true);
+    expect(extractIgnoreComment(func!)).toBe("expected dynamic usage");
   });
 
-  test("returns false for @ts-unused-ignore without a required comment", () => {
+  test("returns undefined for @ts-unused-ignore without a required comment", () => {
     const project: Project = new Project({ useInMemoryFileSystem: true });
     const sourceFile = project.createSourceFile(
       "test.ts",
@@ -254,10 +254,10 @@ export function unusedFunc() {}`,
 
     const func = sourceFile.getFunctions()[0];
     expect(func).toBeDefined();
-    expect(hasUnusedIgnoreComment(func!)).toBe(false);
+    expect(extractIgnoreComment(func!)).toBeUndefined();
   });
 
-  test("returns true for multi-line @ts-unused-ignore with required comment", () => {
+  test("extracts reason for multi-line @ts-unused-ignore with required comment", () => {
     const project: Project = new Project({ useInMemoryFileSystem: true });
     const sourceFile = project.createSourceFile(
       "test.ts",
@@ -270,6 +270,6 @@ export function unusedFunc() {}`,
     const iface = sourceFile.getInterfaces()[0];
     const prop = iface?.getProperties()[0];
     expect(prop).toBeDefined();
-    expect(hasUnusedIgnoreComment(prop!)).toBe(true);
+    expect(extractIgnoreComment(prop!)).toBe("needed for dynamic reflection");
   });
 });

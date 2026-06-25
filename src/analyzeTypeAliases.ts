@@ -1,6 +1,6 @@
 import path from "node:path";
 import { Node, type Project, type SourceFile, type TypeAliasDeclaration, type TypeElementTypes } from "ts-morph";
-import { extractTodoComment, hasUnusedIgnoreComment } from "./extractTodoComment";
+import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment";
 import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused";
 import { matchesPattern } from "./patternMatcher";
 import type { IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
@@ -33,11 +33,6 @@ export function analyzeTypeLiteralMember(
     return;
   }
 
-  // Skip if has @ts-unused-ignore comment
-  if (hasUnusedIgnoreComment(member)) {
-    return;
-  }
-
   const usage: IPropertyUsageResult = isPropertyUnused(member, isTestFile, project);
 
   if (!usage.isUnusedOrTestOnly) {
@@ -45,9 +40,12 @@ export function analyzeTypeLiteralMember(
   }
 
   const relativePath: string = path.relative(tsConfigDir, sourceFile.getFilePath());
-  const todoComment: string | undefined = extractTodoComment(member);
+  const ignoreComment = extractIgnoreComment(member);
+  const todoComment: string | undefined = ignoreComment
+    ? `[ts-unused-ignore] ${ignoreComment}`
+    : extractTodoComment(member);
 
-  // Determine severity: warning for TODO, info for test-only, error for completely unused
+  // Determine severity: warning for TODO/ignore, info for test-only, error for completely unused
   let severity: Severity = "error";
   if (todoComment) {
     severity = "warning";

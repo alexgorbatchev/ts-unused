@@ -80,12 +80,16 @@ describe("Test-Only Exports", () => {
     expect(syncDb?.severity).toBe("warning");
     expect(syncDb?.todoComment).toBe("implement dynamic sync later");
 
-    // dynamicHook should be ignored completely
+    // dynamicHook should be warning with ignore comment
     const dynHook = results.unusedExports.find((item) => item.exportName === "dynamicHook");
-    expect(dynHook).toBeUndefined();
+    expect(dynHook).toBeDefined();
+    expect(dynHook?.severity).toBe("warning");
+    expect(dynHook?.todoComment).toBe("[ts-unused-ignore] expected to be used by dynamic plugins");
 
-    // internalToken should be ignored completely
+    // internalToken should be warning with ignore comment
     const tokenProp = results.unusedProperties.find((item) => item.propertyName === "internalToken");
-    expect(tokenProp).toBeUndefined();
+    expect(tokenProp).toBeDefined();
+    expect(tokenProp?.severity).toBe("warning");
+    expect(tokenProp?.todoComment).toBe("[ts-unused-ignore] used by database serialization");
   });
 });

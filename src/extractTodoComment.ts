@@ -33,9 +33,9 @@ export function extractTodoComment(node: Node): string | undefined {
 }
 
 /**
- * Checks if a node is decorated with a @ts-unused-ignore comment with a reason.
+ * Extracts the reason from a @ts-unused-ignore comment, or returns undefined if not found/empty.
  */
-export function hasUnusedIgnoreComment(node: Node): boolean {
+export function extractIgnoreComment(node: Node): string | undefined {
   const leadingComments = node.getLeadingCommentRanges();
 
   for (const comment of leadingComments) {
@@ -46,7 +46,7 @@ export function hasUnusedIgnoreComment(node: Node): boolean {
     if (singleLineMatch) {
       const reason = singleLineMatch[1];
       if (reason && reason.trim().length > 0) {
-        return true;
+        return reason.trim();
       }
     }
 
@@ -55,10 +55,10 @@ export function hasUnusedIgnoreComment(node: Node): boolean {
     if (multiLineMatch) {
       const reason = multiLineMatch[1];
       if (reason && reason.trim().length > 0) {
-        return true;
+        return reason.trim().replace(/\s+/g, " ");
       }
     }
   }
 
-  return false;
+  return undefined;
 }

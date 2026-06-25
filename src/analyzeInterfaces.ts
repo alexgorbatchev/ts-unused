@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { InterfaceDeclaration, Project, SourceFile } from "ts-morph";
-import { extractTodoComment, hasUnusedIgnoreComment } from "./extractTodoComment";
+import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment";
 import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused";
 import { matchesPattern } from "./patternMatcher";
 import type { IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
@@ -37,18 +37,16 @@ export function analyzeInterfaces(
         continue;
       }
 
-      // Skip if has @ts-unused-ignore comment
-      if (hasUnusedIgnoreComment(prop)) {
-        continue;
-      }
-
       const usage: IPropertyUsageResult = isPropertyUnused(prop, isTestFile, project);
 
       if (usage.isUnusedOrTestOnly) {
         const relativePath: string = path.relative(tsConfigDir, sourceFile.getFilePath());
-        const todoComment: string | undefined = extractTodoComment(prop);
+        const ignoreComment = extractIgnoreComment(prop);
+        const todoComment: string | undefined = ignoreComment
+          ? `[ts-unused-ignore] ${ignoreComment}`
+          : extractTodoComment(prop);
 
-        // Determine severity: warning for TODO, info for test-only, error for completely unused
+        // Determine severity: warning for TODO/ignore, info for test-only, error for completely unused
         let severity: Severity = "error";
         if (todoComment) {
           severity = "warning";
