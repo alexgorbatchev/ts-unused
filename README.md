@@ -12,6 +12,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 - **Finds Never-Returned Types**: Detects union type branches in function return types that are declared but never actually returned
 - **Auto-Fix Command**: Automatically removes unused exports, properties, deletes unused files, and fixes never-returned types with git safety checks
 - **Structural Property Equivalence**: Handles property re-declarations across multiple interfaces - properties are considered "used" if structurally equivalent properties (same name and type) are accessed in any interface
+- **Reflect-based Dynamic Access**: Recognizes properties accessed dynamically using `Reflect` methods (such as `Reflect.get`, `Reflect.set`, `Reflect.has`, etc.) with string/template literals as keys
 - **Three-Tier Severity System**: Categorizes findings by severity level for better prioritization
   - **ERROR**: Completely unused code that should be removed
   - **WARNING**: Items with TODO comments that need attention
@@ -24,7 +25,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 
 ## Limitations
 
-- **Dynamic Access**: Properties accessed via computed property names (`obj[key]`) may not be detected
+- **Dynamic Access**: Properties accessed via dynamic computed property names (such as `obj[key]` where `key` is a runtime variable) are not detected (though static literal keys like `obj["prop"]` and dynamic `Reflect` calls are supported)
 - **Re-exports**: By default, items that are only re-exported through barrel files are reported as unused. Use `packageMode` to treat public API exports as used.
 - **Type Narrowing**: Properties accessed after type guards or conditional checks may not always be tracked through complex control flow
 
