@@ -1,6 +1,7 @@
 import path from "node:path";
 import { Project, SyntaxKind } from "ts-morph";
 import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes";
+import { analyzeDuplicateTypes } from "./analyzeDuplicateTypes";
 import { analyzeInterfaces } from "./analyzeInterfaces";
 import { analyzeTypeAliases } from "./analyzeTypeAliases";
 import { checkExportUsage } from "./checkExportUsage";
@@ -96,16 +97,16 @@ export async function analyzeProject(
     if (hasNoCheck(sf)) {
       return false;
     }
-    if (targetFilePath && sf.getFilePath() !== targetFilePath) {
-      return false;
-    }
     // Check if file should be ignored based on patterns
     if (config.ignoreFilePatterns.length > 0 && matchesFilePattern(sf.getFilePath(), config.ignoreFilePatterns)) {
       return false;
     }
     return true;
   });
-  const totalFiles: number = filesToAnalyze.length;
+  const targetFiles = targetFilePath
+    ? filesToAnalyze.filter((sf) => sf.getFilePath() === targetFilePath)
+    : filesToAnalyze;
+  const totalFiles: number = targetFiles.length;
 
   let currentFile = 0;
 
@@ -126,8 +127,8 @@ export async function analyzeProject(
   const unusedProperties: IUnusedPropertyResult[] = [];
   const neverReturnedTypes: INeverReturnedTypeResult[] = [];
 
-  // Single pass over all files - much more efficient than 3 separate passes
-  for (const sourceFile of filesToAnalyze) {
+  // Analyze per-file exports, properties, and function return types.
+  for (const sourceFile of targetFiles) {
     const filePath = sourceFile.getFilePath();
     const relativePath = path.relative(tsConfigDir, filePath);
 
@@ -184,7 +185,7 @@ export async function analyzeProject(
     const fileExportCounts = new Map<string, IFileExportCount>();
 
     // Count total exports per file
-    for (const sourceFile of filesToAnalyze) {
+    for (const sourceFile of targetFiles) {
       const filePath = path.relative(tsConfigDir, sourceFile.getFilePath());
       const exports = sourceFile.getExportedDeclarations();
       const totalExports = exports.size;
@@ -225,6 +226,9 @@ export async function analyzeProject(
     unusedProperties,
     unusedFiles,
     neverReturnedTypes,
+    duplicateTypes: config.analyzeDuplicateTypes
+      ? analyzeDuplicateTypes(filesToAnalyze, tsConfigDir, config.ignoreTypes, targetFilePath)
+      : [],
   };
 
   return results;

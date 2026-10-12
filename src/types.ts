@@ -1,4 +1,13 @@
-import type { SourceFile } from "ts-morph";
+import type {
+  InterfaceDeclaration,
+  PropertyDeclaration,
+  PropertySignature,
+  SourceFile,
+  TypeAliasDeclaration,
+} from "ts-morph";
+
+export type PropertyNode = PropertySignature | PropertyDeclaration;
+export type TypeDeclaration = InterfaceDeclaration | TypeAliasDeclaration;
 
 export type Severity = "error" | "warning" | "info";
 
@@ -52,6 +61,20 @@ export interface IAnalysisResults {
   unusedProperties: IUnusedPropertyResult[];
   unusedFiles: string[];
   neverReturnedTypes?: INeverReturnedTypeResult[];
+  duplicateTypes?: IDuplicateTypeResult[];
+}
+
+export interface ITypeLocation {
+  filePath: string;
+  typeName: string;
+  line: number;
+  character: number;
+  endCharacter: number;
+}
+
+export interface IDuplicateTypeResult extends ITypeLocation {
+  duplicateOf: ITypeLocation;
+  severity: Severity;
 }
 
 export type IsTestFileFn = (sourceFile: SourceFile) => boolean;

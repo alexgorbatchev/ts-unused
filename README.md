@@ -10,8 +10,9 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 - **Finds Completely Unused Files**: Identifies files where all exports are unused, suggesting the entire file can be deleted
 - **Finds Unused Type Properties**: Detects properties in interfaces and type aliases that are defined but never accessed
 - **Finds Never-Returned Types**: Detects union type branches in function return types that are declared but never actually returned
+- **Finds Duplicate Types**: Reports differently named interfaces and type aliases with matching structures, including primitive aliases and unions
 - **Auto-Fix Command**: Automatically removes unused exports, properties, deletes unused files, and fixes never-returned types with git safety checks
-- **Structural Property Equivalence**: Handles property re-declarations across multiple interfaces - properties are considered "used" if structurally equivalent properties (same name and type) are accessed in any interface
+- **Related Property Usage**: Tracks properties through inheritance, assignments, function arguments, and object spreads; matching names in unrelated types do not count as usage
 - **Reflect-based Dynamic Access**: Recognizes properties accessed dynamically using `Reflect` methods (such as `Reflect.get`, `Reflect.set`, `Reflect.has`, etc.) with string/template literals as keys
 - **Three-Tier Severity System**: Categorizes findings by severity level for better prioritization
   - **ERROR**: Completely unused code that should be removed
@@ -146,7 +147,7 @@ export default defineConfig({
     "_*", // Private-like properties
   ],
 
-  // Type names to skip property analysis for
+  // Type names to skip property and duplicate-type analysis for
   ignoreTypes: [
     "*Config", // Skip all config types
     "Options",
@@ -160,6 +161,7 @@ export default defineConfig({
   analyzeExports: true,
   analyzeProperties: true,
   analyzeNeverReturnedTypes: true,
+  analyzeDuplicateTypes: true,
   detectUnusedFiles: true,
 
   // Enable package mode for library development
@@ -176,11 +178,12 @@ export default defineConfig({
 | `ignoreFilePatterns`        | `string[]` | `[]`                                                                                    | Files to completely ignore during analysis                                |
 | `ignoreExports`             | `string[]` | `[]`                                                                                    | Export names to ignore (supports glob patterns)                           |
 | `ignoreProperties`          | `string[]` | `[]`                                                                                    | Property names to ignore (supports glob patterns)                         |
-| `ignoreTypes`               | `string[]` | `[]`                                                                                    | Type names to skip property analysis for                                  |
+| `ignoreTypes`               | `string[]` | `[]`                                                                                    | Type names to skip property and duplicate-type analysis for               |
 | `ignoreModuleAugmentations` | `boolean`  | `true`                                                                                  | Whether to ignore `declare module` blocks                                 |
 | `analyzeExports`            | `boolean`  | `true`                                                                                  | Enable/disable unused export detection                                    |
 | `analyzeProperties`         | `boolean`  | `true`                                                                                  | Enable/disable unused property detection                                  |
 | `analyzeNeverReturnedTypes` | `boolean`  | `true`                                                                                  | Enable/disable never-returned type detection                              |
+| `analyzeDuplicateTypes`     | `boolean`  | `true`                                                                                  | Enable/disable duplicate-type warnings                                    |
 | `detectUnusedFiles`         | `boolean`  | `true`                                                                                  | Enable/disable completely unused file detection                           |
 | `packageMode`               | `boolean`  | `false`                                                                                 | Treat exports re-exported to package entry points as used (for libraries) |
 
@@ -313,9 +316,10 @@ Skipped files (have local git changes):
   - Should be removed or investigated
   - No references found in production or test code
 
-- **[WARNING]** - Items with TODO comments (yellow in VS Code)
+- **[WARNING]** - Duplicate types and items with TODO comments (yellow in VS Code)
   - Indicates planned but not yet implemented features
   - Helps track technical debt
+  - Duplicate-type warnings do not cause a failing exit code and are not automatically merged by `fix`
 
 - **[INFO]** - Used only in tests (blue in VS Code)
   - Testing helpers, mocks, or test-specific utilities
@@ -549,13 +553,21 @@ In this example:
 - Mixed named and star exports
 - Types and interfaces
 
-### Structural Property Equivalence
+### Duplicate Types
 
-The analyzer handles cases where properties are re-declared across multiple interfaces with the same name and type. This commonly occurs with:
+The analyzer reports interfaces and type aliases whose resolved structures match despite having different names. It compares properties regardless of declaration order, follows nested and recursive types, and includes primitive aliases, unions, generic parameters, callable types, and index signatures. Optional and `readonly` modifiers, generic constraints and defaults, and function parameter types remain significant.
+
+Each additional declaration in a matching group produces a warning with its location and a reference to the first matching declaration. When checking a single file, the analyzer compares its declarations against the rest of the project and reports findings in the requested file. Test files, ignored files, and files with `@ts-nocheck` are excluded from the comparison.
+
+Use `ignoreTypes` for intentionally distinct domain names, or disable this analysis with `analyzeDuplicateTypes: false`. Duplicate warnings do not change unused-property results. The `fix` command does not merge duplicate definitions or rewrite their references.
+
+### Related Property Usage
+
+The analyzer tracks properties across declarations connected by inheritance or actual value flow. This includes:
 
 - **Interface Composition**: When spreading values between different interface types
 - **Type Transformations**: When converting from one type to another via object spreading
-- **Shared Property Patterns**: When multiple interfaces define the same property structure
+- **Assignments and Arguments**: When a value is assigned or passed to a different declared type
 
 **Example:**
 
@@ -584,7 +596,7 @@ function handler(sourceOpts: SourceOptions) {
 }
 ```
 
-In this case, `SourceOptions.timeout` and `SourceOptions.retryCount` are **not** flagged as unused, even though they're never directly accessed. The analyzer recognizes that `ProcessedOptions.timeout` and `ProcessedOptions.retryCount` are structurally equivalent and used, so their counterparts in `SourceOptions` are also considered used.
+In this case, reading `ProcessedOptions.timeout` counts as usage of `SourceOptions.timeout` because the spread copies that property into the processed object. The matching `retryCount` declarations alone do not establish usage. Properties overwritten after a spread are not linked to the original value. Flows that occur only in tests remain test-only usage. `Reflect` access is matched against the receiver's type rather than every property with the same name in the project.
 
 ## Programmatic API
 
@@ -623,7 +635,7 @@ console.log(output);
 
 #### `analyzeProject(tsConfigPath, onProgress?, targetFilePath?, options?)`
 
-Analyzes a TypeScript project for unused exports, properties, and never-returned types.
+Analyzes a TypeScript project for unused exports, properties, never-returned types, and duplicate types.
 
 ```typescript
 import { analyzeProject, type IAnalysisResults, type IAnalyzeProjectOptions } from "ts-unused";
@@ -647,6 +659,7 @@ console.log(`Found ${results.unusedExports.length} unused exports`);
 console.log(`Found ${results.unusedProperties.length} unused properties`);
 console.log(`Found ${results.unusedFiles.length} completely unused files`);
 console.log(`Found ${results.neverReturnedTypes?.length ?? 0} never-returned types`);
+console.log(`Found ${results.duplicateTypes?.length ?? 0} duplicate types`);
 ```
 
 **Parameters:**
@@ -796,6 +809,8 @@ import type {
   IUnusedExportResult, // Individual unused export finding
   IUnusedPropertyResult, // Individual unused property finding
   INeverReturnedTypeResult, // Individual never-returned type finding
+  IDuplicateTypeResult, // Duplicate declaration and the matching original
+  ITypeLocation, // Name and source location of a type declaration
   IFixResults, // Return type of fixProject()
 
   // Configuration types

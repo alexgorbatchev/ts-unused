@@ -2,6 +2,7 @@ import path from "node:path";
 import type {
   IAnalysisResults,
   INeverReturnedTypeResult,
+  IDuplicateTypeResult,
   Severity,
   IUnusedExportResult,
   IUnusedPropertyResult,
@@ -117,11 +118,24 @@ export function formatResults(results: IAnalysisResults, tsConfigDir: string): s
     lines.push(...formatGroupedItems(neverReturnedTypes, formatNeverReturnedLine, tsConfigDir, cwd));
   }
 
+  const duplicateTypes = results.duplicateTypes ?? [];
+  if (duplicateTypes.length > 0) {
+    lines.push("Duplicate Types:");
+    lines.push("");
+    const formatDuplicate = (item: IDuplicateTypeResult): string => {
+      const original = item.duplicateOf;
+      const originalPath = getRelativePath(original.filePath, tsConfigDir, cwd);
+      return `  ${item.typeName}:${item.line}:${item.character}-${item.endCharacter} ${getSeverityMarker(item.severity)} (Duplicate of ${original.typeName} at ${originalPath}:${original.line}:${original.character})`;
+    };
+    lines.push(...formatGroupedItems(duplicateTypes, formatDuplicate, tsConfigDir, cwd));
+  }
+
   if (
     results.unusedFiles.length === 0 &&
     exportsToReport.length === 0 &&
     propertiesToReport.length === 0 &&
-    neverReturnedTypes.length === 0
+    neverReturnedTypes.length === 0 &&
+    duplicateTypes.length === 0
   ) {
     lines.push("No unused exports or properties found!");
   } else {
@@ -130,6 +144,9 @@ export function formatResults(results: IAnalysisResults, tsConfigDir: string): s
     lines.push(`  Unused exports: ${exportsToReport.length}`);
     lines.push(`  Unused properties: ${propertiesToReport.length}`);
     lines.push(`  Never-returned types: ${neverReturnedTypes.length}`);
+    if (duplicateTypes.length > 0) {
+      lines.push(`  Duplicate types: ${duplicateTypes.length}`);
+    }
   }
 
   return lines.join("\n");

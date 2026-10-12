@@ -36,7 +36,7 @@ export interface IUnusedConfig {
   ignoreProperties?: string[];
 
   /**
-   * Type names to ignore (their properties will not be analyzed).
+   * Type names to ignore in property and duplicate-type analysis.
    * Supports exact names or glob patterns.
    *
    * @default []
@@ -72,6 +72,13 @@ export interface IUnusedConfig {
    * @default true
    */
   analyzeNeverReturnedTypes?: boolean;
+
+  /**
+   * Whether to report structurally identical interfaces and type aliases as warnings.
+   * Includes primitive aliases and unions.
+   * @default true
+   */
+  analyzeDuplicateTypes?: boolean;
 
   /**
    * Whether to detect completely unused files.
@@ -111,6 +118,7 @@ export const defaultConfig: Required<IUnusedConfig> = {
   analyzeProperties: true,
   analyzeExports: true,
   analyzeNeverReturnedTypes: true,
+  analyzeDuplicateTypes: true,
   detectUnusedFiles: true,
   packageMode: false,
 };

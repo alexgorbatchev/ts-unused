@@ -14,6 +14,8 @@ export type {
   ExportKind,
   IsTestFileFn,
   INeverReturnedTypeResult,
+  IDuplicateTypeResult,
+  ITypeLocation,
   Severity,
   IUnusedExportResult,
   IUnusedPropertyResult,

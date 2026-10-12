@@ -1,22 +1,19 @@
 import { Node, SyntaxKind } from "ts-morph";
-import type { Project, PropertyDeclaration, PropertySignature, ReferencedSymbol, SourceFile } from "ts-morph";
-import { findStructurallyEquivalentProperties } from "./findStructurallyEquivalentProperties";
-import type { IsTestFileFn } from "./types";
-
-type PropertyNode = PropertySignature | PropertyDeclaration;
+import type { Project, ReferencedSymbol, SourceFile } from "ts-morph";
+import { findRelatedProperties } from "./findRelatedProperties";
+import type { IsTestFileFn, PropertyNode } from "./types";
 
 interface IPropertyReferenceCount {
-  totalReferences: number;
   testReferences: number;
   nonTestReferences: number;
 }
 
-const reflectAccessCache = new WeakMap<Project, Map<string, Set<SourceFile>>>();
+const reflectAccessCache = new WeakMap<Project, Map<PropertyNode, Set<SourceFile>>>();
 
-function getReflectAccesses(project: Project): Map<string, Set<SourceFile>> {
+function getReflectAccesses(project: Project): Map<PropertyNode, Set<SourceFile>> {
   let cache = reflectAccessCache.get(project);
   if (!cache) {
-    cache = new Map<string, Set<SourceFile>>();
+    cache = new Map<PropertyNode, Set<SourceFile>>();
 
     for (const sourceFile of project.getSourceFiles()) {
       const callExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression);
@@ -54,13 +51,17 @@ function getReflectAccesses(project: Project): Map<string, Set<SourceFile>> {
                 propName = keyArg.getLiteralValue();
               }
 
-              if (propName) {
-                let files = cache.get(propName);
-                if (!files) {
-                  files = new Set<SourceFile>();
-                  cache.set(propName, files);
+              const receiver = args[0];
+              if (propName && receiver) {
+                const declarations = receiver.getType().getProperty(propName)?.getDeclarations() ?? [];
+                for (const declaration of declarations) {
+                  if (!Node.isPropertySignature(declaration) && !Node.isPropertyDeclaration(declaration)) {
+                    continue;
+                  }
+                  const files = cache.get(declaration) ?? new Set<SourceFile>();
+                  files.add(sourceFile);
+                  cache.set(declaration, files);
                 }
-                files.add(sourceFile);
               }
             }
           }
@@ -78,15 +79,21 @@ function countPropertyReferences(
   project: Project,
 ): IPropertyReferenceCount {
   const references: ReferencedSymbol[] = prop.findReferences();
-  let totalReferences = 0;
   let testReferences = 0;
   let nonTestReferences = 0;
 
   for (const refGroup of references) {
     const refs = refGroup.getReferences();
     for (const ref of refs) {
+      const node = ref.getNode();
+      const parent = node.getParent();
+      if (
+        ref.isDefinition() ||
+        ((Node.isPropertySignature(parent) || Node.isPropertyDeclaration(parent)) && parent.getNameNode() === node)
+      ) {
+        continue;
+      }
       const refSourceFile: SourceFile = ref.getSourceFile();
-      totalReferences++;
 
       if (isTestFile(refSourceFile)) {
         testReferences++;
@@ -97,12 +104,9 @@ function countPropertyReferences(
   }
 
   // Add Reflect-based references
-  const propName = prop.getName();
-  const reflectAccesses = getReflectAccesses(project).get(propName);
+  const reflectAccesses = getReflectAccesses(project).get(prop);
   if (reflectAccesses) {
     for (const refSourceFile of reflectAccesses) {
-      totalReferences++;
-
       if (isTestFile(refSourceFile)) {
         testReferences++;
       } else {
@@ -112,7 +116,6 @@ function countPropertyReferences(
   }
 
   const result: IPropertyReferenceCount = {
-    totalReferences,
     testReferences,
     nonTestReferences,
   };
@@ -127,29 +130,25 @@ export interface IPropertyUsageResult {
 export function isPropertyUnused(prop: PropertyNode, isTestFile: IsTestFileFn, project: Project): IPropertyUsageResult {
   const counts: IPropertyReferenceCount = countPropertyReferences(prop, isTestFile, project);
 
-  // A property is unused if it only has 1 reference (the definition itself)
-  // A property is test-only if it has references only from tests
-  const onlyUsedInTests: boolean = counts.nonTestReferences === 1 && counts.testReferences > 0;
+  // Declarations and redeclarations are excluded; only actual references count as usage.
+  const onlyUsedInTests: boolean = counts.nonTestReferences === 0 && counts.testReferences > 0;
 
-  if (counts.totalReferences > 1 && !onlyUsedInTests) {
+  if (counts.nonTestReferences > 0) {
     const result: IPropertyUsageResult = { isUnusedOrTestOnly: false, onlyUsedInTests: false };
     return result; // Used in production code
   }
 
-  // Check structurally equivalent properties
-  const equivalentProps: PropertyNode[] = findStructurallyEquivalentProperties(prop, project);
-
-  for (const equivalentProp of equivalentProps) {
-    const equivalentCounts: IPropertyReferenceCount = countPropertyReferences(equivalentProp, isTestFile, project);
-    const equivalentOnlyUsedInTests: boolean =
-      equivalentCounts.nonTestReferences === 1 && equivalentCounts.testReferences > 0;
-
-    if (equivalentCounts.totalReferences > 1 && !equivalentOnlyUsedInTests) {
+  let hasTestUsage = onlyUsedInTests;
+  for (const related of findRelatedProperties(prop, project, isTestFile)) {
+    const relatedCounts = countPropertyReferences(related.property, isTestFile, project);
+    const hasProductionUsage = relatedCounts.nonTestReferences > 0;
+    if (hasProductionUsage && !related.onlyUsedInTests) {
       const result: IPropertyUsageResult = { isUnusedOrTestOnly: false, onlyUsedInTests: false };
       return result;
     }
+    hasTestUsage ||= relatedCounts.testReferences > 0 || (hasProductionUsage && related.onlyUsedInTests);
   }
 
-  const result: IPropertyUsageResult = { isUnusedOrTestOnly: true, onlyUsedInTests };
+  const result: IPropertyUsageResult = { isUnusedOrTestOnly: true, onlyUsedInTests: hasTestUsage };
   return result;
 }
