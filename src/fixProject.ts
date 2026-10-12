@@ -1,10 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Project, type SourceFile, SyntaxKind } from "ts-morph";
-import { analyzeProject } from "./analyzeProject";
+import { analyzeProject, type IsTestFileFnOrOptions } from "./analyzeProject";
 import { checkGitStatus } from "./checkGitStatus";
-import { isTestFile as defaultIsTestFile } from "./isTestFile";
-import type { IAnalysisResults, IsTestFileFn } from "./types";
+import type { IAnalysisResults } from "./types";
 
 export type FixProgressCallback = (message: string) => void;
 
@@ -20,7 +19,7 @@ export interface IFixResults {
 export async function fixProject(
   tsConfigPath: string,
   onProgress?: FixProgressCallback,
-  isTestFile: IsTestFileFn = defaultIsTestFile,
+  isTestFileOrOptions?: IsTestFileFnOrOptions,
 ): Promise<IFixResults> {
   const results: IFixResults = {
     fixedExports: 0,
@@ -32,7 +31,7 @@ export async function fixProject(
   };
 
   // Analyze the project to find unused items
-  const analysis: IAnalysisResults = await analyzeProject(tsConfigPath, undefined, undefined, isTestFile);
+  const analysis: IAnalysisResults = await analyzeProject(tsConfigPath, undefined, undefined, isTestFileOrOptions);
 
   // Get the directory containing tsconfig
   const tsConfigDir = path.dirname(path.resolve(tsConfigPath));
@@ -167,8 +166,10 @@ export async function fixProject(
     }
 
     if (filesWithChanges.has(absoluteFilePath)) {
-      onProgress?.(`Skipped: ${relativeFilePath} (has local git changes)`);
-      results.skippedFiles.push(relativeFilePath);
+      if (!results.skippedFiles.includes(relativeFilePath)) {
+        onProgress?.(`Skipped: ${relativeFilePath} (has local git changes)`);
+        results.skippedFiles.push(relativeFilePath);
+      }
       continue;
     }
 

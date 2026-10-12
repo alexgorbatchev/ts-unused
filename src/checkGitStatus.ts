@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 /**
@@ -9,47 +9,46 @@ import path from "node:path";
  */
 export function checkGitStatus(workingDir: string): Set<string> {
   const changedFiles = new Set<string>();
+  let gitRoot: string;
 
   try {
-    // Get the git root directory first
-    // git status --porcelain returns paths relative to git root, not cwd
-    const gitRoot = execSync("git rev-parse --show-toplevel", {
+    gitRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
       cwd: workingDir,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "ignore"],
-    }).trim();
+    }).replace(/\r?\n$/, "");
+  } catch {
+    // Allow projects outside Git. Once a repository is found, status errors
+    // must propagate so the fixer cannot treat dirty files as clean.
+    return changedFiles;
+  }
 
-    // Run git status --porcelain to get list of changed files
-    // --porcelain gives machine-readable output
-    const output = execSync("git status --porcelain", {
+  // NUL-delimited porcelain preserves whitespace and special characters in paths.
+  // List individual untracked files so new directories are protected too.
+  const output = execFileSync(
+    "git",
+    ["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+    {
       cwd: workingDir,
       encoding: "utf-8",
-      stdio: ["pipe", "pipe", "ignore"], // Ignore stderr to avoid errors when not in git repo
-    });
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
 
-    // Parse the output
-    // Format: "XY filename" where X is staged status, Y is unstaged status
-    const lines = output.trim().split("\n");
+  const entries = output.split("\0");
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+    if (!entry) continue;
 
-    for (const line of lines) {
-      if (!line) continue;
+    // Porcelain paths are relative to the repository root, even from a subdirectory.
+    changedFiles.add(path.resolve(gitRoot, entry.slice(3)));
 
-      // Extract filename (skip first 3 characters which are status codes and space)
-      const filename = line.slice(3).trim();
-
-      // Handle renamed files (format: "old -> new")
-      const actualFilename = filename.includes(" -> ") ? filename.split(" -> ")[1] : filename;
-
-      if (actualFilename) {
-        // Git status returns paths relative to git root, not cwd
-        const absolutePath = path.resolve(gitRoot, actualFilename);
-        changedFiles.add(absolutePath);
-      }
+    // Renames and copies contain a second NUL-delimited path (the original).
+    // The destination is the first path and is the file that must be protected.
+    const status = entry.slice(0, 2);
+    if (status.includes("R") || status.includes("C")) {
+      index++;
     }
-  } catch {
-    // If git command fails (e.g., not in a git repo), return empty set
-    // This allows the tool to work in non-git directories
-    return changedFiles;
   }
 
   return changedFiles;

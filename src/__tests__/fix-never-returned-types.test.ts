@@ -2,8 +2,9 @@ import { afterAll, describe, expect, test } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
 import { fixProject } from "../fixProject";
+import { commitFixProject } from "./helpers";
 
-const TEMP_DIR = path.join(process.cwd(), ".test-temp-fix-never-returned");
+const TEMP_DIR = path.join(process.cwd(), ".tmp/fix-never-returned");
 
 // Cleanup after tests
 afterAll(() => {
@@ -68,6 +69,8 @@ console.log(alwaysFails());
     );
 
     // Run fix
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
 
     // Check results
@@ -129,6 +132,8 @@ asyncAlwaysSucceeds();
       }),
     );
 
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
 
     expect(results.fixedNeverReturnedTypes).toBe(1);
@@ -172,6 +177,8 @@ console.log(onlyReturnsString());
         include: ["*.ts"],
       }),
     );
+
+    commitFixProject(TEMP_DIR);
 
     const results = await fixProject(tsconfigFile);
 

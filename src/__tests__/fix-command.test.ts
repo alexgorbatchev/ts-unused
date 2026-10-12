@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
 import { fixProject } from "../fixProject";
+import { commitFixProject, createFixProject } from "./helpers";
 
 // Create a temporary test directory
-const TEMP_DIR = path.join(import.meta.dir, "../../temp-test-fix");
+const TEMP_DIR = path.join(import.meta.dir, "../../.tmp/fix-command");
 
 function createTempDir() {
   fs.rmSync(TEMP_DIR, { recursive: true, force: true });
@@ -82,6 +83,8 @@ console.log(usedFunction(), USED_CONSTANT);
     );
 
     // Run fix
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
 
     // Check that unused exports were removed
@@ -134,6 +137,8 @@ console.log(user.id, user.name);
         include: ["*.ts"],
       }),
     );
+
+    commitFixProject(TEMP_DIR);
 
     const results = await fixProject(tsconfigFile);
 
@@ -189,6 +194,8 @@ console.log(usedFunction());
       }),
     );
 
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
 
     expect(fs.existsSync(usedFile)).toBe(true);
@@ -197,9 +204,20 @@ console.log(usedFunction());
   });
 
   test("skips files with local git changes", async () => {
-    // This test will be implemented once we have git integration
-    // For now, just ensure the function exists and can be called
-    expect(fixProject).toBeDefined();
+    const tsconfigFile = await createFixProject(TEMP_DIR, {
+      "protected.ts": "export const unused = 1;\n",
+      "clean.ts": "export const unused = 1;\n",
+    });
+    const changedSource = "export const unused = 2;\n";
+    await Bun.write(path.join(TEMP_DIR, "protected.ts"), changedSource);
+
+    const results = await fixProject(tsconfigFile);
+
+    expect(results.deletedFiles).toBe(1);
+    expect(results.skippedFiles).toEqual(["protected.ts"]);
+    expect(results.errors).toEqual([]);
+    expect(await Bun.file(path.join(TEMP_DIR, "protected.ts")).text()).toBe(changedSource);
+    expect(await Bun.file(path.join(TEMP_DIR, "clean.ts")).exists()).toBe(false);
   });
 
   test("deletes files that only re-export from deleted files", async () => {
@@ -244,6 +262,8 @@ export const ORIGINAL_CONSTANT = "original";
         include: ["*.ts"],
       }),
     );
+
+    commitFixProject(TEMP_DIR);
 
     const results = await fixProject(tsconfigFile);
 
@@ -301,6 +321,8 @@ console.log(ownFunction());
       }),
     );
 
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
 
     // Original should be deleted
@@ -342,6 +364,8 @@ const config: Partial<Config> = {
 console.log(config.host, config.port);
 `,
     );
+
+    commitFixProject(TEMP_DIR);
 
     const results = await fixProject(tsconfigFile);
 
@@ -388,6 +412,8 @@ if (result.status === "success") {
 `,
     );
 
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
 
     // Error type should be removed from union since it's never returned
@@ -412,6 +438,8 @@ if (result.status === "success") {
     );
 
     const progressMessages: string[] = [];
+    commitFixProject(TEMP_DIR);
+
     await fixProject(tsconfigFile, (msg) => progressMessages.push(msg));
 
     expect(progressMessages.length).toBeGreaterThan(0);
@@ -429,6 +457,8 @@ if (result.status === "success") {
     );
 
     // Should not throw
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
     expect(results).toBeDefined();
   });
@@ -454,6 +484,8 @@ console.log(noReturnType());
     );
 
     // Should not throw even if function has no explicit return type
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
     expect(results).toBeDefined();
   });
@@ -493,6 +525,8 @@ main();
 `,
     );
 
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
     expect(results).toBeDefined();
   });
@@ -521,6 +555,8 @@ if (result.ok) {
 `,
     );
 
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
     expect(results).toBeDefined();
   });
@@ -548,6 +584,8 @@ if (result === true) {
 `,
     );
 
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
     expect(results).toBeDefined();
   });
@@ -572,6 +610,8 @@ export const UNUSED = "unused";
 console.log(usedExport(), USED);
 `,
     );
+
+    commitFixProject(TEMP_DIR);
 
     const results = await fixProject(tsconfigFile);
     expect(results.fixedExports).toBe(2);
@@ -608,6 +648,8 @@ console.log(instance.method());
 `,
     );
 
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
     expect(results.fixedExports).toBe(1);
 
@@ -641,6 +683,8 @@ export enum UnusedEnum {
 console.log(UsedEnum.A);
 `,
     );
+
+    commitFixProject(TEMP_DIR);
 
     const results = await fixProject(tsconfigFile);
     expect(results.fixedExports).toBe(1);
@@ -684,6 +728,8 @@ console.log(subFn());
       }),
     );
 
+    commitFixProject(TEMP_DIR);
+
     const results = await fixProject(tsconfigFile);
     expect(results.fixedExports).toBe(1);
 
@@ -725,6 +771,8 @@ console.log(utilFn());
         include: ["*.ts", "**/*.ts"],
       }),
     );
+
+    commitFixProject(TEMP_DIR);
 
     const results = await fixProject(tsconfigFile);
     expect(results.fixedExports).toBe(1);

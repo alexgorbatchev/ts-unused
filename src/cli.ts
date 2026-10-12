@@ -84,9 +84,13 @@ async function main(): Promise<void> {
     console.log(`Fixing TypeScript project: ${tsConfigPath}`);
     console.log("");
 
-    const results = await fixProject(tsConfigPath, (message) => {
-      console.log(message);
-    });
+    const results = await fixProject(
+      tsConfigPath,
+      (message) => {
+        console.log(message);
+      },
+      { config },
+    );
 
     console.log("");
     console.log("Summary:");

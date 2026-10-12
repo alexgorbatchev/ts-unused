@@ -93,8 +93,9 @@ ts-unused fix <path-to-tsconfig.json>
 
 **Safety Features:**
 
-- Checks git status before modifying each file
-- Skips files with uncommitted local changes
+- Checks repository-wide Git status before making changes
+- Skips staged, unstaged, renamed, and untracked files, including files in new directories
+- Stops without editing if Git status fails in a detected repository
 - Reports which files were skipped
 - Continues processing other files if one fails
 - Provides detailed per-file logging
@@ -115,6 +116,8 @@ ts-unused ./tsconfig.json --config ./custom.config.ts
 ## Configuration
 
 Create an `unused.config.ts` file in your project root (same directory as `tsconfig.json`) to customize the analysis behavior.
+
+Both `check` and `fix` use this configuration, including ignore patterns, enabled analyses, test-file patterns, and package mode. Use `--config <path>` with either command to select a different configuration file.
 
 ### Example Configuration
 
@@ -671,14 +674,18 @@ console.log(`Found ${results.duplicateTypes?.length ?? 0} duplicate types`);
 
 **Returns:** `IAnalysisResults` object with arrays of findings
 
-#### `fixProject(tsConfigPath, onProgress?, isTestFile?)`
+#### `fixProject(tsConfigPath, onProgress?, options?)`
 
 Automatically removes unused exports, properties, and deletes unused files.
 
 ```typescript
 import { fixProject, type IFixResults } from "ts-unused";
 
-const results: IFixResults = fixProject("./tsconfig.json", (message) => console.log(message));
+const results: IFixResults = await fixProject(
+  "./tsconfig.json",
+  (message) => console.log(message),
+  { config: { ignoreExports: ["publicApi"], analyzeProperties: false } },
+);
 
 console.log(`Fixed ${results.fixedExports} exports`);
 console.log(`Fixed ${results.fixedProperties} properties`);
@@ -691,7 +698,9 @@ console.log(`Skipped ${results.skippedFiles.length} files (git changes)`);
 
 - `tsConfigPath` - Path to tsconfig.json
 - `onProgress` - Optional callback for status messages
-- `isTestFile` - Optional custom test file detection function
+- `options` - Optional `IAnalyzeProjectOptions` object with `config` and/or `isTestFile`; also accepts a custom test file detection function directly. `isTestFile` overrides `config.testFilePatterns`.
+
+The library uses defaults when `config` is omitted. Pass configuration explicitly; automatic config-file loading is handled by the CLI.
 
 **Returns:** `IFixResults` object with counts and lists of changes
 
