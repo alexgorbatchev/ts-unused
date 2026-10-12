@@ -1,3 +1,4 @@
+import { SEVERITY } from "./constants";
 import path from "node:path";
 import { type FunctionDeclaration, type SourceFile, SyntaxKind, type Type } from "ts-morph";
 import type { INeverReturnedTypeResult } from "./types";
@@ -166,7 +167,7 @@ export function analyzeFunctionReturnTypes(
           line: nameNode.getStartLineNumber(),
           character,
           endCharacter,
-          severity: "error",
+          severity: SEVERITY.ERROR,
         });
       }
     }

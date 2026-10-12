@@ -167,6 +167,17 @@ export default defineConfig({
   analyzeDuplicateTypes: true,
   detectUnusedFiles: true,
 
+  // Choose which rules fail checks (off | info | warning | error)
+  rules: {
+    unusedExports: "error",
+    unusedProperties: "error",
+    unusedFiles: "error",
+    neverReturnedTypes: "warning",
+    duplicateTypes: "error",
+    todoComments: "warning",
+    ignoreComments: "off",
+  },
+
   // Enable package mode for library development
   // Treats exports re-exported through barrel files to package entry points as "used"
   packageMode: true,
@@ -186,9 +197,32 @@ export default defineConfig({
 | `analyzeExports`            | `boolean`  | `true`                                                                                  | Enable/disable unused export detection                                    |
 | `analyzeProperties`         | `boolean`  | `true`                                                                                  | Enable/disable unused property detection                                  |
 | `analyzeNeverReturnedTypes` | `boolean`  | `true`                                                                                  | Enable/disable never-returned type detection                              |
-| `analyzeDuplicateTypes`     | `boolean`  | `true`                                                                                  | Enable/disable duplicate-type warnings                                    |
+| `analyzeDuplicateTypes`     | `boolean`  | `true`                                                                                  | Enable/disable duplicate-type detection                                   |
 | `detectUnusedFiles`         | `boolean`  | `true`                                                                                  | Enable/disable completely unused file detection                           |
 | `packageMode`               | `boolean`  | `false`                                                                                 | Treat exports re-exported to package entry points as used (for libraries) |
+| `rules`                     | `Partial<Record<RuleName, RuleSeverity>>` | `{}` | Per-rule severity overrides; omitted rules retain their default behavior |
+
+### Rule Severities
+
+Each rule accepts `"off"`, `"info"`, `"warning"`, or `"error"`. `off` suppresses its findings. `check` exits with code 1 when any enabled rule reports an error, including duplicate types. Warnings and info do not fail checks.
+
+Plain string keys and severity values are fully supported and type-checked, as shown above. Constants are optional: the package exports `RULE_NAME`, `RULE_SEVERITY`, `SEVERITY`, `COMMENT_KIND`, and `EXPORT_KIND` as frozen constant objects for configuration and API consumers. `RuleName`, `RuleSeverity`, `Severity`, `CommentKind`, and `ExportKind` are derived from their corresponding constant values.
+
+| Rule | Default behavior |
+| :--- | :--- |
+| `unusedExports` | Error; info for test-only usage |
+| `unusedProperties` | Error; info for test-only usage |
+| `unusedFiles` | Error |
+| `neverReturnedTypes` | Error |
+| `duplicateTypes` | Error |
+| `todoComments` | Warning for unused exports/properties annotated with TODO comments |
+| `ignoreComments` | Warning for unused exports/properties annotated with `@ts-unused-ignore` comments |
+
+TODO and ignore annotations select their own rule instead of the unused-export/property rule. For example, `rules: { unusedExports: "error", todoComments: "warning", ignoreComments: "off" }` reports ordinary unused exports and test-only exports as errors, TODO findings as warnings, and suppresses ignore-comment findings. TODO/ignore rules still report annotated findings when `unusedExports` or `unusedProperties` is `off`. If both annotations apply, the ignore-comment rule takes precedence. Omit a rule to preserve its default behavior. Unknown rule names and invalid severities abort analysis with an error.
+
+The existing analysis switches still apply: `analyzeProperties: false` disables property analysis, including annotated properties, even with `rules.unusedProperties: "error"` or `rules.todoComments: "error"`. Disabling export reports with `rules.unusedExports: "off"` still allows unused-file detection and annotated export findings. Disabling export analysis with `analyzeExports: false` also prevents annotated export findings and unused-file detection, which depends on export analysis.
+
+`fix` processes error-level findings only. It skips TODO/ignore and test-only findings as direct fix targets even when configured as errors, and it does not merge duplicate types. Unused-file detection excludes files containing TODO/ignore or test-only exports. Each rule is independent: downgrading `unusedFiles` does not downgrade individual unused exports, and an error-level unused-file finding can still delete a file whose export findings have a lower severity. An independently unused containing export or file can still be removed even when one of its properties has a TODO/ignore comment. Stronger child findings remain visible beneath a weaker file or parent-export finding.
 
 ### Pattern Syntax
 
@@ -315,14 +349,15 @@ Skipped files (have local git changes):
 
 ### Severity Levels
 
-- **[ERROR]** - Completely unused code (red in VS Code)
+These are the defaults when the corresponding rule has no explicit severity override. TODO/ignore findings use `todoComments`/`ignoreComments` independently of unused-export/property severity:
+
+- **[ERROR]** - Completely unused code and duplicate types (red in VS Code)
   - Should be removed or investigated
   - No references found in production or test code
 
-- **[WARNING]** - Duplicate types and items with TODO comments (yellow in VS Code)
+- **[WARNING]** - Items with TODO or ignore comments (yellow in VS Code)
   - Indicates planned but not yet implemented features
   - Helps track technical debt
-  - Duplicate-type warnings do not cause a failing exit code and are not automatically merged by `fix`
 
 - **[INFO]** - Used only in tests (blue in VS Code)
   - Testing helpers, mocks, or test-specific utilities
@@ -344,7 +379,7 @@ export const unusedValue = "this file is skipped";
 
 ### Technical Debt Tracking (`// TODO`)
 
-Adding a `TODO` comment above an unused property or exported declaration (such as a function, class, type, interface, etc.) changes its analysis severity from `[ERROR]` to `[WARNING]`. This helps track planned work or known technical debt and prevents the `fix` command from automatically removing it.
+Adding a `TODO` comment above an unused property or exported declaration (such as a function, class, type, interface, etc.) selects the `todoComments` rule, which defaults to `[WARNING]`. Set `rules.todoComments` to `off`, `info`, `warning`, or `error` independently of unused-code rules. The `fix` command skips the annotated finding as a direct fix target at every severity; independently unused containers remain governed by their own rules.
 
 Both single-line and multi-line comment formats are supported:
 
@@ -362,7 +397,7 @@ export interface UserProfile {
   avatarUrl?: string;
   
   /**
-   * TODO: support OAuth provider integration
+   * TODO support OAuth provider integration
    */
   oauthProvider?: string;
 }
@@ -370,7 +405,7 @@ export interface UserProfile {
 
 ### Selective Ignore (`// @ts-unused-ignore <required reason>`)
 
-Placing `// @ts-unused-ignore` followed by a required reason comment directly above any property or exported declaration downgrades its severity from `[ERROR]` to `[WARNING]` and prints the ignore reason with the warning output. This keeps ignored elements visible under your technical debt tracking and prevents the `fix` command from deleting them.
+Placing `// @ts-unused-ignore` followed by a required reason comment directly above an unused property or exported declaration selects the `ignoreComments` rule, which defaults to `[WARNING]`. Set `rules.ignoreComments` to `off`, `info`, `warning`, or `error` independently of TODO and unused-code rules. Findings include the ignore reason. The `fix` command skips the annotated finding as a direct fix target at every severity; independently unused containers remain governed by their own rules.
 
 Both single-line and multi-line formats are supported, provided a non-empty reason is specified after the ignore keyword:
 
@@ -399,10 +434,10 @@ export function dynamicHook(): void {
    - Test references (from test files)
    - Non-test references (from production code)
 5. **Severity Assignment**:
-   - Items with TODO comments → WARNING
-   - Items only used in tests (nonTestReferences === 1 && testReferences > 0) → INFO
-   - Completely unused items → ERROR
-6. **Structural Equivalence Checking**: When a property has no direct references, searches for structurally equivalent properties (same name and type signature) across all interfaces and type aliases - if any equivalent property is used, all are considered used
+   - TODO/ignore findings use their own rule settings, defaulting to WARNING
+   - Test-only findings default to INFO; an explicit unused-rule setting overrides this
+   - Completely unused items default to ERROR
+6. **Related Property Checking**: Tracks usage through inheritance and value flow, including assignments, function arguments, and spreads. Matching properties in unrelated types do not count as usage.
 7. **File Exclusion**: Automatically filters out from being analyzed:
    - Test files (files in `__tests__` directories or ending in `.test.ts` or `.spec.ts`)
    - Files with `// @ts-nocheck` on the first line
@@ -560,9 +595,9 @@ In this example:
 
 The analyzer reports interfaces and type aliases whose resolved structures match despite having different names. It compares properties regardless of declaration order, follows nested and recursive types, and includes primitive aliases, unions, generic parameters, callable types, and index signatures. Optional and `readonly` modifiers, generic constraints and defaults, and function parameter types remain significant.
 
-Each additional declaration in a matching group produces a warning with its location and a reference to the first matching declaration. When checking a single file, the analyzer compares its declarations against the rest of the project and reports findings in the requested file. Test files, ignored files, and files with `@ts-nocheck` are excluded from the comparison.
+Each additional declaration in a matching group produces a finding with its location and a reference to the first matching declaration. The default severity is error and causes checks to fail; use `rules: { duplicateTypes: "warning" }` to report duplicates without failing checks. When checking a single file, the analyzer compares its declarations against the rest of the project and reports findings in the requested file. Test files, ignored files, and files with `@ts-nocheck` are excluded from the comparison.
 
-Use `ignoreTypes` for intentionally distinct domain names, or disable this analysis with `analyzeDuplicateTypes: false`. Duplicate warnings do not change unused-property results. The `fix` command does not merge duplicate definitions or rewrite their references.
+Use `ignoreTypes` for intentionally distinct domain names, or disable this analysis with `analyzeDuplicateTypes: false`. Duplicate findings do not change unused-property results. The `fix` command does not merge duplicate definitions or rewrite their references.
 
 ### Related Property Usage
 
@@ -824,11 +859,14 @@ import type {
 
   // Configuration types
   IUnusedConfig, // Configuration options interface
+  RuleName, // Unused-code, duplicate-type, and TODO/ignore rule names
+  RuleSeverity, // "off" | "info" | "warning" | "error"
   IAnalyzeProjectOptions, // Options for analyzeProject()
 
   // Utility types
   ExportKind, // "function" | "class" | "interface" | "type" | ...
   Severity, // "error" | "warning" | "info"
+  CommentKind, // "todo" | "ignore"
   IsTestFileFn, // (sourceFile: SourceFile) => boolean
   IPropertyUsageResult, // Result of property usage check
 } from "ts-unused";

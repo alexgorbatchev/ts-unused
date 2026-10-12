@@ -1,7 +1,8 @@
 export type { IAnalyzeProjectOptions } from "./analyzeProject";
 export { analyzeProject } from "./analyzeProject";
-export type { IUnusedConfig } from "./config";
+export type { IUnusedConfig, RuleName, RuleSeverity } from "./config";
 export { defaultConfig, defineConfig, mergeConfig } from "./config";
+export { COMMENT_KIND, EXPORT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY } from "./constants";
 export type { IFixResults } from "./fixProject";
 export { fixProject } from "./fixProject";
 export { formatResults } from "./formatResults";
@@ -17,6 +18,7 @@ export type {
   IDuplicateTypeResult,
   ITypeLocation,
   Severity,
+  CommentKind,
   IUnusedExportResult,
   IUnusedPropertyResult,
 } from "./types";

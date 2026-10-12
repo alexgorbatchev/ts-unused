@@ -1,3 +1,4 @@
+import { SEVERITY } from "../constants";
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import path from "node:path";
 import type { SourceFile } from "ts-morph";
@@ -28,7 +29,7 @@ describe("Test-Only Exports", () => {
 
     expect(createTestUser).toBeDefined();
     expect(createTestUser?.onlyUsedInTests).toBe(true);
-    expect(createTestUser?.severity).toBe("info");
+    expect(createTestUser?.severity).toBe(SEVERITY.INFO);
   });
 
   test("marks completely unused exports with [ERROR] severity", async () => {
@@ -41,7 +42,7 @@ describe("Test-Only Exports", () => {
 
     expect(createTestPost).toBeDefined();
     expect(createTestPost?.onlyUsedInTests).toBe(false);
-    expect(createTestPost?.severity).toBe("error");
+    expect(createTestPost?.severity).toBe(SEVERITY.ERROR);
   });
 
   test("marks test setup functions (beforeEach/afterEach) used only in tests with [INFO] severity", async () => {
@@ -54,7 +55,7 @@ describe("Test-Only Exports", () => {
 
     expect(withMockServer).toBeDefined();
     expect(withMockServer?.onlyUsedInTests).toBe(true);
-    expect(withMockServer?.severity).toBe("info");
+    expect(withMockServer?.severity).toBe(SEVERITY.INFO);
   });
 
   test("does not mark files with test-only exports as completely unused", async () => {
@@ -77,19 +78,19 @@ describe("Test-Only Exports", () => {
     // syncDatabase should be warning because of TODO
     const syncDb = results.unusedExports.find((item) => item.exportName === "syncDatabase");
     expect(syncDb).toBeDefined();
-    expect(syncDb?.severity).toBe("warning");
+    expect(syncDb?.severity).toBe(SEVERITY.WARNING);
     expect(syncDb?.todoComment).toBe("implement dynamic sync later");
 
     // dynamicHook should be warning with ignore comment
     const dynHook = results.unusedExports.find((item) => item.exportName === "dynamicHook");
     expect(dynHook).toBeDefined();
-    expect(dynHook?.severity).toBe("warning");
+    expect(dynHook?.severity).toBe(SEVERITY.WARNING);
     expect(dynHook?.todoComment).toBe("[ts-unused-ignore] expected to be used by dynamic plugins");
 
     // internalToken should be warning with ignore comment
     const tokenProp = results.unusedProperties.find((item) => item.propertyName === "internalToken");
     expect(tokenProp).toBeDefined();
-    expect(tokenProp?.severity).toBe("warning");
+    expect(tokenProp?.severity).toBe(SEVERITY.WARNING);
     expect(tokenProp?.todoComment).toBe("[ts-unused-ignore] used by database serialization");
   });
 });

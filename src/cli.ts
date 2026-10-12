@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { SEVERITY } from "./constants";
 
 import fs from "node:fs";
 import path from "node:path";
@@ -148,20 +149,12 @@ async function main(): Promise<void> {
     console.log(output);
 
     // Exit with 1 if there are any error-level violations
-    const unusedExportNames = new Set<string>();
-    for (const exportItem of results.unusedExports) {
-      unusedExportNames.add(exportItem.exportName);
-    }
-    const propertiesToReport = results.unusedProperties.filter((prop) => !unusedExportNames.has(prop.typeName));
-
-    const unusedFileSet = new Set(results.unusedFiles);
-    const exportsToReport = results.unusedExports.filter((exp) => !unusedFileSet.has(exp.filePath));
-
     const hasErrors =
-      results.unusedFiles.length > 0 ||
-      exportsToReport.some((exp) => exp.severity === "error") ||
-      propertiesToReport.some((prop) => prop.severity === "error") ||
-      (results.neverReturnedTypes || []).some((item) => item.severity === "error");
+      (results.unusedFiles.length > 0 && results.unusedFileSeverity === SEVERITY.ERROR) ||
+      results.unusedExports.some((item) => item.severity === SEVERITY.ERROR) ||
+      results.unusedProperties.some((item) => item.severity === SEVERITY.ERROR) ||
+      (results.neverReturnedTypes ?? []).some((item) => item.severity === SEVERITY.ERROR) ||
+      (results.duplicateTypes ?? []).some((item) => item.severity === SEVERITY.ERROR);
 
     if (hasErrors) {
       process.exit(1);

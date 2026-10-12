@@ -1,14 +1,10 @@
+import { COMMENT_KIND, SEVERITY } from "./constants";
 import path from "node:path";
 import type { InterfaceDeclaration, Project, SourceFile } from "ts-morph";
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment";
 import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused";
 import { matchesPattern } from "./patternMatcher";
-import type { IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
-
-export interface IAnalyzeInterfacesOptions {
-  ignoreProperties?: string[];
-  ignoreTypes?: string[];
-}
+import type { IAnalyzePropertiesOptions, IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
 
 export function analyzeInterfaces(
   sourceFile: SourceFile,
@@ -16,7 +12,7 @@ export function analyzeInterfaces(
   isTestFile: IsTestFileFn,
   results: IUnusedPropertyResult[],
   project: Project,
-  options: IAnalyzeInterfacesOptions = {},
+  options: IAnalyzePropertiesOptions = {},
 ): void {
   const { ignoreProperties = [], ignoreTypes = [] } = options;
   const interfaces: InterfaceDeclaration[] = sourceFile.getInterfaces();
@@ -47,11 +43,11 @@ export function analyzeInterfaces(
           : extractTodoComment(prop);
 
         // Determine severity: warning for TODO/ignore, info for test-only, error for completely unused
-        let severity: Severity = "error";
+        let severity: Severity = SEVERITY.ERROR;
         if (todoComment) {
-          severity = "warning";
+          severity = SEVERITY.WARNING;
         } else if (usage.onlyUsedInTests) {
-          severity = "info";
+          severity = SEVERITY.INFO;
         }
 
         const startPos: number = prop.getStart();
@@ -66,6 +62,7 @@ export function analyzeInterfaces(
           character,
           endCharacter,
           todoComment,
+          commentKind: ignoreComment ? COMMENT_KIND.IGNORE : todoComment ? COMMENT_KIND.TODO : undefined,
           severity,
           onlyUsedInTests: usage.onlyUsedInTests,
         };

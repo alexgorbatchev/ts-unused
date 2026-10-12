@@ -1,3 +1,4 @@
+import { SEVERITY } from "../constants";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
@@ -32,7 +33,7 @@ describe("duplicate types", () => {
         character: 13,
         endCharacter: 19,
         duplicateOf: { filePath: "a.ts", typeName: "First", line: 1, character: 18, endCharacter: 23 },
-        severity: "warning",
+        severity: SEVERITY.ERROR,
       },
       {
         filePath: "c.ts",
@@ -41,7 +42,7 @@ describe("duplicate types", () => {
         character: 18,
         endCharacter: 23,
         duplicateOf: { filePath: "a.ts", typeName: "First", line: 1, character: 18, endCharacter: 23 },
-        severity: "warning",
+        severity: SEVERITY.ERROR,
       },
     ]);
   });
@@ -282,7 +283,7 @@ describe("duplicate types", () => {
     ]);
   });
 
-  test("duplicate warnings do not make the CLI fail", async () => {
+  test("duplicate types make the CLI fail by default", async () => {
     await Bun.write(path.join(projectDir, "types.ts"), "type First = string; type Second = string;");
     const process = Bun.spawn(["bun", "run", "src/cli.ts", "check", configPath], {
       env: { ...Bun.env, AGENT: "1" },
@@ -292,7 +293,7 @@ describe("duplicate types", () => {
     const output = await new Response(process.stdout).text();
     const errors = await new Response(process.stderr).text();
 
-    expect(await process.exited).toBe(0);
+    expect(await process.exited).toBe(1);
     expect(errors).toBe("");
     expect(output).toBe(
       [
@@ -301,7 +302,7 @@ describe("duplicate types", () => {
         "Duplicate Types:",
         "",
         path.relative(globalThis.process.cwd(), path.join(projectDir, "types.ts")),
-        `  Second:1:27-33 [WARNING] (Duplicate of First at ${path.relative(globalThis.process.cwd(), path.join(projectDir, "types.ts"))}:1:6)`,
+        `  Second:1:27-33 [ERROR] (Duplicate of First at ${path.relative(globalThis.process.cwd(), path.join(projectDir, "types.ts"))}:1:6)`,
         "",
         "Summary:",
         "  Completely unused files: 0",
@@ -346,7 +347,7 @@ describe("duplicate types", () => {
     ]);
   });
 
-  test("formats duplicate warnings even when they are the only findings", async () => {
+  test("formats duplicate errors even when they are the only findings", async () => {
     await Bun.write(path.join(projectDir, "a.ts"), "type First = string; type Second = string;");
     const results = await analyzeProject(configPath, undefined, undefined, {
       config: { analyzeExports: false, analyzeProperties: false, analyzeNeverReturnedTypes: false },
@@ -357,7 +358,7 @@ describe("duplicate types", () => {
         "Duplicate Types:",
         "",
         path.relative(process.cwd(), path.join(projectDir, "a.ts")),
-        `  Second:1:27-33 [WARNING] (Duplicate of First at ${path.relative(process.cwd(), path.join(projectDir, "a.ts"))}:1:6)`,
+        `  Second:1:27-33 [ERROR] (Duplicate of First at ${path.relative(process.cwd(), path.join(projectDir, "a.ts"))}:1:6)`,
         "",
         "Summary:",
         "  Completely unused files: 0",

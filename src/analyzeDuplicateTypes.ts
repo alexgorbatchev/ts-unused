@@ -1,3 +1,4 @@
+import { SEVERITY } from "./constants";
 import path from "node:path";
 import { SyntaxKind } from "ts-morph";
 import type { SourceFile } from "ts-morph";
@@ -85,7 +86,7 @@ export function analyzeDuplicateTypes(
           results.push({
             ...getLocation(declaration, tsConfigDir),
             duplicateOf: getLocation(original, tsConfigDir),
-            severity: "warning",
+            severity: SEVERITY.ERROR,
           });
         }
       }

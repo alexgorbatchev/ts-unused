@@ -1,14 +1,10 @@
+import { COMMENT_KIND, SEVERITY } from "./constants";
 import path from "node:path";
 import { Node, type Project, type SourceFile, type TypeAliasDeclaration, type TypeElementTypes } from "ts-morph";
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment";
 import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused";
 import { matchesPattern } from "./patternMatcher";
-import type { IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
-
-export interface IAnalyzeTypeAliasesOptions {
-  ignoreProperties?: string[];
-  ignoreTypes?: string[];
-}
+import type { IAnalyzePropertiesOptions, IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
 
 export function analyzeTypeLiteralMember(
   member: TypeElementTypes,
@@ -18,7 +14,7 @@ export function analyzeTypeLiteralMember(
   isTestFile: IsTestFileFn,
   results: IUnusedPropertyResult[],
   project: Project,
-  options: IAnalyzeTypeAliasesOptions = {},
+  options: IAnalyzePropertiesOptions = {},
 ): void {
   const { ignoreProperties = [] } = options;
 
@@ -46,11 +42,11 @@ export function analyzeTypeLiteralMember(
     : extractTodoComment(member);
 
   // Determine severity: warning for TODO/ignore, info for test-only, error for completely unused
-  let severity: Severity = "error";
+  let severity: Severity = SEVERITY.ERROR;
   if (todoComment) {
-    severity = "warning";
+    severity = SEVERITY.WARNING;
   } else if (usage.onlyUsedInTests) {
-    severity = "info";
+    severity = SEVERITY.INFO;
   }
 
   const startPos: number = member.getStart();
@@ -65,6 +61,7 @@ export function analyzeTypeLiteralMember(
     character,
     endCharacter,
     todoComment,
+    commentKind: ignoreComment ? COMMENT_KIND.IGNORE : todoComment ? COMMENT_KIND.TODO : undefined,
     severity,
     onlyUsedInTests: usage.onlyUsedInTests,
   };
@@ -78,7 +75,7 @@ export function analyzeTypeAlias(
   isTestFile: IsTestFileFn,
   results: IUnusedPropertyResult[],
   project: Project,
-  options: IAnalyzeTypeAliasesOptions = {},
+  options: IAnalyzePropertiesOptions = {},
 ): void {
   const { ignoreTypes = [] } = options;
   const typeName: string = typeAlias.getName();
@@ -109,7 +106,7 @@ export function analyzeTypeAliases(
   isTestFile: IsTestFileFn,
   results: IUnusedPropertyResult[],
   project: Project,
-  options: IAnalyzeTypeAliasesOptions = {},
+  options: IAnalyzePropertiesOptions = {},
 ): void {
   const typeAliases: TypeAliasDeclaration[] = sourceFile.getTypeAliases();
 

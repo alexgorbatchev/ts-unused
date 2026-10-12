@@ -5,22 +5,21 @@ import type {
   SourceFile,
   TypeAliasDeclaration,
 } from "ts-morph";
+import { COMMENT_KIND, EXPORT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY } from "./constants";
+
+export interface IAnalyzePropertiesOptions {
+  ignoreProperties?: string[];
+  ignoreTypes?: string[];
+}
 
 export type PropertyNode = PropertySignature | PropertyDeclaration;
 export type TypeDeclaration = InterfaceDeclaration | TypeAliasDeclaration;
 
-export type Severity = "error" | "warning" | "info";
-
-export type ExportKind =
-  | "function"
-  | "class"
-  | "interface"
-  | "type"
-  | "const"
-  | "variable"
-  | "enum"
-  | "namespace"
-  | "export";
+export type Severity = (typeof SEVERITY)[keyof typeof SEVERITY];
+export type RuleSeverity = (typeof RULE_SEVERITY)[keyof typeof RULE_SEVERITY];
+export type RuleName = (typeof RULE_NAME)[keyof typeof RULE_NAME];
+export type CommentKind = (typeof COMMENT_KIND)[keyof typeof COMMENT_KIND];
+export type ExportKind = (typeof EXPORT_KIND)[keyof typeof EXPORT_KIND];
 
 export interface IUnusedExportResult {
   filePath: string;
@@ -30,6 +29,7 @@ export interface IUnusedExportResult {
   endCharacter: number;
   kind: ExportKind;
   todoComment?: string;
+  commentKind?: CommentKind;
   severity: Severity;
   onlyUsedInTests: boolean;
 }
@@ -42,6 +42,7 @@ export interface IUnusedPropertyResult {
   character: number;
   endCharacter: number;
   todoComment?: string;
+  commentKind?: CommentKind;
   severity: Severity;
   onlyUsedInTests: boolean;
 }
@@ -60,6 +61,8 @@ export interface IAnalysisResults {
   unusedExports: IUnusedExportResult[];
   unusedProperties: IUnusedPropertyResult[];
   unusedFiles: string[];
+  /** Severity shared by completely unused files; omitted means error. */
+  unusedFileSeverity?: Severity;
   neverReturnedTypes?: INeverReturnedTypeResult[];
   duplicateTypes?: IDuplicateTypeResult[];
 }

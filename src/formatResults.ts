@@ -1,3 +1,4 @@
+import { SEVERITY } from "./constants";
 import path from "node:path";
 import type {
   IAnalysisResults,
@@ -10,9 +11,9 @@ import type {
 
 function getSeverityMarker(severity: Severity): string {
   const markers: Record<Severity, string> = {
-    error: "[ERROR]",
-    warning: "[WARNING]",
-    info: "[INFO]",
+    [SEVERITY.ERROR]: "[ERROR]",
+    [SEVERITY.WARNING]: "[WARNING]",
+    [SEVERITY.INFO]: "[INFO]",
   };
   return markers[severity];
 }
@@ -71,22 +72,26 @@ export function formatResults(results: IAnalysisResults, tsConfigDir: string): s
   const lines: string[] = [];
   const cwd = process.cwd();
 
-  // Create a set of unused export names (interfaces/types) for quick lookup
-  const unusedExportNames = new Set<string>();
+  const severityRanks: Record<Severity, number> = { [SEVERITY.INFO]: 0, [SEVERITY.WARNING]: 1, [SEVERITY.ERROR]: 2 };
+  const unusedExportSeverities = new Map<string, Severity>();
   for (const exportItem of results.unusedExports) {
-    unusedExportNames.add(exportItem.exportName);
+    unusedExportSeverities.set(`${exportItem.filePath}:${exportItem.exportName}`, exportItem.severity);
   }
 
   // Filter out properties whose parent type/interface is already reported as unused
-  const propertiesToReport: IUnusedPropertyResult[] = results.unusedProperties.filter(
-    (prop) => !unusedExportNames.has(prop.typeName),
-  );
+  const propertiesToReport: IUnusedPropertyResult[] = results.unusedProperties.filter((prop) => {
+    const parentSeverity = unusedExportSeverities.get(`${prop.filePath}:${prop.typeName}`);
+    return parentSeverity === undefined || severityRanks[prop.severity] > severityRanks[parentSeverity];
+  });
 
   // Create a set of completely unused files to exclude from export reporting
   const unusedFileSet = new Set(results.unusedFiles);
 
   // Filter out exports from completely unused files
-  const exportsToReport = results.unusedExports.filter((exp) => !unusedFileSet.has(exp.filePath));
+  const fileSeverity = results.unusedFileSeverity ?? SEVERITY.ERROR;
+  const exportsToReport = results.unusedExports.filter(
+    (exp) => !unusedFileSet.has(exp.filePath) || severityRanks[exp.severity] > severityRanks[fileSeverity],
+  );
 
   // Report completely unused files first
   if (results.unusedFiles.length > 0) {
@@ -94,7 +99,7 @@ export function formatResults(results: IAnalysisResults, tsConfigDir: string): s
     lines.push("");
     for (const filePath of results.unusedFiles) {
       lines.push(getRelativePath(filePath, tsConfigDir, cwd));
-      lines.push("  file:1:1-1 [ERROR] (All exports unused - file can be deleted)");
+      lines.push(`  file:1:1-1 ${getSeverityMarker(fileSeverity)} (All exports unused - file can be deleted)`);
       lines.push("");
     }
   }

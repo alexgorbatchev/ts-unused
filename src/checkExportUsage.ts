@@ -1,5 +1,13 @@
+import { COMMENT_KIND, EXPORT_KIND, SEVERITY } from "./constants";
 import path from "node:path";
-import { Node, type ReferenceEntry, type ReferencedSymbol, type SourceFile, SyntaxKind } from "ts-morph";
+import {
+  Node,
+  type ReferenceEntry,
+  type ReferencedSymbol,
+  type SourceFile,
+  SyntaxKind,
+  VariableDeclarationKind,
+} from "ts-morph";
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment";
 import { matchesPattern } from "./patternMatcher";
 import { isPublicExport } from "./tracePublicExports";
@@ -14,34 +22,34 @@ export interface ICheckExportOptions {
 
 function getExportKind(declaration: Node): ExportKind {
   if (Node.isFunctionDeclaration(declaration)) {
-    return "function";
+    return EXPORT_KIND.FUNCTION;
   }
   if (Node.isClassDeclaration(declaration)) {
-    return "class";
+    return EXPORT_KIND.CLASS;
   }
   if (Node.isInterfaceDeclaration(declaration)) {
-    return "interface";
+    return EXPORT_KIND.INTERFACE;
   }
   if (Node.isTypeAliasDeclaration(declaration)) {
-    return "type";
+    return EXPORT_KIND.TYPE;
   }
   if (Node.isEnumDeclaration(declaration)) {
-    return "enum";
+    return EXPORT_KIND.ENUM;
   }
   if (Node.isModuleDeclaration(declaration)) {
-    return "namespace";
+    return EXPORT_KIND.NAMESPACE;
   }
   if (Node.isVariableDeclaration(declaration)) {
     const parent = declaration.getParent();
     if (Node.isVariableDeclarationList(parent)) {
       const declarationKind = parent.getDeclarationKind();
-      if (declarationKind === "const") {
-        return "const";
+      if (declarationKind === VariableDeclarationKind.Const) {
+        return EXPORT_KIND.CONST;
       }
     }
-    return "variable";
+    return EXPORT_KIND.VARIABLE;
   }
-  return "export";
+  return EXPORT_KIND.EXPORT;
 }
 
 function getNameNode(declaration: Node): Node | undefined {
@@ -193,11 +201,11 @@ export function checkExportUsage(
   const todoComment = ignoreComment ? `[ts-unused-ignore] ${ignoreComment}` : extractTodoComment(firstDeclaration);
 
   // Determine severity: warning for TODO/ignore, info for test-only, error for completely unused
-  let severity: Severity = "error";
+  let severity: Severity = SEVERITY.ERROR;
   if (todoComment) {
-    severity = "warning";
+    severity = SEVERITY.WARNING;
   } else if (onlyUsedInTests) {
-    severity = "info";
+    severity = SEVERITY.INFO;
   }
 
   // Get the name node for accurate position highlighting
@@ -216,6 +224,7 @@ export function checkExportUsage(
     endCharacter,
     kind,
     todoComment,
+    commentKind: ignoreComment ? COMMENT_KIND.IGNORE : todoComment ? COMMENT_KIND.TODO : undefined,
     severity,
     onlyUsedInTests,
   };

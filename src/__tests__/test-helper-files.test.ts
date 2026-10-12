@@ -1,3 +1,4 @@
+import { SEVERITY } from "../constants";
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
@@ -105,11 +106,11 @@ describe("Test Helper Files", () => {
     // Find the createMockFileRegistry export
     const createMockFileRegistry = results.unusedExports.find((item) => item.exportName === "createMockFileRegistry");
 
-    // This should be marked as onlyUsedInTests with severity "info"
-    // NOT as completely unused with severity "error"
+    // This should be marked as onlyUsedInTests with severity SEVERITY.INFO
+    // NOT as completely unused with severity SEVERITY.ERROR
     expect(createMockFileRegistry).toBeDefined();
     expect(createMockFileRegistry?.onlyUsedInTests).toBe(true);
-    expect(createMockFileRegistry?.severity).toBe("info");
+    expect(createMockFileRegistry?.severity).toBe(SEVERITY.INFO);
 
     // The helper file should NOT be in unusedFiles list since it has test-only exports
     const helperFileInUnusedFiles = results.unusedFiles.find((file) => file.includes("createMockFileRegistry.ts"));
@@ -185,7 +186,7 @@ describe("Test Helper Files", () => {
 
     // BUG: The helper is either:
     // 1. Not found at all because test files using it are filtered out
-    // 2. Found but marked as severity "error" (completely unused) instead of "info" (test-only)
+    // 2. Found but marked as severity SEVERITY.ERROR (completely unused) instead of SEVERITY.INFO (test-only)
     //
     // Expected behavior: Helper functions used exclusively in test files should be
     // detected as "onlyUsedInTests: true" with "severity: info", not completely unused.
@@ -197,6 +198,6 @@ describe("Test Helper Files", () => {
     // The helper should be marked as test-only, not completely unused
     expect(createMockUser).toBeDefined();
     expect(createMockUser?.onlyUsedInTests).toBe(true);
-    expect(createMockUser?.severity).toBe("info");
+    expect(createMockUser?.severity).toBe(SEVERITY.INFO);
   });
 });

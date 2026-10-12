@@ -1,3 +1,4 @@
+import { RULE_NAME, RULE_SEVERITY } from "./constants";
 import path from "node:path";
 import { Project, SyntaxKind } from "ts-morph";
 import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes";
@@ -5,7 +6,8 @@ import { analyzeDuplicateTypes } from "./analyzeDuplicateTypes";
 import { analyzeInterfaces } from "./analyzeInterfaces";
 import { analyzeTypeAliases } from "./analyzeTypeAliases";
 import { checkExportUsage } from "./checkExportUsage";
-import { defaultConfig, type IUnusedConfig } from "./config";
+import { mergeConfig, type IUnusedConfig } from "./config";
+import { applyRuleSeverities } from "./applyRuleSeverities";
 import { hasNoCheck } from "./hasNoCheck";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile";
 import { findPackageJson, getPackageEntryPoints } from "./packageEntryPoints";
@@ -49,10 +51,7 @@ export async function analyzeProject(
     options = isTestFileOrOptions;
   }
 
-  const config: Required<IUnusedConfig> = {
-    ...defaultConfig,
-    ...options.config,
-  };
+  const config = mergeConfig(options.config ?? {});
 
   // Determine the isTestFile function
   const isTestFile: IsTestFileFn = options.isTestFile
@@ -126,6 +125,9 @@ export async function analyzeProject(
   const unusedExports: IUnusedExportResult[] = [];
   const unusedProperties: IUnusedPropertyResult[] = [];
   const neverReturnedTypes: INeverReturnedTypeResult[] = [];
+  const hasCommentRules =
+    config.rules[RULE_NAME.TODO_COMMENTS] !== RULE_SEVERITY.OFF ||
+    config.rules[RULE_NAME.IGNORE_COMMENTS] !== RULE_SEVERITY.OFF;
 
   // Analyze per-file exports, properties, and function return types.
   for (const sourceFile of targetFiles) {
@@ -139,7 +141,12 @@ export async function analyzeProject(
     }
 
     // Analyze exports
-    if (config.analyzeExports) {
+    if (
+      config.analyzeExports &&
+      (config.rules[RULE_NAME.UNUSED_EXPORTS] !== RULE_SEVERITY.OFF ||
+        hasCommentRules ||
+        (config.detectUnusedFiles && config.rules[RULE_NAME.UNUSED_FILES] !== RULE_SEVERITY.OFF))
+    ) {
       const exports = sourceFile.getExportedDeclarations();
       for (const [exportName, declarations] of exports.entries()) {
         const unusedExport = checkExportUsage(
@@ -157,13 +164,16 @@ export async function analyzeProject(
     }
 
     // Analyze properties
-    if (config.analyzeProperties) {
+    if (
+      config.analyzeProperties &&
+      (config.rules[RULE_NAME.UNUSED_PROPERTIES] !== RULE_SEVERITY.OFF || hasCommentRules)
+    ) {
       analyzeInterfaces(sourceFile, tsConfigDir, isTestFile, unusedProperties, project, propertyAnalyzeOptions);
       analyzeTypeAliases(sourceFile, tsConfigDir, isTestFile, unusedProperties, project, propertyAnalyzeOptions);
     }
 
     // Analyze never-returned types
-    if (config.analyzeNeverReturnedTypes) {
+    if (config.analyzeNeverReturnedTypes && config.rules[RULE_NAME.NEVER_RETURNED_TYPES] !== RULE_SEVERITY.OFF) {
       const functions = sourceFile.getDescendantsOfKind(SyntaxKind.FunctionDeclaration);
       for (const func of functions) {
         const funcResults = analyzeFunctionReturnTypes(func, sourceFile, tsConfigDir);
@@ -175,13 +185,13 @@ export async function analyzeProject(
   interface IFileExportCount {
     total: number;
     unused: number;
-    testOnly: number;
+    protectedExports: number;
   }
 
   // Identify completely unused files (where all exports are unused)
   const unusedFiles: string[] = [];
 
-  if (config.detectUnusedFiles) {
+  if (config.detectUnusedFiles && config.rules[RULE_NAME.UNUSED_FILES] !== RULE_SEVERITY.OFF) {
     const fileExportCounts = new Map<string, IFileExportCount>();
 
     // Count total exports per file
@@ -191,7 +201,7 @@ export async function analyzeProject(
       const totalExports = exports.size;
 
       if (totalExports > 0) {
-        fileExportCounts.set(filePath, { total: totalExports, unused: 0, testOnly: 0 });
+        fileExportCounts.set(filePath, { total: totalExports, unused: 0, protectedExports: 0 });
       }
     }
 
@@ -200,22 +210,18 @@ export async function analyzeProject(
       const counts = fileExportCounts.get(unusedExport.filePath);
       if (counts) {
         counts.unused++;
-        if (unusedExport.onlyUsedInTests) {
-          counts.testOnly++;
+        if (unusedExport.onlyUsedInTests || unusedExport.todoComment !== undefined) {
+          counts.protectedExports++;
         }
       }
     }
 
-    // Identify files where all exports are unused AND not just test-only
-    // Files with any test-only exports should show individual exports with [INFO], not be listed as completely unused
+    // Keep TODO/ignore and test-only exports as individual findings, never deletion candidates.
     for (const [filePath, counts] of fileExportCounts.entries()) {
-      // Only add to unusedFiles if:
-      // 1. All exports are "unused" (in the unusedExports list)
-      // 2. NONE of the exports are test-only (all are completely unused with severity: error)
       const allExportsUnused = counts.total > 0 && counts.unused === counts.total;
-      const hasAnyTestOnlyExports = counts.testOnly > 0;
+      const hasProtectedExports = counts.protectedExports > 0;
 
-      if (allExportsUnused && !hasAnyTestOnlyExports) {
+      if (allExportsUnused && !hasProtectedExports) {
         unusedFiles.push(filePath);
       }
     }
@@ -226,10 +232,11 @@ export async function analyzeProject(
     unusedProperties,
     unusedFiles,
     neverReturnedTypes,
-    duplicateTypes: config.analyzeDuplicateTypes
-      ? analyzeDuplicateTypes(filesToAnalyze, tsConfigDir, config.ignoreTypes, targetFilePath)
-      : [],
+    duplicateTypes:
+      config.analyzeDuplicateTypes && config.rules[RULE_NAME.DUPLICATE_TYPES] !== RULE_SEVERITY.OFF
+        ? analyzeDuplicateTypes(filesToAnalyze, tsConfigDir, config.ignoreTypes, targetFilePath)
+        : [],
   };
 
-  return results;
+  return applyRuleSeverities(results, config.rules);
 }

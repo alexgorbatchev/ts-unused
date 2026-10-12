@@ -1,3 +1,4 @@
+import { SEVERITY } from "../constants";
 import { describe, expect, test } from "bun:test";
 import assert from "node:assert";
 import path from "node:path";
@@ -22,14 +23,14 @@ describe("Never-Returned Types Detection", () => {
       (r) => r.functionName === "alwaysSucceeds" && r.neverReturnedType === "ErrorResult",
     );
     expect(alwaysSucceeds).toBeDefined();
-    expect(alwaysSucceeds?.severity).toBe("error");
+    expect(alwaysSucceeds?.severity).toBe(SEVERITY.ERROR);
 
     // Case 2: alwaysFails never returns SuccessResult
     const alwaysFails = results.neverReturnedTypes.find(
       (r) => r.functionName === "alwaysFails" && r.neverReturnedType === "SuccessResult",
     );
     expect(alwaysFails).toBeDefined();
-    expect(alwaysFails?.severity).toBe("error");
+    expect(alwaysFails?.severity).toBe(SEVERITY.ERROR);
 
     // Case 3: sometimesSucceeds returns both types (should NOT be flagged)
     const sometimesSucceeds = results.neverReturnedTypes.filter((r) => r.functionName === "sometimesSucceeds");

@@ -1,7 +1,13 @@
+import { RULE_NAME, RULE_SEVERITY, SEVERITY } from "./constants";
+import type { RuleName, RuleSeverity } from "./types";
+export type { RuleName, RuleSeverity } from "./types";
+
 /**
  * Configuration options for ts-unused analysis.
  */
 export interface IUnusedConfig {
+  /** TODO/ignore findings use their own rules; unused-rule overrides also apply to test-only usages. */
+  rules?: Partial<Record<RuleName, RuleSeverity>>;
   /**
    * Patterns to identify test files. Supports glob patterns.
    * Files matching these patterns will be treated as test files
@@ -74,7 +80,7 @@ export interface IUnusedConfig {
   analyzeNeverReturnedTypes?: boolean;
 
   /**
-   * Whether to report structurally identical interfaces and type aliases as warnings.
+   * Whether to report structurally identical interfaces and type aliases.
    * Includes primitive aliases and unions.
    * @default true
    */
@@ -109,6 +115,7 @@ export interface IUnusedConfig {
  * Default configuration values.
  */
 export const defaultConfig: Required<IUnusedConfig> = {
+  rules: {},
   testFilePatterns: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/__tests__/**"],
   ignoreFilePatterns: [],
   ignoreExports: [],
@@ -185,5 +192,17 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
  * @returns Complete configuration with all options
  */
 export function mergeConfig(userConfig: IUnusedConfig): Required<IUnusedConfig> {
+  const severities: readonly string[] = Object.values(RULE_SEVERITY);
+  const ruleNames: readonly string[] = Object.values(RULE_NAME);
+  for (const [rule, severity] of Object.entries(userConfig.rules ?? {})) {
+    if (!ruleNames.includes(rule)) {
+      throw new Error(`Unknown rule '${rule}'. Expected ${ruleNames.join(", ")}.`);
+    }
+    if (severity !== undefined && !severities.includes(severity)) {
+      throw new Error(
+        `Invalid severity for rule '${rule}': ${String(severity)}. Expected ${RULE_SEVERITY.OFF}, ${SEVERITY.INFO}, ${SEVERITY.WARNING}, or ${SEVERITY.ERROR}.`,
+      );
+    }
+  }
   return deepMerge(defaultConfig, userConfig);
 }

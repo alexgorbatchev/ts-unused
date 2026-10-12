@@ -1,3 +1,4 @@
+import { SEVERITY } from "./constants";
 import fs from "node:fs";
 import path from "node:path";
 import { Project, type SourceFile, SyntaxKind } from "ts-morph";
@@ -46,7 +47,8 @@ export async function fixProject(
 
   // Fix unused files first (delete them)
   const deletedFiles = new Set<string>();
-  for (const relativeFilePath of analysis.unusedFiles) {
+  const filesToDelete = analysis.unusedFileSeverity === SEVERITY.ERROR ? analysis.unusedFiles : [];
+  for (const relativeFilePath of filesToDelete) {
     const absoluteFilePath = path.resolve(tsConfigDir, relativeFilePath);
 
     if (filesWithChanges.has(absoluteFilePath)) {
@@ -76,7 +78,7 @@ export async function fixProject(
   const neverReturnedByFile = new Map<string, typeof analysis.neverReturnedTypes>();
   for (const neverReturned of analysis.neverReturnedTypes || []) {
     // Only fix ERROR severity items
-    if (neverReturned.severity !== "error") {
+    if (neverReturned.severity !== SEVERITY.ERROR) {
       continue;
     }
     if (!neverReturnedByFile.has(neverReturned.filePath)) {
@@ -88,7 +90,11 @@ export async function fixProject(
   // Create a set of unused export names for quick lookup (only ERROR severity)
   const unusedExportNames = new Set<string>();
   for (const unusedExport of analysis.unusedExports) {
-    if (unusedExport.severity === "error") {
+    if (
+      unusedExport.severity === SEVERITY.ERROR &&
+      !unusedExport.onlyUsedInTests &&
+      unusedExport.todoComment === undefined
+    ) {
       unusedExportNames.add(`${unusedExport.filePath}:${unusedExport.exportName}`);
     }
   }
@@ -98,7 +104,7 @@ export async function fixProject(
     const absoluteFilePath = path.resolve(tsConfigDir, relativeFilePath);
 
     // Skip if file was deleted
-    if (analysis.unusedFiles.includes(relativeFilePath)) {
+    if (filesToDelete.includes(relativeFilePath)) {
       continue;
     }
 
@@ -147,7 +153,11 @@ export async function fixProject(
   const exportsByFile = new Map<string, typeof analysis.unusedExports>();
   for (const unusedExport of analysis.unusedExports) {
     // Only fix ERROR severity items (skip INFO for test-only, WARNING for TODOs)
-    if (unusedExport.severity !== "error") {
+    if (
+      unusedExport.severity !== SEVERITY.ERROR ||
+      unusedExport.onlyUsedInTests ||
+      unusedExport.todoComment !== undefined
+    ) {
       continue;
     }
     if (!exportsByFile.has(unusedExport.filePath)) {
@@ -161,7 +171,7 @@ export async function fixProject(
     const absoluteFilePath = path.resolve(tsConfigDir, relativeFilePath);
 
     // Skip if file was deleted
-    if (analysis.unusedFiles.includes(relativeFilePath)) {
+    if (filesToDelete.includes(relativeFilePath)) {
       continue;
     }
 
@@ -203,7 +213,11 @@ export async function fixProject(
   const propertiesByFile = new Map<string, typeof analysis.unusedProperties>();
   for (const unusedProperty of analysis.unusedProperties) {
     // Only fix ERROR severity items (skip INFO for test-only, WARNING for TODOs)
-    if (unusedProperty.severity !== "error") {
+    if (
+      unusedProperty.severity !== SEVERITY.ERROR ||
+      unusedProperty.onlyUsedInTests ||
+      unusedProperty.todoComment !== undefined
+    ) {
       continue;
     }
     if (!propertiesByFile.has(unusedProperty.filePath)) {
@@ -217,7 +231,7 @@ export async function fixProject(
     const absoluteFilePath = path.resolve(tsConfigDir, relativeFilePath);
 
     // Skip if file was deleted
-    if (analysis.unusedFiles.includes(relativeFilePath)) {
+    if (filesToDelete.includes(relativeFilePath)) {
       continue;
     }
 
