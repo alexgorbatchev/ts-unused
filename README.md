@@ -593,9 +593,17 @@ In this example:
 
 ### Duplicate Types
 
-The analyzer reports interfaces and type aliases whose resolved structures match despite having different names. It compares properties regardless of declaration order, follows nested and recursive types, and includes primitive aliases, unions, generic parameters, callable types, and index signatures. Optional and `readonly` modifiers, generic constraints and defaults, and function parameter types remain significant.
+The analyzer reports independently defined interfaces and type aliases whose resolved structures match despite having different names. It compares properties regardless of declaration order, follows nested and recursive types, and includes primitive aliases, unions, generic parameters, callable types, and index signatures. Optional and `readonly` modifiers, generic constraints and defaults, and function parameter types remain significant.
 
-Each additional declaration in a matching group produces a finding with its location and a reference to the first matching declaration. The default severity is error and causes checks to fail; use `rules: { duplicateTypes: "warning" }` to report duplicates without failing checks. When checking a single file, the analyzer compares its declarations against the rest of the project and reports findings in the requested file. Test files, ignored files, and files with `@ts-nocheck` are excluded from the comparison.
+Aliases that reuse existing definitions do not produce duplicate-definition or redundant-name findings. This includes direct aliases, utility-derived projections such as `Parameters<Handler>[0]` and React's `ComponentProps<typeof Component>`, and intersections composed entirely from existing props. Empty interfaces that only extend an existing definition also count as reuse. The analyzer follows the origins of resolved members, so independently authored object definitions inside utilities such as `Readonly<{ value: string }>` remain eligible for duplicate findings.
+
+```typescript
+interface IControlProps { value: string; }
+type ForwardedControlProps = IControlProps; // Reuses the definition: no duplicate finding.
+type CopiedControlProps = { value: string }; // Independently repeats the definition: duplicate.
+```
+
+Each additional independent definition in a matching group produces a finding with its location and a reference to the first matching source. A reused definition can serve as a comparison source for a later independent copy; an alias of that copy cannot make its own source appear duplicated. The default severity is error and causes checks to fail; use `rules: { duplicateTypes: "warning" }` to report duplicates without failing checks. When checking a single file, the analyzer compares its declarations against the rest of the project and reports findings in the requested file. Test files, ignored files, and files with `@ts-nocheck` are excluded from the comparison.
 
 Use `ignoreTypes` for intentionally distinct domain names, or disable this analysis with `analyzeDuplicateTypes: false`. Duplicate findings do not change unused-property results. The `fix` command does not merge duplicate definitions or rewrite their references.
 

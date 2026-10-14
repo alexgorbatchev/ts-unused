@@ -2,6 +2,7 @@ import { SEVERITY } from "../constants";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { Project } from "ts-morph";
 import { analyzeProject } from "../analyzeProject";
 import { formatResults } from "../formatResults";
 
@@ -19,6 +20,160 @@ afterEach(async () => {
 });
 
 describe("duplicate types", () => {
+  test("recognizes direct aliases and projections as reuse of a single definition", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      export interface IControlProps { value: string; }
+      export type ForwardedControlProps = IControlProps;
+      export type DerivedControlProps = Parameters<(props: IControlProps) => void>[0];
+      export type ProjectedControlProps = { props: IControlProps }["props"];
+    `,
+    );
+
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes).toEqual([]);
+  });
+
+  test("does not report source definitions when their aliases sort first", async () => {
+    await Bun.write(
+      path.join(projectDir, "a.ts"),
+      'import type { IControl } from "./z"; export type Alias<T> = IControl<T>;',
+    );
+    await Bun.write(path.join(projectDir, "z.ts"), "export interface IControl<T> { value: T; }");
+
+    const results = await analyzeProject(configPath);
+    const targeted = await analyzeProject(configPath, undefined, path.join(projectDir, "z.ts"));
+    expect(results.duplicateTypes).toEqual([]);
+    expect(targeted.duplicateTypes).toEqual([]);
+  });
+
+  test("does not report generic intersection sources when their aliases sort first", async () => {
+    await Bun.write(
+      path.join(projectDir, "a.ts"),
+      'import type { Control } from "./z"; export type Alias<T> = Control<T>;',
+    );
+    await Bun.write(
+      path.join(projectDir, "z.ts"),
+      "interface IBase<T> { value: T; } export type Control<T> = IBase<T> & { enabled: boolean };",
+    );
+
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes).toEqual([]);
+  });
+
+  test("recognizes React component props, native props, and shared intersections as derivations", async () => {
+    await Bun.write(
+      configPath,
+      JSON.stringify({
+        compilerOptions: {
+          strict: true,
+          module: "ESNext",
+          moduleResolution: "Bundler",
+          lib: ["ESNext", "DOM"],
+          types: [],
+          skipLibCheck: true,
+        },
+        include: ["*.ts"],
+      }),
+    );
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      import type { ComponentProps, ReactElement } from "react";
+      interface IDensityProps { density?: "compact" | "comfortable"; }
+      type InputProps = ComponentProps<"input"> & IDensityProps;
+      declare function Input(props: InputProps): ReactElement;
+      type InputGroupInputProps = ComponentProps<typeof Input>;
+      type AlertTitleProps = ComponentProps<"div"> & IDensityProps;
+      type CardHeaderProps = ComponentProps<"div"> & IDensityProps;
+      type TableHeaderProps = ComponentProps<"thead"> & IDensityProps;
+      type TableBodyProps = ComponentProps<"tbody"> & IDensityProps;
+    `,
+    );
+
+    expect(new Project({ tsConfigFilePath: configPath }).getPreEmitDiagnostics()).toEqual([]);
+    const results = await analyzeProject(configPath);
+    const targeted = await analyzeProject(configPath, undefined, path.join(projectDir, "types.ts"));
+    expect(results.duplicateTypes).toEqual([]);
+    expect(targeted.duplicateTypes).toEqual([]);
+  });
+
+  test("still reports independently authored definitions inside utility types", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      type First = Readonly<{ value: string }>;
+      type Second = Readonly<{ value: string }>;
+      type FirstResult = ReturnType<() => { result: number }>;
+      type SecondResult = ReturnType<() => { result: number }>;
+      type FirstMap<T> = Readonly<{ [K in keyof T]: T[K] }>;
+      type SecondMap<U> = Readonly<{ [P in keyof U]: U[P] }>;
+    `,
+    );
+
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
+      ["Second", "First"],
+      ["SecondResult", "FirstResult"],
+      ["SecondMap", "FirstMap"],
+    ]);
+  });
+
+  test("treats literal-key selectors as projections rather than independent union definitions", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      interface IPositioner { align: string; side: string; unused: number; }
+      interface IPopup { children: string; }
+      type First = IPopup & Pick<IPositioner, "align" | "side">;
+      type Second = IPopup & Pick<IPositioner, "side" | "align">;
+      type Third = IPopup & Omit<IPositioner, "unused">;
+    `,
+    );
+
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes).toEqual([]);
+  });
+
+  test("keeps independently authored readonly tuples and utility-derived unions in duplicate analysis", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      type FirstTuple = readonly [string, number];
+      type SecondTuple = readonly [string, number];
+      type FirstPalette = Extract<"light" | "dark", string>;
+      type SecondPalette = Extract<"dark" | "light", string>;
+    `,
+    );
+
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
+      ["SecondTuple", "FirstTuple"],
+      ["SecondPalette", "FirstPalette"],
+    ]);
+  });
+
+  test("preserves unused-property analysis for derived aliases", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      export interface IControl { value: string; unused: number; }
+      export type ForwardedControl = IControl;
+      declare const control: ForwardedControl;
+      console.log(control.value);
+    `,
+    );
+
+    const results = await analyzeProject(configPath);
+    const withoutDuplicates = await analyzeProject(configPath, undefined, undefined, {
+      config: { analyzeDuplicateTypes: false },
+    });
+    expect(results.duplicateTypes).toEqual([]);
+    expect(results.unusedProperties.length).toBeGreaterThan(0);
+    expect(results.unusedProperties).toEqual(withoutDuplicates.unusedProperties);
+  });
+
   test("reports differently named interfaces and aliases across files regardless of member order", async () => {
     await Bun.write(path.join(projectDir, "a.ts"), "export interface First { id: string; count: number; }");
     await Bun.write(path.join(projectDir, "b.ts"), "export type Second = { count: number; id: string; };");
@@ -189,7 +344,6 @@ describe("duplicate types", () => {
 
     const results = await analyzeProject(configPath);
     expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
-      ["Alias", "Original"],
       ["ExplicitMutable", "Mutable"],
       ["Combined", "Derived"],
     ]);

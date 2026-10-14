@@ -1,6 +1,6 @@
 {
   "name": "ts-unused",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "description": "Find unused exports and properties in TypeScript projects",
   "repository": {
     "type": "git",
@@ -40,6 +40,7 @@
     "@alexgorbatchev/typescript-ai-policy": "^12.0.0",
     "@types/bun": "^1.3.14",
     "@types/node": "^26.0.0",
+    "@types/react": "19.3.0",
     "@typescript/native-preview": "^7.0.0-dev.20260622.1",
     "oxfmt": "^0.56.0",
     "oxlint": "^1.71.0"

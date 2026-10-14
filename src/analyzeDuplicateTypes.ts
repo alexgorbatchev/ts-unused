@@ -1,9 +1,10 @@
 import { SEVERITY } from "./constants";
 import path from "node:path";
-import { SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
 import type { SourceFile } from "ts-morph";
 import { matchesPattern } from "./patternMatcher";
 import { TypeComparison } from "./TypeComparison";
+import { isDerivedTypeDeclaration } from "./isDerivedTypeDeclaration";
 import type { IDuplicateTypeResult, ITypeLocation, TypeDeclaration } from "./types";
 
 function getLocation(declaration: TypeDeclaration, tsConfigDir: string): ITypeLocation {
@@ -31,6 +32,31 @@ function getBucketKey(declaration: TypeDeclaration): string {
     type.getCallSignatures().length,
     type.getConstructSignatures().length,
   ]);
+}
+
+function referencesDefinition(
+  declaration: TypeDeclaration,
+  definition: TypeDeclaration,
+  visited = new Set<TypeDeclaration>(),
+): boolean {
+  if (visited.has(declaration)) {
+    return false;
+  }
+  visited.add(declaration);
+  const references = [
+    ...declaration.getDescendantsOfKind(SyntaxKind.TypeReference).map((node) => node.getTypeName()),
+    ...(Node.isInterfaceDeclaration(declaration) ? declaration.getExtends().map((node) => node.getExpression()) : []),
+  ];
+  return references.some((node) => {
+    const symbol = node.getSymbol();
+    const declarations = (symbol?.isAlias() ? symbol.getAliasedSymbol() : symbol)?.getDeclarations() ?? [];
+    return declarations.some(
+      (source) =>
+        source === definition ||
+        ((Node.isTypeAliasDeclaration(source) || Node.isInterfaceDeclaration(source)) &&
+          referencesDefinition(source, definition, visited)),
+    );
+  });
 }
 
 export function analyzeDuplicateTypes(
@@ -75,13 +101,33 @@ export function analyzeDuplicateTypes(
   }
 
   const results: IDuplicateTypeResult[] = [];
+  const derived = new Set(declarations.filter(isDerivedTypeDeclaration));
   for (const groups of buckets.values()) {
     for (const group of groups) {
-      for (const [index, declaration] of group.entries()) {
-        if (targetFilePath ? declaration.getSourceFile().getFilePath() !== targetFilePath : index === 0) {
+      // A preceding alias must not turn its own source definition into a duplicate.
+      const definitions = group.filter((declaration) => !derived.has(declaration));
+      const sources = group.filter((declaration) => {
+        const type = declaration.getType();
+        return (
+          !derived.has(declaration) ||
+          !definitions.some((definition) => {
+            const other = definition.getType();
+            return (
+              type.compilerType === other.compilerType ||
+              (type.getSymbol() !== undefined && type.getSymbol() === other.getSymbol()) ||
+              referencesDefinition(declaration, definition)
+            );
+          })
+        );
+      });
+      for (const [index, declaration] of sources.entries()) {
+        if (
+          derived.has(declaration) ||
+          (targetFilePath ? declaration.getSourceFile().getFilePath() !== targetFilePath : index === 0)
+        ) {
           continue;
         }
-        const original = group.find((other) => other.getName() !== declaration.getName());
+        const original = sources.find((other) => other.getName() !== declaration.getName());
         if (original) {
           results.push({
             ...getLocation(declaration, tsConfigDir),
