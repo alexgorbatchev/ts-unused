@@ -21,18 +21,37 @@ function isLiteralKey(node: ts.Node): node is LiteralKey {
   return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isNumericLiteral(node);
 }
 
+/** The type of a `const KEY = Symbol()` or `unique symbol` declaration, which keys exactly one property. */
+function isUniqueSymbolType(type: ts.Type): type is ts.UniqueESSymbolType {
+  return (type.flags & ts.TypeFlags.UniqueESSymbol) !== 0 && "escapedName" in type;
+}
+
+function getNamedProperty(objectType: ts.Type, name: string, checker: ts.TypeChecker): ts.Symbol[] {
+  const property = checker.getPropertyOfType(objectType, name);
+  return property ? [property] : [];
+}
+
 /**
- * Resolves the property names a key can stand for: the text of a literal key, or every string/number
- * literal in the type of a computed key. Keys of a wider type (e.g. `string`) name no specific property.
+ * Resolves the properties of `objectType` a key can stand for: the property named by a literal key, or one
+ * property per string literal, number literal, or `unique symbol` in the type of a computed key. Keys of a wider
+ * type (e.g. `string` or `symbol`) name no specific property.
  */
-function getKeyNames(key: ts.Node, checker: ts.TypeChecker): string[] {
+function getKeyProperties(key: ts.Node, objectType: ts.Type, checker: ts.TypeChecker): ts.Symbol[] {
   if (isLiteralKey(key)) {
-    return [key.text];
+    return getNamedProperty(objectType, key.text, checker);
   }
 
   const keyType = checker.getTypeAtLocation(ts.isComputedPropertyName(key) ? key.expression : key);
   const keyTypes = keyType.isUnion() ? keyType.types : [keyType];
-  return keyTypes.flatMap((type) => (type.isStringLiteral() || type.isNumberLiteral() ? [String(type.value)] : []));
+  return keyTypes.flatMap((type) => {
+    if (type.isStringLiteral() || type.isNumberLiteral()) {
+      return getNamedProperty(objectType, String(type.value), checker);
+    }
+    if (isUniqueSymbolType(type)) {
+      return checker.getPropertiesOfType(objectType).filter((property) => property.escapedName === type.escapedName);
+    }
+    return [];
+  });
 }
 
 /**
@@ -65,8 +84,8 @@ function recordAccess(
   key: ts.Node,
   sourceFile: SourceFile,
 ): void {
-  for (const name of getKeyNames(key, checker)) {
-    for (const declaration of checker.getPropertyOfType(objectType, name)?.declarations ?? []) {
+  for (const property of getKeyProperties(key, objectType, checker)) {
+    for (const declaration of property.declarations ?? []) {
       if (!ts.isPropertySignature(declaration) && !ts.isPropertyDeclaration(declaration)) {
         continue;
       }
@@ -113,7 +132,7 @@ function recordReflectAccess(
  * key forms its find-references skips:
  * - `const { "a-b": x, 0: y, [KEY]: z } = value` (binding patterns, including parameters)
  * - `({ "a-b": x, [KEY]: z } = value)` and `for ({ "a-b": x } of values)` (assignment patterns)
- * - `value[KEY]` where `KEY` has a literal type (literal element access is already resolved)
+ * - `value[KEY]` where `KEY` has a literal or `unique symbol` type (literal element access is already resolved)
  */
 function recordNodeAccess(
   node: ts.Node,

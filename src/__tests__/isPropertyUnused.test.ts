@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Project, SyntaxKind } from "ts-morph";
+import { Project, SyntaxKind, ts } from "ts-morph";
 import { isPropertyUnused } from "../isPropertyUnused";
 import { isTestFile } from "../isTestFile";
 
@@ -301,6 +301,67 @@ describe("keyed property reads", () => {
       "'union-b'": false,
       "'never-read'": true,
     });
+  });
+
+  test("counts destructuring and element access with unique symbol keys as reads", () => {
+    const project = new Project({
+      useInMemoryFileSystem: true,
+      compilerOptions: { strict: true, target: ts.ScriptTarget.ES2022 },
+    });
+    project.createSourceFile(
+      "/types.ts",
+      `
+      const BINDING_KEY: unique symbol = Symbol("binding");
+      const ASSIGNED_KEY = Symbol("assigned");
+      const INDEXED_KEY = Symbol("indexed");
+      const UNION_A = Symbol("a");
+      const UNION_B = Symbol("b");
+      const NEVER_KEY = Symbol("never");
+      export interface Props {
+        [BINDING_KEY]?: string;
+        [ASSIGNED_KEY]?: string;
+        [INDEXED_KEY]?: string;
+        [UNION_A]?: string;
+        [UNION_B]?: string;
+        [NEVER_KEY]?: string;
+      }
+      let assigned: string | undefined;
+      export function read(props: Props, key: typeof UNION_A | typeof UNION_B) {
+        const { [BINDING_KEY]: binding } = props;
+        ({ [ASSIGNED_KEY]: assigned } = props);
+        return [binding, assigned, props[INDEXED_KEY], props[key]];
+      }
+    `,
+    );
+
+    expect(getUnusedFlags(project, "Props")).toEqual({
+      "[BINDING_KEY]": false,
+      "[ASSIGNED_KEY]": false,
+      "[INDEXED_KEY]": false,
+      "[UNION_A]": false,
+      "[UNION_B]": false,
+      "[NEVER_KEY]": true,
+    });
+  });
+
+  test("attributes unique symbol reads to the symbol that keys the property", () => {
+    const project = new Project({
+      useInMemoryFileSystem: true,
+      compilerOptions: { strict: true, target: ts.ScriptTarget.ES2022 },
+    });
+    project.createSourceFile(
+      "/types.ts",
+      `
+      const KEY = Symbol("key");
+      const SAME_DESCRIPTION = Symbol("key");
+      export interface Keyed { [KEY]?: string; [SAME_DESCRIPTION]?: string; }
+      export function read(keyed: Keyed) {
+        return keyed[KEY];
+      }
+    `,
+    );
+
+    expect(getUnusedFlags(project, "Keyed")).toEqual({ "[KEY]": false, "[SAME_DESCRIPTION]": true });
   });
 
   test("attributes keyed reads to the destructured type only", () => {
