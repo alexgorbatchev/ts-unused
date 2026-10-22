@@ -2,7 +2,7 @@
  * Converts a glob-like pattern to a RegExp.
  * Supports:
  * - `*` matches any characters except `/`
- * - `**` matches any characters including `/`
+ * - `**` matches any characters including `/`; `**\/` also matches no directory at all
  * - `?` matches any single character
  */
 export function patternToRegex(pattern: string): RegExp {
@@ -10,18 +10,20 @@ export function patternToRegex(pattern: string): RegExp {
   let regexStr = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
 
   // Use placeholders to handle ** before * to avoid conflicts
-  // Replace ** with a unique placeholder first
+  const DIRECTORIES_PLACEHOLDER = "<<DIRECTORIES>>";
   const DOUBLE_STAR_PLACEHOLDER = "<<DOUBLESTAR>>";
+  regexStr = regexStr.replace(/\*\*\//g, DIRECTORIES_PLACEHOLDER);
   regexStr = regexStr.replace(/\*\*/g, DOUBLE_STAR_PLACEHOLDER);
 
   // Convert single * to match anything except /
   regexStr = regexStr.replace(/\*/g, "[^/]*");
 
-  // Convert ** placeholder back to match anything including /
-  regexStr = regexStr.split(DOUBLE_STAR_PLACEHOLDER).join(".*");
-
   // Convert ? to match any single character
   regexStr = regexStr.replace(/\?/g, ".");
+
+  // Convert the placeholders back: zero or more directories, and anything including /
+  regexStr = regexStr.split(DIRECTORIES_PLACEHOLDER).join("(?:.*/)?");
+  regexStr = regexStr.split(DOUBLE_STAR_PLACEHOLDER).join(".*");
 
   return new RegExp(`^${regexStr}$`);
 }
@@ -65,30 +67,5 @@ export function matchesFilePattern(filePath: string, patterns: string[]): boolea
   // Normalize path separators
   const normalizedPath = filePath.replace(/\\/g, "/");
 
-  for (const pattern of patterns) {
-    const normalizedPattern = pattern.replace(/\\/g, "/");
-
-    // Check if pattern matches anywhere in the path
-    if (normalizedPattern.startsWith("**/")) {
-      // Pattern like **/*.test.ts should match any path ending with .test.ts
-      const suffixPattern = normalizedPattern.slice(3);
-      const regex = patternToRegex(`**/${suffixPattern}`);
-      if (regex.test(normalizedPath)) {
-        return true;
-      }
-      // Also check if just the suffix matches the end
-      const suffixRegex = patternToRegex(suffixPattern);
-      const fileName = normalizedPath.split("/").pop() ?? "";
-      if (suffixRegex.test(fileName)) {
-        return true;
-      }
-    } else {
-      const regex = patternToRegex(normalizedPattern);
-      if (regex.test(normalizedPath)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  return patterns.some((pattern) => patternToRegex(pattern.replace(/\\/g, "/")).test(normalizedPath));
 }

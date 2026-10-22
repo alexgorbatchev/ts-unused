@@ -18,8 +18,16 @@ describe("patternToRegex", () => {
     const regex = patternToRegex("**/*.ts");
     expect(regex.test("dir/file.ts")).toBe(true);
     expect(regex.test("deep/nested/file.ts")).toBe(true);
-    // Note: **/*.ts doesn't match file.ts directly since ** expects a path separator
-    // The matchesFilePattern function handles this case specially
+    expect(regex.test("file.ts")).toBe(true);
+    expect(regex.test("file.tsx")).toBe(false);
+  });
+
+  test("matches zero or more directories with a **/ segment", () => {
+    const regex = patternToRegex("src/**/index.ts");
+    expect(regex.test("src/index.ts")).toBe(true);
+    expect(regex.test("src/deep/nested/index.ts")).toBe(true);
+    expect(regex.test("lib/src/index.ts")).toBe(false);
+    expect(regex.test("src/deep/main.ts")).toBe(false);
   });
 
   test("converts ? pattern", () => {
@@ -124,8 +132,13 @@ describe("matchesFilePattern", () => {
   });
 
   test("matches file in root with ** pattern", () => {
-    // This tests the suffix matching logic
     expect(matchesFilePattern("file.test.ts", ["**/*.test.ts"])).toBe(true);
+  });
+
+  test("matches a top-level directory of a relative path with a leading **/", () => {
+    expect(matchesFilePattern("generated/types.ts", ["**/generated/**"])).toBe(true);
+    expect(matchesFilePattern("src/generated/types.ts", ["**/generated/**"])).toBe(true);
+    expect(matchesFilePattern("src/types.ts", ["**/generated/**"])).toBe(false);
   });
 
   test("handles pattern with backslash on Windows-style paths", () => {

@@ -5,6 +5,8 @@ import { type NamespaceImport, Node, type Project, type SourceFile, SyntaxKind }
 import { analyzeProject, type IsTestFileFnOrOptions } from "./analyzeProject.js";
 import { checkGitStatus } from "./checkGitStatus.js";
 import { classifyExportReferences } from "./classifyExportReferences.js";
+import { mergeConfig } from "./config.js";
+import { isIgnoredFile } from "./isIgnoredFile.js";
 import { loadProject } from "./loadProject.js";
 import { type RemovableSpecifier, removeSpecifier } from "./removeSpecifier.js";
 import type { IAnalysisResults, IUnusedExportResult } from "./types.js";
@@ -46,6 +48,15 @@ export async function fixProject(
   // Create ts-morph project for making fixes
   const { project, projectFiles } = loadProject(tsConfigPath);
 
+  // Ignored files are never edited or deleted, like files outside the analyzed tsconfig
+  const { ignoreFilePatterns } = mergeConfig(
+    typeof isTestFileOrOptions === "object" ? (isTestFileOrOptions.config ?? {}) : {},
+  );
+  const ignoredFiles = new Set(
+    projectFiles.filter((sourceFile) => isIgnoredFile(sourceFile, tsConfigDir, ignoreFilePatterns)),
+  );
+  const editableFiles = projectFiles.filter((sourceFile) => !ignoredFiles.has(sourceFile));
+
   const deletionCandidates = analysis.unusedFileSeverity === SEVERITY.ERROR ? analysis.unusedFiles : [];
 
   // Collect the specifiers that name the exports and files about to be removed before any edit changes the references
@@ -63,7 +74,8 @@ export async function fixProject(
   // Keep every export and file that is named in a file fix cannot edit, so no import or re-export is left dangling
   const blockedGroups = findBlockedGroups(
     specifierGroups,
-    new Set(projectFiles),
+    new Set(editableFiles),
+    ignoredFiles,
     filesWithChanges,
     tsConfigDir,
     onProgress,
@@ -107,7 +119,7 @@ export async function fixProject(
   // Clean up files that only contain broken imports after deletions
   const deletedBrokenFiles =
     deletedFiles.size > 0
-      ? cleanupBrokenImports(projectFiles, tsConfigDir, deletedFiles, filesWithChanges, onProgress, results)
+      ? cleanupBrokenImports(editableFiles, tsConfigDir, deletedFiles, filesWithChanges, onProgress, results)
       : new Set<string>();
 
   // Group never-returned types by file (process BEFORE exports to avoid removing functions)
@@ -414,13 +426,14 @@ function isGroupTargetRemoved(group: ISpecifierGroup, removedFiles: Set<string>)
 }
 
 /**
- * Find the groups with a specifier in a file fix does not edit: a file outside the analyzed tsconfig, or one with
- * local git changes. Fix keeps what such a group names (the export, or the file and all of its exports), because
- * removing it would leave that specifier dangling.
+ * Find the groups with a specifier in a file fix does not edit: a file outside the analyzed tsconfig, an ignored
+ * file, or one with local git changes. Fix keeps what such a group names (the export, or the file and all of its
+ * exports), because removing it would leave that specifier dangling.
  */
 function findBlockedGroups(
   groups: ISpecifierGroup[],
-  projectFiles: Set<SourceFile>,
+  editableFiles: Set<SourceFile>,
+  ignoredFiles: Set<SourceFile>,
   filesWithChanges: Set<string>,
   tsConfigDir: string,
   onProgress: FixProgressCallback | undefined,
@@ -432,7 +445,7 @@ function findBlockedGroups(
     const blockingFiles = new Set(
       group.specifiers
         .map((specifier) => specifier.getSourceFile())
-        .filter((sourceFile) => !projectFiles.has(sourceFile) || filesWithChanges.has(sourceFile.getFilePath())),
+        .filter((sourceFile) => !editableFiles.has(sourceFile) || filesWithChanges.has(sourceFile.getFilePath())),
     );
     if (blockingFiles.size === 0) {
       continue;
@@ -442,7 +455,11 @@ function findBlockedGroups(
     const target = group.exportName ? `${group.filePath}:${group.exportName}` : group.filePath;
     for (const sourceFile of blockingFiles) {
       const relativeFilePath = path.relative(tsConfigDir, sourceFile.getFilePath());
-      if (!projectFiles.has(sourceFile)) {
+      if (ignoredFiles.has(sourceFile)) {
+        onProgress?.(`Skipped: ${target} (named in ${relativeFilePath}, which matches ignoreFilePatterns)`);
+        continue;
+      }
+      if (!editableFiles.has(sourceFile)) {
         onProgress?.(`Skipped: ${target} (named in ${relativeFilePath}, outside the analyzed tsconfig)`);
         continue;
       }

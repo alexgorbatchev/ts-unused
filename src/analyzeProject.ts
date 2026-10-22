@@ -14,7 +14,7 @@ import { isImportedForSideEffects } from "./isImportedForSideEffects.js";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile.js";
 import { loadProject } from "./loadProject.js";
 import { findPackageJson, resolvePackageEntryPoints } from "./packageEntryPoints.js";
-import { matchesFilePattern } from "./patternMatcher.js";
+import { isIgnoredFile } from "./isIgnoredFile.js";
 import { tracePublicExports } from "./tracePublicExports.js";
 import type {
   IAnalysisResults,
@@ -101,11 +101,7 @@ export async function analyzeProject(
     if (hasNoCheck(sf)) {
       return false;
     }
-    // Check if file should be ignored based on patterns
-    if (config.ignoreFilePatterns.length > 0 && matchesFilePattern(sf.getFilePath(), config.ignoreFilePatterns)) {
-      return false;
-    }
-    return true;
+    return !isIgnoredFile(sf, tsConfigDir, config.ignoreFilePatterns);
   });
   const targetFiles = targetFilePath
     ? filesToAnalyze.filter((sf) => sf.getFilePath() === targetFilePath)

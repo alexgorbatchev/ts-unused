@@ -196,7 +196,7 @@ export default defineConfig({
 | Option                      | Type       | Default                                                                                 | Description                                                               |
 | --------------------------- | ---------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `testFilePatterns`          | `string[]` | `["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/__tests__/**"]` | Glob patterns for test file detection                                     |
-| `ignoreFilePatterns`        | `string[]` | `[]`                                                                                    | Files to completely ignore during analysis                                |
+| `ignoreFilePatterns`        | `string[]` | `[]`                                                                                    | Files to skip entirely, matched relative to the tsconfig directory (see [Ignored Files](#ignored-files)) |
 | `ignoreExports`             | `string[]` | `[]`                                                                                    | Export names to ignore (supports glob patterns)                           |
 | `ignoreProperties`          | `string[]` | `[]`                                                                                    | Property names to ignore (supports glob patterns)                         |
 | `ignoreTypes`               | `string[]` | `[]`                                                                                    | Type names to skip property and duplicate-type analysis for               |
@@ -245,6 +245,14 @@ Examples:
 - `**/Test*.ts` - All files starting with `Test` and ending with `.ts`
 - `internal*` - Names starting with `internal`
 - `*Config` - Names ending with `Config`
+
+A `**/` segment also matches no directory at all, so `**/generated/**` matches both `generated/types.ts` and `src/generated/types.ts`, and `src/**/index.ts` matches `src/index.ts`.
+
+### Ignored Files
+
+`ignoreFilePatterns` match each file's path relative to the directory of the analyzed `tsconfig.json`, so `generated/**` ignores the top-level `generated` directory, and `**/generated/**` ignores a `generated` directory at any depth inside the project. Patterns never match the directories that contain the project.
+
+Ignored files are skipped entirely: they produce no findings in any analysis (unused exports, files, and properties, never-returned types, duplicate types, and TODO/ignore comments), their declarations are not compared in duplicate-type detection, and `fix` never edits or deletes them. Like files outside the tsconfig, they remain part of the TypeScript program, so their references still count as usage, and `fix` keeps an export or file that an ignored file names in an import, a named re-export, or a namespace import instead of leaving that specifier dangling. Ignoring generated code therefore does not make the source it imports look unused. As with files outside the tsconfig, an `export * from` in an ignored file does not keep the target file: if every export of that file is unused, `fix` deletes it and leaves the ignored file unchanged.
 
 ### CLI Options
 
@@ -448,7 +456,8 @@ export function dynamicHook(): void {
 7. **File Exclusion**: Automatically filters out from being analyzed:
    - Test files (files in `__tests__` directories or ending in `.test.ts` or `.spec.ts`)
    - Files with `// @ts-nocheck` on the first line
-   - Note: Test files are still scanned for references to track test-only usage
+   - Files matching `ignoreFilePatterns` (see [Ignored Files](#ignored-files))
+   - Note: Test files are still scanned for references to track test-only usage, and ignored files for usage
 
 ## VS Code Integration
 

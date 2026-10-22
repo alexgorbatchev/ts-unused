@@ -19,7 +19,8 @@ export interface IUnusedConfig {
 
   /**
    * Patterns for files to completely ignore during analysis.
-   * Supports glob patterns.
+   * Supports glob patterns, matched against the path relative to the tsconfig directory.
+   * Ignored files produce no findings and are never edited by fix; their references still count as usage.
    *
    * @default []
    */
