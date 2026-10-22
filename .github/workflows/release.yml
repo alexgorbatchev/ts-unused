@@ -42,11 +42,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build package
-        run: bun run build
-
-      - name: Run tests
-        run: bun test
+      - name: Lint, test, build and sanity-check package
+        run: bun run ci
 
       - name: Typecheck package
         run: bun run typecheck

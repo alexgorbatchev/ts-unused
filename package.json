@@ -33,7 +33,7 @@
     "format": "oxfmt .",
     "fix": "bun run format && typescript-ai-policy fix-semantic src",
     "sanity-check": "bun run scripts/sanity-check.ts",
-    "prepublish": "bun lint && bun test && bun run build && bun sanity-check --no-build",
+    "ci": "bun lint && bun test && bun run build && bun sanity-check --no-build",
     "cli": "bun run src/cli.ts"
   },
   "devDependencies": {
