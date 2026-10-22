@@ -1,5 +1,6 @@
 import type {
   InterfaceDeclaration,
+  Node,
   PropertyDeclaration,
   PropertySignature,
   SourceFile,
@@ -10,6 +11,8 @@ import { COMMENT_KIND, EXPORT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY } from ".
 export interface IAnalyzePropertiesOptions {
   ignoreProperties?: string[];
   ignoreTypes?: string[];
+  /** Declarations visible through the package public API in package mode; their properties count as used. */
+  publicApiDeclarations?: Set<Node>;
 }
 
 export type PropertyNode = PropertySignature | PropertyDeclaration;

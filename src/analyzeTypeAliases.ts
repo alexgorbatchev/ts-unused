@@ -77,11 +77,16 @@ export function analyzeTypeAlias(
   project: Project,
   options: IAnalyzePropertiesOptions = {},
 ): void {
-  const { ignoreTypes = [] } = options;
+  const { ignoreTypes = [], publicApiDeclarations } = options;
   const typeName: string = typeAlias.getName();
 
   // Skip ignored types
   if (ignoreTypes.length > 0 && matchesPattern(typeName, ignoreTypes)) {
+    return;
+  }
+
+  // In package mode, consumers read and write the properties of public API types
+  if (publicApiDeclarations?.has(typeAlias)) {
     return;
   }
 

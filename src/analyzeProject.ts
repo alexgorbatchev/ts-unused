@@ -6,6 +6,7 @@ import { analyzeDuplicateTypes } from "./analyzeDuplicateTypes.js";
 import { analyzeInterfaces } from "./analyzeInterfaces.js";
 import { analyzeTypeAliases } from "./analyzeTypeAliases.js";
 import { checkExportUsage } from "./checkExportUsage.js";
+import { collectPublicApiDeclarations } from "./collectPublicApiDeclarations.js";
 import { mergeConfig, type IUnusedConfig } from "./config.js";
 import { applyRuleSeverities } from "./applyRuleSeverities.js";
 import { hasNoCheck } from "./hasNoCheck.js";
@@ -67,6 +68,7 @@ export async function analyzeProject(
 
   // Handle package mode
   let publicDeclarations: Set<Node> | undefined;
+  let publicApiDeclarations: Set<Node> | undefined;
   if (config.packageMode) {
     const packageJsonPath = findPackageJson(tsConfigDir);
     if (!packageJsonPath) {
@@ -87,6 +89,7 @@ export async function analyzeProject(
     }
 
     publicDeclarations = tracePublicExports(sourceFiles);
+    publicApiDeclarations = collectPublicApiDeclarations(publicDeclarations, projectFiles, project.getTypeChecker());
   }
 
   // Get total file count for progress reporting
@@ -120,6 +123,7 @@ export async function analyzeProject(
   const propertyAnalyzeOptions = {
     ignoreProperties: config.ignoreProperties,
     ignoreTypes: config.ignoreTypes,
+    publicApiDeclarations,
   };
 
   // Results arrays

@@ -14,7 +14,7 @@ export function analyzeInterfaces(
   project: Project,
   options: IAnalyzePropertiesOptions = {},
 ): void {
-  const { ignoreProperties = [], ignoreTypes = [] } = options;
+  const { ignoreProperties = [], ignoreTypes = [], publicApiDeclarations } = options;
   const interfaces: InterfaceDeclaration[] = sourceFile.getInterfaces();
 
   for (const iface of interfaces) {
@@ -22,6 +22,11 @@ export function analyzeInterfaces(
 
     // Skip ignored types
     if (ignoreTypes.length > 0 && matchesPattern(interfaceName, ignoreTypes)) {
+      continue;
+    }
+
+    // In package mode, consumers read and write the properties of public API types
+    if (publicApiDeclarations?.has(iface)) {
       continue;
     }
 

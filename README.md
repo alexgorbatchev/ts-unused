@@ -182,7 +182,7 @@ export default defineConfig({
   },
 
   // Enable package mode for library development
-  // Treats exports re-exported through barrel files to package entry points as "used"
+  // Treats exports reachable from package entry points, and the properties of types in the public API, as "used"
   packageMode: true,
 });
 ```
@@ -202,7 +202,7 @@ export default defineConfig({
 | `analyzeNeverReturnedTypes` | `boolean`  | `true`                                                                                  | Enable/disable never-returned type detection                              |
 | `analyzeDuplicateTypes`     | `boolean`  | `true`                                                                                  | Enable/disable duplicate-type detection                                   |
 | `detectUnusedFiles`         | `boolean`  | `true`                                                                                  | Enable/disable completely unused file detection                           |
-| `packageMode`               | `boolean`  | `false`                                                                                 | Treat exports re-exported to package entry points as used (for libraries) |
+| `packageMode`               | `boolean`  | `false`                                                                                 | Treat exports reachable from package entry points, and properties of public API types, as used (for libraries) |
 | `rules`                     | `Partial<Record<RuleName, RuleSeverity>>` | `{}` | Per-rule severity overrides; omitted rules retain their default behavior |
 
 ### Rule Severities
@@ -571,6 +571,7 @@ export default defineConfig({
 3. Maps each target back to the source file it is built from (see [Entry point resolution](#entry-point-resolution))
 4. Traces every symbol reachable from those source entry points, following named re-exports, aliased re-exports, `export *` chains at any depth, and namespace re-exports (`export * as ns`)
 5. Marks exports that reach a package entry point as "used"
+6. Marks every property of the interfaces and object type aliases in the public API as "used" (see [Public API properties](#public-api-properties))
 
 Package mode fails with an error when `package.json` has no entry fields, or when none of its entry targets resolves to a project source file. Targets that do not resolve, such as stylesheets, are skipped as long as at least one entry resolves.
 
@@ -600,6 +601,30 @@ In this example:
 `export *` does not re-export a module's `default` export, so a default export that is only reachable through `export *` is still reported as unused.
 
 Re-exports count as public only when they reach an entry point. A named re-export in a barrel file that no entry point exports is not usage, the same as outside package mode.
+
+#### Public API properties
+
+Consumers of a library read and write the properties of the types it exposes, in code the analysis never sees. In package mode, ts-unused therefore treats every property of an interface or object type alias in the public API as used, even when nothing inside the package reads it.
+
+The public API is what the package's emitted declaration files expose, starting from the entry points:
+
+- Types exported from an entry point, directly or through any re-export chain
+- Types that are not exported by name but appear in a public signature: parameter and return types of exported functions and of public class members, types of exported variables, property types of public types, heritage clauses, type arguments, and inferred return or variable types
+
+A type that is only reachable structurally is still public: TypeScript emits it into the declaration files, consumers pass object literals of that type (which TypeScript checks for excess properties) and read its properties from returned values, and removing a property breaks their code.
+
+Types used only inside function bodies, initializers, private class members, or files that no entry point reaches are analyzed as in the default mode:
+
+```typescript
+// src/client.ts, re-exported by the package entry point
+interface Options { retries?: number; }      // Public: parameter type of an exported function
+interface Scratch { buffer?: string; }       // Analyzed: used only inside the function body
+
+export function connect(options: Options) {
+  const scratch: Scratch = {};
+  return [options, scratch];
+}
+```
 
 #### Entry point resolution
 
