@@ -72,6 +72,57 @@ describe("package mode property analysis", () => {
     ]);
   });
 
+  test("treats properties of types inside public conditional types as used", async () => {
+    const tsConfigPath = await createFixProject(projectDir, {
+      "package.json": JSON.stringify({ name: "fixture", type: "module", main: "./index.ts" }),
+      "index.ts": [
+        "interface CheckSide { unusedCheck?: string; }",
+        "interface ExtendsSide { unusedExtends?: string; }",
+        "interface TrueBranch { unusedTrue?: string; }",
+        "interface FalseBranch { unusedFalse?: string; }",
+        "interface InferredTrue { unusedInferredTrue?: string; }",
+        "interface InferredFalse { unusedInferredFalse?: string; }",
+        "interface Hidden { unusedHidden?: string; }",
+        "export type Resolve<T> = T extends ExtendsSide ? TrueBranch : FalseBranch;",
+        "export type Check = CheckSide extends { kind: string } ? true : false;",
+        "declare function choose<T>(value: T): T extends string ? InferredTrue : InferredFalse;",
+        "export function chooseLater<T>(value: T) { const hidden: Hidden = {}; console.log(hidden); return choose(value); }",
+        "",
+      ].join("\n"),
+    });
+
+    expect(await findUnusedProperties(tsConfigPath, true)).toEqual(["Hidden.unusedHidden"]);
+  });
+
+  test("treats properties of types inside public mapped types and utility types as used", async () => {
+    const tsConfigPath = await createFixProject(projectDir, {
+      "package.json": JSON.stringify({ name: "fixture", type: "module", main: "./index.ts" }),
+      "index.ts": [
+        "interface KeySource { unusedKey?: string; }",
+        "interface Template { unusedTemplate?: string; }",
+        "interface Renamed { unusedRenamed?: string; }",
+        "interface PickSource { picked?: string; unusedPickSource?: string; }",
+        "interface OmitSource { omitted?: string; unusedOmitSource?: string; }",
+        "interface PartialSource { unusedPartial?: string; }",
+        "interface InferredSource { inferredPicked?: string; unusedInferred?: string; }",
+        "interface InferredTemplate { unusedInferredTemplate?: string; }",
+        "interface Hidden { unusedHidden?: string; }",
+        "export type Mapped = { [K in keyof KeySource]: Template };",
+        "export type Remapped<T> = { [K in keyof T as `${string & K}Renamed`]: Renamed };",
+        "export function pickProps(): Pick<PickSource, 'picked'> { return {}; }",
+        "export function omitProps(): Omit<OmitSource, 'omitted'> { return {}; }",
+        "export function partialProps(): Partial<PartialSource> { return {}; }",
+        "declare function pickInferred(): Pick<InferredSource, 'inferredPicked'>;",
+        "declare function mapInferred<T>(value: T): { [K in keyof T]: InferredTemplate };",
+        "export const inferredPick = pickInferred();",
+        "export function mapLater<T>(value: T) { const hidden: Hidden = {}; console.log(hidden); return mapInferred(value); }",
+        "",
+      ].join("\n"),
+    });
+
+    expect(await findUnusedProperties(tsConfigPath, true)).toEqual(["Hidden.unusedHidden"]);
+  });
+
   test("analyzes the same properties outside package mode", async () => {
     const tsConfigPath = await createFixProject(projectDir, LIBRARY_FILES);
 

@@ -1,8 +1,9 @@
-import { Node, Scope, type SourceFile, type Symbol, type ts, type Type, type TypeChecker } from "ts-morph";
+import { Node, Scope, type SourceFile, type Symbol, ts, type Type, type TypeChecker } from "ts-morph";
 
 interface IPublicApiWalker {
   checker: TypeChecker;
   projectFiles: Set<SourceFile>;
+  projectFilesByPath: Map<string, SourceFile>;
   declarations: Set<Node>;
   queue: Node[];
   visitedTypes: Set<ts.Type>;
@@ -23,16 +24,43 @@ function addSymbol(walker: IPublicApiWalker, symbol: Symbol | undefined): void {
   }
 }
 
+function isConditionalType(type: ts.Type): type is ts.ConditionalType {
+  return (type.flags & ts.TypeFlags.Conditional) !== 0 && "root" in type;
+}
+
+/**
+ * Returns the project syntax a deferred conditional type was written as (`T extends A ? B : C`). A conditional type
+ * that stays generic has no symbol and its branches are not exposed as types, but the declaration emit prints it
+ * as written, so its check, extends, and branch types are walked like an explicit signature.
+ */
+function getProjectConditionalTypeNode(walker: IPublicApiWalker, type: Type): Node | undefined {
+  const { compilerType } = type;
+  if (!isConditionalType(compilerType)) {
+    return undefined;
+  }
+
+  const { node } = compilerType.root;
+  const sourceFile = walker.projectFilesByPath.get(node.getSourceFile().fileName);
+  const conditionalTypeNode = sourceFile?.getDescendantAtStartWithWidth(node.getStart(), node.getWidth());
+  return Node.isConditionalTypeNode(conditionalTypeNode) ? conditionalTypeNode : undefined;
+}
+
 /**
  * Follows an inferred type to the project declarations it is built from: alias and named types, their type
- * arguments, union and intersection members, and the members of anonymous object and function types declared
- * in the project. Members of named types are covered by walking their declarations instead.
+ * arguments, union and intersection members, the parts of deferred conditional types, and the members of anonymous
+ * object and function types declared in the project. Members of named types, including mapped types declared in
+ * the project, are covered by walking their declarations instead.
  */
 function visitType(walker: IPublicApiWalker, type: Type, location: Node): void {
   if (walker.visitedTypes.has(type.compilerType)) {
     return;
   }
   walker.visitedTypes.add(type.compilerType);
+
+  const conditionalTypeNode = getProjectConditionalTypeNode(walker, type);
+  if (conditionalTypeNode) {
+    walkSignature(walker, conditionalTypeNode);
+  }
 
   addSymbol(walker, type.getAliasSymbol());
   for (const argument of type.getAliasTypeArguments()) {
@@ -138,6 +166,7 @@ export function collectPublicApiDeclarations(
   const walker: IPublicApiWalker = {
     checker,
     projectFiles: new Set(projectFiles),
+    projectFilesByPath: new Map(projectFiles.map((sourceFile) => [sourceFile.getFilePath(), sourceFile])),
     declarations: new Set(),
     queue: [],
     visitedTypes: new Set(),

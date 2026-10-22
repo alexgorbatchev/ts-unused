@@ -614,6 +614,7 @@ The public API is what the package's emitted declaration files expose, starting 
 
 - Types exported from an entry point, directly or through any re-export chain
 - Types that are not exported by name but appear in a public signature: parameter and return types of exported functions and of public class members, types of exported variables, property types of public types, heritage clauses, type arguments, and inferred return or variable types
+- Types inside conditional and mapped types in those signatures, written out or inferred: the check, extends, and both branch types of `A extends B ? C : D`, the constraint, `as` clause, and template of `{ [K in keyof T]: V }`, and the type arguments of utility types such as `Pick<T, K>`, `Omit<T, K>`, and `Partial<T>`
 
 A type that is only reachable structurally is still public: TypeScript emits it into the declaration files, consumers pass object literals of that type (which TypeScript checks for excess properties) and read its properties from returned values, and removing a property breaks their code.
 
