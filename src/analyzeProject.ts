@@ -11,6 +11,7 @@ import { mergeConfig, type IUnusedConfig } from "./config.js";
 import { applyRuleSeverities } from "./applyRuleSeverities.js";
 import { hasNoCheck } from "./hasNoCheck.js";
 import { isImportedForSideEffects } from "./isImportedForSideEffects.js";
+import { findEmittedDeclarationFiles } from "./findEmittedDeclarationFiles.js";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile.js";
 import { loadProject } from "./loadProject.js";
 import { findPackageJson, resolvePackageEntryPoints } from "./packageEntryPoints.js";
@@ -18,6 +19,7 @@ import { isIgnoredFile } from "./isIgnoredFile.js";
 import { tracePublicExports } from "./tracePublicExports.js";
 import type {
   IAnalysisResults,
+  IDuplicateTypeResult,
   IsTestFileFn,
   INeverReturnedTypeResult,
   IUnusedExportResult,
@@ -230,15 +232,24 @@ export async function analyzeProject(
     }
   }
 
+  // Declaration files emitted from the project's own sources repeat its declarations and are not compared
+  let duplicateTypes: IDuplicateTypeResult[] = [];
+  if (config.analyzeDuplicateTypes && config.rules[RULE_NAME.DUPLICATE_TYPES] !== RULE_SEVERITY.OFF) {
+    const emittedDeclarationFiles = findEmittedDeclarationFiles(project, projectFiles);
+    duplicateTypes = analyzeDuplicateTypes(
+      filesToAnalyze.filter((sourceFile) => !emittedDeclarationFiles.has(sourceFile)),
+      tsConfigDir,
+      config.ignoreTypes,
+      targetFilePath,
+    );
+  }
+
   const results: IAnalysisResults = {
     unusedExports,
     unusedProperties,
     unusedFiles,
     neverReturnedTypes,
-    duplicateTypes:
-      config.analyzeDuplicateTypes && config.rules[RULE_NAME.DUPLICATE_TYPES] !== RULE_SEVERITY.OFF
-        ? analyzeDuplicateTypes(filesToAnalyze, tsConfigDir, config.ignoreTypes, targetFilePath)
-        : [],
+    duplicateTypes,
   };
 
   return applyRuleSeverities(results, config.rules);

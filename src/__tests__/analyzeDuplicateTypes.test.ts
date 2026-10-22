@@ -535,6 +535,50 @@ describe("duplicate types", () => {
     expect(results.duplicateTypes).toEqual([]);
   });
 
+  test("excludes declaration files emitted from project sources but compares hand-written ones", async () => {
+    const props = "{ className?: string; children: string }";
+    await Bun.write(
+      configPath,
+      JSON.stringify({
+        compilerOptions: { strict: true, outDir: "dist", declaration: true },
+        include: ["src", "types", "storybook-static", "dist"],
+        exclude: [],
+      }),
+    );
+    await Bun.write(path.join(projectDir, "src/table.ts"), `export type TableWrapperProps = ${props};`);
+    await Bun.write(path.join(projectDir, "src/toolbar.ts"), `export type ToolbarProps = ${props};`);
+    await Bun.write(path.join(projectDir, "types/global.d.ts"), `type HandWrittenProps = ${props};`);
+    for (const [name, typeName] of [
+      ["table", "TableWrapperProps"],
+      ["toolbar", "ToolbarProps"],
+    ]) {
+      await Bun.write(
+        path.join(projectDir, `storybook-static/src/${name}.d.ts`),
+        `export type ${typeName} = ${props};\n//# sourceMappingURL=${name}.d.ts.map\n`,
+      );
+      await Bun.write(
+        path.join(projectDir, `storybook-static/src/${name}.d.ts.map`),
+        JSON.stringify({ version: 3, file: `${name}.d.ts`, sourceRoot: "", sources: [`../../src/${name}.ts`] }),
+      );
+    }
+    await Bun.write(path.join(projectDir, "dist/src/toolbar.d.ts"), `export type ToolbarProps = ${props};\n`);
+
+    const results = await analyzeProject(configPath, undefined, undefined, {
+      config: { analyzeExports: false, analyzeProperties: false },
+    });
+    expect(
+      results.duplicateTypes?.map((item) => [
+        item.filePath,
+        item.typeName,
+        item.duplicateOf.filePath,
+        item.duplicateOf.typeName,
+      ]),
+    ).toEqual([
+      ["src/toolbar.ts", "ToolbarProps", "src/table.ts", "TableWrapperProps"],
+      ["types/global.d.ts", "HandWrittenProps", "src/table.ts", "TableWrapperProps"],
+    ]);
+  });
+
   test("can disable duplicate detection independently", async () => {
     await Bun.write(path.join(projectDir, "types.ts"), "type First = string; type Second = string;");
 
