@@ -1,6 +1,6 @@
 import { Node } from "ts-morph";
 import type { ObjectLiteralExpression, Project, SourceFile, Type } from "ts-morph";
-import type { IsTestFileFn, PropertyNode } from "./types";
+import type { IsTestFileFn, PropertyNode } from "./types.js";
 
 interface IPropertyRelation {
   property: PropertyNode;

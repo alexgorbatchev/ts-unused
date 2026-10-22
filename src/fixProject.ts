@@ -1,10 +1,10 @@
-import { SEVERITY } from "./constants";
+import { SEVERITY } from "./constants.js";
 import fs from "node:fs";
 import path from "node:path";
 import { Project, type SourceFile, SyntaxKind } from "ts-morph";
-import { analyzeProject, type IsTestFileFnOrOptions } from "./analyzeProject";
-import { checkGitStatus } from "./checkGitStatus";
-import type { IAnalysisResults } from "./types";
+import { analyzeProject, type IsTestFileFnOrOptions } from "./analyzeProject.js";
+import { checkGitStatus } from "./checkGitStatus.js";
+import type { IAnalysisResults } from "./types.js";
 
 export type FixProgressCallback = (message: string) => void;
 

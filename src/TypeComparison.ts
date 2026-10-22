@@ -1,6 +1,6 @@
 import { ts } from "ts-morph";
-import { compareDeferredTypes } from "./compareDeferredTypes";
-import type { TypeDeclaration } from "./types";
+import { compareDeferredTypes } from "./compareDeferredTypes.js";
+import type { TypeDeclaration } from "./types.js";
 
 type TypePair = readonly [ts.Type, ts.Type];
 

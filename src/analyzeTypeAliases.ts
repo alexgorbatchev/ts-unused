@@ -1,10 +1,10 @@
-import { COMMENT_KIND, SEVERITY } from "./constants";
+import { COMMENT_KIND, SEVERITY } from "./constants.js";
 import path from "node:path";
 import { Node, type Project, type SourceFile, type TypeAliasDeclaration, type TypeElementTypes } from "ts-morph";
-import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment";
-import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused";
-import { matchesPattern } from "./patternMatcher";
-import type { IAnalyzePropertiesOptions, IsTestFileFn, Severity, IUnusedPropertyResult } from "./types";
+import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment.js";
+import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused.js";
+import { matchesPattern } from "./patternMatcher.js";
+import type { IAnalyzePropertiesOptions, IsTestFileFn, Severity, IUnusedPropertyResult } from "./types.js";
 
 export function analyzeTypeLiteralMember(
   member: TypeElementTypes,

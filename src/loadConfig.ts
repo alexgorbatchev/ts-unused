@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { defaultConfig, mergeConfig, type IUnusedConfig } from "./config";
+import { defaultConfig, mergeConfig, type IUnusedConfig } from "./config.js";
 
 const CONFIG_FILE_NAME = "unused.config.ts";
 

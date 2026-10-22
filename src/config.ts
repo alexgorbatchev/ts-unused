@@ -1,6 +1,6 @@
-import { RULE_NAME, RULE_SEVERITY, SEVERITY } from "./constants";
-import type { RuleName, RuleSeverity } from "./types";
-export type { RuleName, RuleSeverity } from "./types";
+import { RULE_NAME, RULE_SEVERITY, SEVERITY } from "./constants.js";
+import type { RuleName, RuleSeverity } from "./types.js";
+export type { RuleName, RuleSeverity } from "./types.js";
 
 /**
  * Configuration options for ts-unused analysis.

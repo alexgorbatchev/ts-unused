@@ -1,4 +1,4 @@
-import { SEVERITY } from "./constants";
+import { SEVERITY } from "./constants.js";
 import path from "node:path";
 import type {
   IAnalysisResults,
@@ -7,7 +7,7 @@ import type {
   Severity,
   IUnusedExportResult,
   IUnusedPropertyResult,
-} from "./types";
+} from "./types.js";
 
 function getSeverityMarker(severity: Severity): string {
   const markers: Record<Severity, string> = {

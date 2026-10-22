@@ -1,4 +1,4 @@
-import { COMMENT_KIND, EXPORT_KIND, SEVERITY } from "./constants";
+import { COMMENT_KIND, EXPORT_KIND, SEVERITY } from "./constants.js";
 import path from "node:path";
 import {
   Node,
@@ -8,10 +8,10 @@ import {
   SyntaxKind,
   VariableDeclarationKind,
 } from "ts-morph";
-import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment";
-import { matchesPattern } from "./patternMatcher";
-import { isPublicExport } from "./tracePublicExports";
-import type { ExportKind, IsTestFileFn, Severity, IUnusedExportResult } from "./types";
+import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment.js";
+import { matchesPattern } from "./patternMatcher.js";
+import { isPublicExport } from "./tracePublicExports.js";
+import type { ExportKind, IsTestFileFn, Severity, IUnusedExportResult } from "./types.js";
 
 export interface ICheckExportOptions {
   ignoreExports?: string[];

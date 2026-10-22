@@ -1,25 +1,25 @@
-import { RULE_NAME, RULE_SEVERITY } from "./constants";
+import { RULE_NAME, RULE_SEVERITY } from "./constants.js";
 import path from "node:path";
 import { Project, SyntaxKind } from "ts-morph";
-import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes";
-import { analyzeDuplicateTypes } from "./analyzeDuplicateTypes";
-import { analyzeInterfaces } from "./analyzeInterfaces";
-import { analyzeTypeAliases } from "./analyzeTypeAliases";
-import { checkExportUsage } from "./checkExportUsage";
-import { mergeConfig, type IUnusedConfig } from "./config";
-import { applyRuleSeverities } from "./applyRuleSeverities";
-import { hasNoCheck } from "./hasNoCheck";
-import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile";
-import { findPackageJson, getPackageEntryPoints } from "./packageEntryPoints";
-import { matchesFilePattern } from "./patternMatcher";
-import { tracePublicExports } from "./tracePublicExports";
+import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes.js";
+import { analyzeDuplicateTypes } from "./analyzeDuplicateTypes.js";
+import { analyzeInterfaces } from "./analyzeInterfaces.js";
+import { analyzeTypeAliases } from "./analyzeTypeAliases.js";
+import { checkExportUsage } from "./checkExportUsage.js";
+import { mergeConfig, type IUnusedConfig } from "./config.js";
+import { applyRuleSeverities } from "./applyRuleSeverities.js";
+import { hasNoCheck } from "./hasNoCheck.js";
+import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile.js";
+import { findPackageJson, getPackageEntryPoints } from "./packageEntryPoints.js";
+import { matchesFilePattern } from "./patternMatcher.js";
+import { tracePublicExports } from "./tracePublicExports.js";
 import type {
   IAnalysisResults,
   IsTestFileFn,
   INeverReturnedTypeResult,
   IUnusedExportResult,
   IUnusedPropertyResult,
-} from "./types";
+} from "./types.js";
 
 export type ProgressCallback = (current: number, total: number, filePath: string) => void;
 

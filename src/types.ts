@@ -5,7 +5,7 @@ import type {
   SourceFile,
   TypeAliasDeclaration,
 } from "ts-morph";
-import { COMMENT_KIND, EXPORT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY } from "./constants";
+import { COMMENT_KIND, EXPORT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY } from "./constants.js";
 
 export interface IAnalyzePropertiesOptions {
   ignoreProperties?: string[];

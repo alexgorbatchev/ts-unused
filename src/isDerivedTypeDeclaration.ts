@@ -1,6 +1,6 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { Type } from "ts-morph";
-import type { TypeDeclaration } from "./types";
+import type { TypeDeclaration } from "./types.js";
 
 function ownsDefinition(declaration: TypeDeclaration, node: Node): boolean {
   return (

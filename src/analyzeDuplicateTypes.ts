@@ -1,11 +1,11 @@
-import { SEVERITY } from "./constants";
+import { SEVERITY } from "./constants.js";
 import path from "node:path";
 import { Node, SyntaxKind } from "ts-morph";
 import type { SourceFile } from "ts-morph";
-import { matchesPattern } from "./patternMatcher";
-import { TypeComparison } from "./TypeComparison";
-import { isDerivedTypeDeclaration } from "./isDerivedTypeDeclaration";
-import type { IDuplicateTypeResult, ITypeLocation, TypeDeclaration } from "./types";
+import { matchesPattern } from "./patternMatcher.js";
+import { TypeComparison } from "./TypeComparison.js";
+import { isDerivedTypeDeclaration } from "./isDerivedTypeDeclaration.js";
+import type { IDuplicateTypeResult, ITypeLocation, TypeDeclaration } from "./types.js";
 
 function getLocation(declaration: TypeDeclaration, tsConfigDir: string): ITypeLocation {
   const name = declaration.getNameNode();

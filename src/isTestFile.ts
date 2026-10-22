@@ -1,7 +1,7 @@
 import type { SourceFile } from "ts-morph";
-import { defaultConfig } from "./config";
-import { matchesFilePattern } from "./patternMatcher";
-import type { IsTestFileFn } from "./types";
+import { defaultConfig } from "./config.js";
+import { matchesFilePattern } from "./patternMatcher.js";
+import type { IsTestFileFn } from "./types.js";
 
 const TEST_FILE_EXTENSIONS: string[] = [".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"];
 

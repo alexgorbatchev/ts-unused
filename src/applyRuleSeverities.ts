@@ -1,6 +1,6 @@
-import { COMMENT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY } from "./constants";
-import type { IUnusedConfig, RuleSeverity } from "./config";
-import type { CommentKind, IAnalysisResults, Severity } from "./types";
+import { COMMENT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY } from "./constants.js";
+import type { IUnusedConfig, RuleSeverity } from "./config.js";
+import type { CommentKind, IAnalysisResults, Severity } from "./types.js";
 
 interface ISeverityResult {
   severity: Severity;

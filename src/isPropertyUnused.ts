@@ -1,7 +1,7 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { Project, ReferencedSymbol, SourceFile } from "ts-morph";
-import { findRelatedProperties } from "./findRelatedProperties";
-import type { IsTestFileFn, PropertyNode } from "./types";
+import { findRelatedProperties } from "./findRelatedProperties.js";
+import type { IsTestFileFn, PropertyNode } from "./types.js";
 
 interface IPropertyReferenceCount {
   testReferences: number;

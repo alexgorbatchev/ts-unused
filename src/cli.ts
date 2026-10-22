@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-import { SEVERITY } from "./constants";
+import { SEVERITY } from "./constants.js";
 
 import fs from "node:fs";
 import path from "node:path";
-import { analyzeProject } from "./analyzeProject";
-import { fixProject } from "./fixProject";
-import { formatResults } from "./formatResults";
-import { loadConfigSync } from "./loadConfig";
+import { analyzeProject } from "./analyzeProject.js";
+import { fixProject } from "./fixProject.js";
+import { formatResults } from "./formatResults.js";
+import { loadConfigSync } from "./loadConfig.js";
 
 interface IParsedArgs {
   command: string;
