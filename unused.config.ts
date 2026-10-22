@@ -18,4 +18,7 @@ export default defineConfig({
 
   // Keep module augmentation analysis on
   ignoreModuleAugmentations: true,
+
+  // ts-unused is a published library: its package entry points are public API
+  packageMode: true,
 });
