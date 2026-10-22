@@ -6,7 +6,10 @@ export type { RuleName, RuleSeverity } from "./types.js";
  * Configuration options for ts-unused analysis.
  */
 export interface IUnusedConfig {
-  /** TODO/ignore findings use their own rules; unused-rule overrides also apply to test-only usages. */
+  /**
+   * TODO/ignore findings and story-only usage use their own rules; unused-rule overrides also apply to test-only
+   * usages.
+   */
   rules?: Partial<Record<RuleName, RuleSeverity>>;
   /**
    * Patterns to identify test files. Supports glob patterns.
@@ -16,6 +19,19 @@ export interface IUnusedConfig {
    * @default ["**\/*.test.ts", "**\/*.test.tsx", "**\/*.spec.ts", "**\/*.spec.tsx", "**\/__tests__/**"]
    */
   testFilePatterns?: string[];
+
+  /**
+   * Patterns to identify Storybook story files (Component Story Format), matched against the path relative to the
+   * tsconfig directory. Storybook loads these files by glob and reads their exports, so the default export (the CSF
+   * meta) and every story export count as used. Named variable and function exports are stories unless the meta's
+   * `includeStories` / `excludeStories` leave them out; when those cannot be read statically, every named variable
+   * and function export is treated as a story. Everything else in story files is analyzed normally. Usage from story
+   * files counts, but code outside story files that only stories use is reported by the `storyOnlyUsage` rule.
+   * A file that also matches `testFilePatterns` is a test file. Use `[]` to turn story handling off.
+   *
+   * @default ["**\/*.stories.ts", "**\/*.stories.tsx", "**\/*.stories.js", "**\/*.stories.jsx", "**\/*.stories.mjs"]
+   */
+  storyFilePatterns?: string[];
 
   /**
    * Patterns for files to completely ignore during analysis.
@@ -118,6 +134,7 @@ export interface IUnusedConfig {
 export const defaultConfig: Required<IUnusedConfig> = {
   rules: {},
   testFilePatterns: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/__tests__/**"],
+  storyFilePatterns: ["**/*.stories.ts", "**/*.stories.tsx", "**/*.stories.js", "**/*.stories.jsx", "**/*.stories.mjs"],
   ignoreFilePatterns: [],
   ignoreExports: [],
   ignoreProperties: [],

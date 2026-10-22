@@ -18,9 +18,10 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 - **Three-Tier Severity System**: Categorizes findings by severity level for better prioritization
   - **ERROR**: Completely unused code that should be removed
   - **WARNING**: Items with TODO comments that need attention
-  - **INFO**: Items only used in tests (testing helpers)
+  - **INFO**: Items only used in tests or Storybook stories (testing helpers, story fixtures)
 - **TODO Comment Detection**: Identifies and highlights properties/types with TODO comments
 - **Excludes Test Files**: Automatically excludes test files from analysis to avoid false positives (but tracks test-only usage)
+- **Storybook Story Files**: Treats the CSF meta and the story exports of story files as used, honoring `includeStories` and `excludeStories`, analyzes everything else in them, and reports code outside story files that only stories use as story-only (see [Storybook Story Files](#storybook-story-files))
 - **Excludes @ts-nocheck Files**: Automatically excludes files with `// @ts-nocheck` on the first line
 - **Inline Type Support**: Analyzes inline object types in addition to named interfaces and type aliases
 - **VS Code Integration**: Problem matcher for displaying results in VS Code's Problems panel with severity indicators
@@ -142,6 +143,9 @@ export default defineConfig({
     "**/Test*.ts", // Include files like TestLogger.ts
   ],
 
+  // Storybook story files: the CSF meta and stories count as used (these are the defaults; [] turns it off)
+  storyFilePatterns: ["**/*.stories.ts", "**/*.stories.tsx", "**/*.stories.js", "**/*.stories.jsx", "**/*.stories.mjs"],
+
   // Files to completely ignore during analysis
   ignoreFilePatterns: ["**/generated/**", "**/*.d.ts"],
 
@@ -183,6 +187,7 @@ export default defineConfig({
     duplicateTypes: "error",
     todoComments: "warning",
     ignoreComments: "off",
+    storyOnlyUsage: "info",
   },
 
   // Enable package mode for library development
@@ -196,6 +201,7 @@ export default defineConfig({
 | Option                      | Type       | Default                                                                                 | Description                                                               |
 | --------------------------- | ---------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `testFilePatterns`          | `string[]` | `["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/__tests__/**"]` | Glob patterns for test file detection                                     |
+| `storyFilePatterns`         | `string[]` | `["**/*.stories.ts", "**/*.stories.tsx", "**/*.stories.js", "**/*.stories.jsx", "**/*.stories.mjs"]` | Storybook story files, matched relative to the tsconfig directory; `[]` turns story handling off (see [Storybook Story Files](#storybook-story-files)) |
 | `ignoreFilePatterns`        | `string[]` | `[]`                                                                                    | Files to skip entirely, matched relative to the tsconfig directory (see [Ignored Files](#ignored-files)) |
 | `ignoreExports`             | `string[]` | `[]`                                                                                    | Export names to ignore (supports glob patterns)                           |
 | `ignoreProperties`          | `string[]` | `[]`                                                                                    | Property names to ignore (supports glob patterns)                         |
@@ -224,12 +230,13 @@ Plain string keys and severity values are fully supported and type-checked, as s
 | `duplicateTypes` | Error |
 | `todoComments` | Warning for unused exports/properties annotated with TODO comments |
 | `ignoreComments` | Warning for unused exports/properties annotated with `@ts-unused-ignore` comments |
+| `storyOnlyUsage` | Info for exports and properties outside story files that only story files use (see [Storybook Story Files](#storybook-story-files)) |
 
-TODO and ignore annotations select their own rule instead of the unused-export/property rule. For example, `rules: { unusedExports: "error", todoComments: "warning", ignoreComments: "off" }` reports ordinary unused exports and test-only exports as errors, TODO findings as warnings, and suppresses ignore-comment findings. TODO/ignore rules still report annotated findings when `unusedExports` or `unusedProperties` is `off`. If both annotations apply, the ignore-comment rule takes precedence. Omit a rule to preserve its default behavior. Unknown rule names and invalid severities abort analysis with an error.
+TODO and ignore annotations select their own rule instead of the unused-export/property rule. For example, `rules: { unusedExports: "error", todoComments: "warning", ignoreComments: "off" }` reports ordinary unused exports and test-only exports as errors, TODO findings as warnings, and suppresses ignore-comment findings. TODO/ignore rules still report annotated findings when `unusedExports` or `unusedProperties` is `off`. If both annotations apply, the ignore-comment rule takes precedence. Story-only findings select `storyOnlyUsage` instead of the unused-export/property rule, so `unusedExports` and `unusedProperties` do not change their severity; a TODO or ignore annotation on a story-only finding selects the annotation's rule. Omit a rule to preserve its default behavior. Unknown rule names and invalid severities abort analysis with an error.
 
 The existing analysis switches still apply: `analyzeProperties: false` disables property analysis, including annotated properties, even with `rules.unusedProperties: "error"` or `rules.todoComments: "error"`. Disabling export reports with `rules.unusedExports: "off"` still allows unused-file detection and annotated export findings. Disabling export analysis with `analyzeExports: false` also prevents annotated export findings and unused-file detection, which depends on export analysis.
 
-`fix` processes error-level findings only. It skips TODO/ignore and test-only findings as direct fix targets even when configured as errors, and it does not merge duplicate types. Unused-file detection excludes files containing TODO/ignore or test-only exports. Each rule is independent: downgrading `unusedFiles` does not downgrade individual unused exports, and an error-level unused-file finding can still delete a file whose export findings have a lower severity. An independently unused containing export or file can still be removed even when one of its properties has a TODO/ignore comment. Stronger child findings remain visible beneath a weaker file or parent-export finding.
+`fix` processes error-level findings only. It skips TODO/ignore, test-only, and story-only findings as direct fix targets even when configured as errors, and it does not merge duplicate types. Unused-file detection excludes files containing TODO/ignore, test-only, or story-only exports. Each rule is independent: downgrading `unusedFiles` does not downgrade individual unused exports, and an error-level unused-file finding can still delete a file whose export findings have a lower severity. An independently unused containing export or file can still be removed even when one of its properties has a TODO/ignore comment. Stronger child findings remain visible beneath a weaker file or parent-export finding.
 
 ### Pattern Syntax
 
@@ -374,9 +381,9 @@ These are the defaults when the corresponding rule has no explicit severity over
   - Indicates planned but not yet implemented features
   - Helps track technical debt
 
-- **[INFO]** - Used only in tests (blue in VS Code)
-  - Testing helpers, mocks, or test-specific utilities
-  - Defined outside test files but only referenced from tests
+- **[INFO]** - Used only in tests or used only in stories (blue in VS Code)
+  - Testing helpers, mocks, story fixtures, or props that only stories set
+  - Defined outside test files but only referenced from tests, or defined outside story files and referenced from no production code but from stories
   - Not necessarily a problem, but good to know
 
 ## Magic Comments
@@ -447,9 +454,11 @@ export function dynamicHook(): void {
 4. **Reference Categorization**: Tracks references separately:
    - Total references (definition + all usages)
    - Test references (from test files)
-   - Non-test references (from production code)
+   - Story references (from story files that are not test files)
+   - Production references (from all other files)
 5. **Severity Assignment**:
    - TODO/ignore findings use their own rule settings, defaulting to WARNING
+   - Story-only findings use the `storyOnlyUsage` rule, defaulting to INFO
    - Test-only findings default to INFO; an explicit unused-rule setting overrides this
    - Completely unused items default to ERROR
 6. **Related Property Checking**: Tracks usage through inheritance and value flow, including assignments, function arguments, and spreads. Matching properties in unrelated types do not count as usage.
@@ -655,6 +664,36 @@ Limitations:
 - Only the analyzed tsconfig is consulted. If the package is built with a different tsconfig (for example `tsconfig.build.json`) whose `outDir` or `rootDir` differs, the layout cannot be derived; set `rootDir` and `outDir` consistently or rely on the conventional mapping.
 - Subpath pattern exports such as `"./*": "./dist/*.js"` are skipped.
 - Configurations that emit a single `outFile` bundle cannot be mapped back to individual source files.
+
+### Storybook Story Files
+
+Storybook finds story files by glob and reads their exports at runtime ([Component Story Format](https://storybook.js.org/docs/api/csf)), so nothing imports a story. ts-unused treats files matching `storyFilePatterns` (by default `*.stories.ts`, `.tsx`, `.js`, `.jsx`, and `.mjs` at any depth, matched relative to the tsconfig directory like `ignoreFilePatterns`) as story files:
+
+- **The meta and the stories count as used**: the default export (the CSF meta), `__namedExportsOrder`, and every named variable or function export that Storybook treats as a story. Exported types, interfaces, classes, and enums are never stories.
+- **Everything else is analyzed normally**: exports that are not stories, unused properties, duplicate types, and never-returned types are reported in story files like anywhere else, and `fix` removes them under the usual rules. It never removes the meta or a story.
+- **Usage from story files counts**: code declared in story files is used when stories use it. Code outside story files that production code does not use but stories do (a fixture module, a helper, or a prop that only stories set) is reported as `Used only in stories` by the `storyOnlyUsage` rule, which defaults to `[INFO]`. Usage from both stories and tests, without production usage, is story-only: stories render the code in a built Storybook, while tests only exercise it. Code declared in story files that only tests use is reported as `Used only in tests`.
+
+```typescript
+// button.stories.tsx
+import type { Meta, StoryObj } from "@storybook/react";
+import { Button } from "./Button";
+
+export default { component: Button, excludeStories: /.*Data$/ } satisfies Meta<typeof Button>;
+
+export const Primary: StoryObj<typeof Button> = { args: { label: "Save" } }; // Story: used
+export const userData = { name: "Ada" }; // Excluded by excludeStories: analyzed like any export
+export type ButtonStoryArgs = { label: string }; // Not a story: analyzed like any export
+```
+
+Named exports are stories unless the meta's `includeStories` or `excludeStories` leaves them out. ts-unused reads them the way Storybook's indexer does ([`parseIncludeExclude` and `_parseMeta`](https://github.com/storybookjs/storybook/blob/v10.6.3/code/core/src/csf-tools/CsfFile.ts)) and applies them with the same rule as Storybook's [`isExportStory`](https://github.com/storybookjs/storybook/blob/v10.6.3/code/core/src/csf/export-story.ts):
+
+- An array of string literals matches export names exactly. A string literal is compiled to a regular expression, and a regular expression literal is used as written, flags included.
+- An export is a story when `includeStories` is absent or matches it, and `excludeStories` is absent or does not match it, so exclusion wins when both match. `includeStories: []` makes no export a story.
+- The meta is read from `export default { ... }`, from a variable it names (`const meta = { ... }; export default meta;`, or `export { meta as default }`), and through `as`, `satisfies`, and parentheses. As in the indexer, only identifier keys are read, so quoted keys and spreads are skipped.
+
+When the filters cannot be read statically, every named variable or function export is treated as a story, which can hide unused exports in that file but never reports a story as unused. This applies when the default export is not an object literal (for example a function call), when a filter value is anything other than the forms above (an identifier, a template literal, or an array containing a regular expression, which Storybook itself rejects), and to CSF factory files (`const meta = preview.meta({ ... })` with `export const Primary = meta.story({ ... })`), whose filters ts-unused does not read from the `meta()` call.
+
+A file that matches both `testFilePatterns` and `storyFilePatterns` is a test file. `ignoreFilePatterns` takes precedence over both: an ignored story file produces no findings, and its references still count as story usage. Set `storyFilePatterns: []` to treat story files like any other file. `packageMode` is independent of story handling.
 
 ### Duplicate Types
 

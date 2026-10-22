@@ -17,11 +17,18 @@ export const RULE_NAME = Object.freeze({
   DUPLICATE_TYPES: "duplicateTypes",
   TODO_COMMENTS: "todoComments",
   IGNORE_COMMENTS: "ignoreComments",
+  STORY_ONLY_USAGE: "storyOnlyUsage",
 });
 
 export const COMMENT_KIND = Object.freeze({
   TODO: "todo",
   IGNORE: "ignore",
+});
+
+export const USAGE_SOURCE = Object.freeze({
+  PRODUCTION: "production",
+  STORY: "story",
+  TEST: "test",
 });
 
 export const EXPORT_KIND = Object.freeze({

@@ -4,12 +4,12 @@ import type { InterfaceDeclaration, Project, SourceFile } from "ts-morph";
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment.js";
 import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused.js";
 import { matchesPattern } from "./patternMatcher.js";
-import type { IAnalyzePropertiesOptions, IsTestFileFn, Severity, IUnusedPropertyResult } from "./types.js";
+import type { ClassifyUsageSourceFn, IAnalyzePropertiesOptions, Severity, IUnusedPropertyResult } from "./types.js";
 
 export function analyzeInterfaces(
   sourceFile: SourceFile,
   tsConfigDir: string,
-  isTestFile: IsTestFileFn,
+  classifyUsageSource: ClassifyUsageSourceFn,
   results: IUnusedPropertyResult[],
   project: Project,
   options: IAnalyzePropertiesOptions = {},
@@ -38,7 +38,7 @@ export function analyzeInterfaces(
         continue;
       }
 
-      const usage: IPropertyUsageResult = isPropertyUnused(prop, isTestFile, project);
+      const usage: IPropertyUsageResult = isPropertyUnused(prop, classifyUsageSource, project);
 
       if (usage.isUnusedOrTestOnly) {
         const relativePath: string = path.relative(tsConfigDir, sourceFile.getFilePath());
@@ -47,11 +47,11 @@ export function analyzeInterfaces(
           ? `[ts-unused-ignore] ${ignoreComment}`
           : extractTodoComment(prop);
 
-        // Determine severity: warning for TODO/ignore, info for test-only, error for completely unused
+        // Determine severity: warning for TODO/ignore, info for test-only and story-only, error for completely unused
         let severity: Severity = SEVERITY.ERROR;
         if (todoComment) {
           severity = SEVERITY.WARNING;
-        } else if (usage.onlyUsedInTests) {
+        } else if (usage.onlyUsedInTests || usage.onlyUsedInStories) {
           severity = SEVERITY.INFO;
         }
 
@@ -70,6 +70,7 @@ export function analyzeInterfaces(
           commentKind: ignoreComment ? COMMENT_KIND.IGNORE : todoComment ? COMMENT_KIND.TODO : undefined,
           severity,
           onlyUsedInTests: usage.onlyUsedInTests,
+          onlyUsedInStories: usage.onlyUsedInStories,
         };
         results.push(result);
       }

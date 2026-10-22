@@ -1,11 +1,12 @@
-import { COMMENT_KIND, EXPORT_KIND, SEVERITY } from "./constants.js";
+import { COMMENT_KIND, EXPORT_KIND, SEVERITY, USAGE_SOURCE } from "./constants.js";
 import path from "node:path";
 import { Node, type SourceFile, VariableDeclarationKind } from "ts-morph";
 import { classifyExportReferences } from "./classifyExportReferences.js";
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment.js";
 import { getWholeNamespaceImporters } from "./getWholeNamespaceImporters.js";
 import { matchesPattern } from "./patternMatcher.js";
-import type { ExportKind, IsTestFileFn, Severity, IUnusedExportResult } from "./types.js";
+import type { ClassifyUsageSourceFn, ExportKind, Severity, IUnusedExportResult } from "./types.js";
+import { isUsageSourceAtLeast } from "./usageSourceUtils.js";
 
 export interface ICheckExportOptions {
   ignoreExports?: string[];
@@ -79,7 +80,7 @@ export function checkExportUsage(
   declarations: readonly Node[],
   sourceFile: SourceFile,
   tsConfigDir: string,
-  isTestFile: IsTestFileFn,
+  classifyUsageSource: ClassifyUsageSourceFn,
   options: ICheckExportOptions = {},
 ): IUnusedExportResult | null {
   const { ignoreExports = [], ignoreModuleAugmentations = true, publicDeclarations } = options;
@@ -117,27 +118,35 @@ export function checkExportUsage(
   }
 
   // Count usages by file type; export and import specifiers only name the export, and a namespace import used as a
-  // whole value counts once for every export of the module
+  // whole value counts once for every export of the module. Usage from files at least as close to production as the
+  // declaring file keeps the export alive: stories keep story-file exports alive, but not production exports.
+  const declarationSource = classifyUsageSource(sourceFile);
+  let liveReferences = 0;
+  let storyReferences = 0;
   let testReferences = 0;
-  let nonTestReferences = 0;
 
   const usageFiles = [
     ...classifyExportReferences(firstDeclaration).usages.map((reference) => reference.getSourceFile()),
     ...getWholeNamespaceImporters(sourceFile),
   ];
   for (const usageFile of usageFiles) {
-    if (isTestFile(usageFile)) {
-      testReferences++;
+    const usageSource = classifyUsageSource(usageFile);
+    if (isUsageSourceAtLeast(usageSource, declarationSource)) {
+      liveReferences++;
+    } else if (usageSource === USAGE_SOURCE.STORY) {
+      storyReferences++;
     } else {
-      nonTestReferences++;
+      testReferences++;
     }
   }
 
-  // An export is unused if its only usage is the definition itself
-  const onlyUsedInTests: boolean = nonTestReferences === 1 && testReferences > 0;
+  // An export is unused if its only live usage is the definition itself
+  const onlyUsedOutsideLiveCode: boolean = liveReferences === 1 && storyReferences + testReferences > 0;
+  const onlyUsedInStories: boolean = onlyUsedOutsideLiveCode && storyReferences > 0;
+  const onlyUsedInTests: boolean = onlyUsedOutsideLiveCode && !onlyUsedInStories;
 
-  if (nonTestReferences + testReferences > 1 && !onlyUsedInTests) {
-    return null; // Used in production code
+  if (liveReferences + storyReferences + testReferences > 1 && !onlyUsedOutsideLiveCode) {
+    return null; // Used by production code, or by stories for an export of a story file
   }
 
   const kind: ExportKind = getExportKind(firstDeclaration);
@@ -145,11 +154,11 @@ export function checkExportUsage(
   const ignoreComment = extractIgnoreComment(firstDeclaration);
   const todoComment = ignoreComment ? `[ts-unused-ignore] ${ignoreComment}` : extractTodoComment(firstDeclaration);
 
-  // Determine severity: warning for TODO/ignore, info for test-only, error for completely unused
+  // Determine severity: warning for TODO/ignore, info for test-only and story-only, error for completely unused
   let severity: Severity = SEVERITY.ERROR;
   if (todoComment) {
     severity = SEVERITY.WARNING;
-  } else if (onlyUsedInTests) {
+  } else if (onlyUsedOutsideLiveCode) {
     severity = SEVERITY.INFO;
   }
 
@@ -172,6 +181,7 @@ export function checkExportUsage(
     commentKind: ignoreComment ? COMMENT_KIND.IGNORE : todoComment ? COMMENT_KIND.TODO : undefined,
     severity,
     onlyUsedInTests,
+    onlyUsedInStories,
   };
   return result;
 }

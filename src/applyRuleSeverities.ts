@@ -6,6 +6,7 @@ interface ISeverityResult {
   severity: Severity;
   todoComment?: string;
   commentKind?: CommentKind;
+  onlyUsedInStories?: boolean;
 }
 
 function applySeverity<T extends ISeverityResult>(
@@ -19,6 +20,8 @@ function applySeverity<T extends ISeverityResult>(
       effectiveSeverity = rules?.[RULE_NAME.IGNORE_COMMENTS] ?? SEVERITY.WARNING;
     } else if (item.todoComment !== undefined) {
       effectiveSeverity = rules?.[RULE_NAME.TODO_COMMENTS] ?? SEVERITY.WARNING;
+    } else if (item.onlyUsedInStories) {
+      effectiveSeverity = rules?.[RULE_NAME.STORY_ONLY_USAGE] ?? SEVERITY.INFO;
     }
     if (effectiveSeverity === RULE_SEVERITY.OFF) {
       return [];

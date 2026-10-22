@@ -196,7 +196,8 @@ export async function fixProject(
   // Group unused exports by file (only ERROR severity)
   const exportsByFile = new Map<string, typeof analysis.unusedExports>();
   for (const unusedExport of analysis.unusedExports) {
-    // Only fix ERROR severity items (skip INFO for test-only, WARNING for TODOs) that nothing uneditable names
+    // Only fix ERROR severity items (skip INFO for test-only and story-only, WARNING for TODOs) that nothing
+    // uneditable names
     if (!isRemovableExport(unusedExport)) {
       continue;
     }
@@ -258,10 +259,11 @@ export async function fixProject(
   // Group unused properties by file (only ERROR severity)
   const propertiesByFile = new Map<string, typeof analysis.unusedProperties>();
   for (const unusedProperty of analysis.unusedProperties) {
-    // Only fix ERROR severity items (skip INFO for test-only, WARNING for TODOs)
+    // Only fix ERROR severity items (skip INFO for test-only and story-only, WARNING for TODOs)
     if (
       unusedProperty.severity !== SEVERITY.ERROR ||
       unusedProperty.onlyUsedInTests ||
+      unusedProperty.onlyUsedInStories ||
       unusedProperty.todoComment !== undefined
     ) {
       continue;
@@ -320,11 +322,15 @@ export async function fixProject(
 }
 
 /**
- * Whether fix removes an unused export: only ERROR severity, never test-only usage or TODO/ignore comments
+ * Whether fix removes an unused export: only ERROR severity, never test-only or story-only usage or TODO/ignore
+ * comments
  */
 function isFixableExport(unusedExport: IUnusedExportResult): boolean {
   return (
-    unusedExport.severity === SEVERITY.ERROR && !unusedExport.onlyUsedInTests && unusedExport.todoComment === undefined
+    unusedExport.severity === SEVERITY.ERROR &&
+    !unusedExport.onlyUsedInTests &&
+    !unusedExport.onlyUsedInStories &&
+    unusedExport.todoComment === undefined
   );
 }
 

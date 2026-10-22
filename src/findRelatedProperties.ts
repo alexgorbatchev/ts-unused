@@ -1,6 +1,8 @@
 import { Node } from "ts-morph";
 import type { ObjectLiteralExpression, Project, SourceFile, Type } from "ts-morph";
-import type { IsTestFileFn, PropertyNode } from "./types.js";
+import { USAGE_SOURCE } from "./constants.js";
+import type { ClassifyUsageSourceFn, PropertyNode, UsageSource } from "./types.js";
+import { getLowerUsageSource, isUsageSourceAtLeast } from "./usageSourceUtils.js";
 
 interface IPropertyRelation {
   property: PropertyNode;
@@ -9,7 +11,8 @@ interface IPropertyRelation {
 
 interface IRelatedProperty {
   property: PropertyNode;
-  onlyUsedInTests: boolean;
+  /** The closest-to-production source of the value flows that reach the property, such as test for flows in tests. */
+  usageSource: UsageSource;
 }
 
 type PropertyRelations = Map<PropertyNode, IPropertyRelation[]>;
@@ -101,30 +104,33 @@ function buildRelations(project: Project): PropertyRelations {
   return relations;
 }
 
-/** Follow explicit inheritance and contextual value flows rather than coincidentally matching shapes. */
+/**
+ * Follow explicit inheritance and contextual value flows rather than coincidentally matching shapes. A flow through a
+ * story or test file lowers the usage source of everything it reaches; each property keeps its best path.
+ */
 export function findRelatedProperties(
   prop: PropertyNode,
   project: Project,
-  isTestFile: IsTestFileFn,
+  classifyUsageSource: ClassifyUsageSourceFn,
 ): IRelatedProperty[] {
   let relations = relationCache.get(project);
   if (!relations) {
     relations = buildRelations(project);
     relationCache.set(project, relations);
   }
-  const reached = new Map<PropertyNode, boolean>([[prop, false]]);
-  const queue: IRelatedProperty[] = [{ property: prop, onlyUsedInTests: false }];
+  const reached = new Map<PropertyNode, UsageSource>([[prop, USAGE_SOURCE.PRODUCTION]]);
+  const queue: IRelatedProperty[] = [{ property: prop, usageSource: USAGE_SOURCE.PRODUCTION }];
   for (const current of queue) {
     for (const edge of relations.get(current.property) ?? []) {
-      const testOnly = current.onlyUsedInTests || isTestFile(edge.sourceFile);
+      const usageSource = getLowerUsageSource(current.usageSource, classifyUsageSource(edge.sourceFile));
       const previous = reached.get(edge.property);
-      if (previous === false || previous === testOnly) {
+      if (previous !== undefined && isUsageSourceAtLeast(previous, usageSource)) {
         continue;
       }
-      reached.set(edge.property, testOnly);
-      queue.push({ property: edge.property, onlyUsedInTests: testOnly });
+      reached.set(edge.property, usageSource);
+      queue.push({ property: edge.property, usageSource });
     }
   }
   reached.delete(prop);
-  return Array.from(reached, ([property, onlyUsedInTests]) => ({ property, onlyUsedInTests }));
+  return Array.from(reached, ([property, usageSource]) => ({ property, usageSource }));
 }

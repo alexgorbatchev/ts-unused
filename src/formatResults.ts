@@ -23,15 +23,24 @@ function getRelativePath(filePath: string, tsConfigDir: string, cwd: string): st
   return path.relative(cwd, absolutePath);
 }
 
+type UsageFlags = Pick<IUnusedExportResult, "onlyUsedInTests" | "onlyUsedInStories">;
+
+function getUsageStatus(item: UsageFlags): string | undefined {
+  if (item.onlyUsedInStories) {
+    return "Used only in stories";
+  }
+  return item.onlyUsedInTests ? "Used only in tests" : undefined;
+}
+
 function formatExportLine(item: IUnusedExportResult): string {
   const marker: string = getSeverityMarker(item.severity);
-  const status = item.onlyUsedInTests ? "Used only in tests" : `Unused ${item.kind}`;
+  const status = getUsageStatus(item) ?? `Unused ${item.kind}`;
   const todoSuffix = item.todoComment ? `: [TODO] ${item.todoComment}` : "";
   return `  ${item.exportName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (${status}${todoSuffix})`;
 }
 
 function formatPropertyLine(item: IUnusedPropertyResult): string {
-  const status: string = item.onlyUsedInTests ? "Used only in tests" : "Unused property";
+  const status: string = getUsageStatus(item) ?? "Unused property";
   const todoSuffix: string = item.todoComment ? `: [TODO] ${item.todoComment}` : "";
   const marker: string = getSeverityMarker(item.severity);
   return `  ${item.typeName}.${item.propertyName}:${item.line}:${item.character}-${item.endCharacter} ${marker} (${status}${todoSuffix})`;

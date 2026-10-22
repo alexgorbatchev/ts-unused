@@ -1,4 +1,4 @@
-import { RULE_NAME, RULE_SEVERITY } from "./constants.js";
+import { RULE_NAME, RULE_SEVERITY, USAGE_SOURCE } from "./constants.js";
 import path from "node:path";
 import { type Node, type SourceFile, SyntaxKind } from "ts-morph";
 import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes.js";
@@ -6,6 +6,7 @@ import { analyzeDuplicateTypes } from "./analyzeDuplicateTypes.js";
 import { analyzeInterfaces } from "./analyzeInterfaces.js";
 import { analyzeTypeAliases } from "./analyzeTypeAliases.js";
 import { checkExportUsage } from "./checkExportUsage.js";
+import { createIsCsfExport } from "./createIsCsfExport.js";
 import { collectPublicApiDeclarations } from "./collectPublicApiDeclarations.js";
 import { mergeConfig, type IUnusedConfig } from "./config.js";
 import { applyRuleSeverities } from "./applyRuleSeverities.js";
@@ -17,6 +18,7 @@ import { loadProject } from "./loadProject.js";
 import { findPackageJson, resolvePackageEntryPoints } from "./packageEntryPoints.js";
 import { isIgnoredFile } from "./isIgnoredFile.js";
 import { tracePublicExports } from "./tracePublicExports.js";
+import { createClassifyUsageSource } from "./usageSourceUtils.js";
 import type {
   IAnalysisResults,
   IDuplicateTypeResult,
@@ -68,6 +70,7 @@ export async function analyzeProject(
   const { project, projectFiles } = loadProject(tsConfigPath);
 
   const tsConfigDir: string = path.dirname(tsConfigPath);
+  const classifyUsageSource = createClassifyUsageSource(isTestFile, config.storyFilePatterns, tsConfigDir);
 
   // Handle package mode
   let publicDeclarations: Set<Node> | undefined;
@@ -151,14 +154,20 @@ export async function analyzeProject(
         hasCommentRules ||
         (config.detectUnusedFiles && config.rules[RULE_NAME.UNUSED_FILES] !== RULE_SEVERITY.OFF))
     ) {
+      // Storybook reads the meta and the stories of a story file, so they are used without any reference
+      const isCsfExport =
+        classifyUsageSource(sourceFile) === USAGE_SOURCE.STORY ? createIsCsfExport(sourceFile) : undefined;
       const exports = sourceFile.getExportedDeclarations();
       for (const [exportName, declarations] of exports.entries()) {
+        if (isCsfExport?.(exportName, declarations)) {
+          continue;
+        }
         const unusedExport = checkExportUsage(
           exportName,
           declarations,
           sourceFile,
           tsConfigDir,
-          isTestFile,
+          classifyUsageSource,
           exportCheckOptions,
         );
         if (unusedExport) {
@@ -172,8 +181,22 @@ export async function analyzeProject(
       config.analyzeProperties &&
       (config.rules[RULE_NAME.UNUSED_PROPERTIES] !== RULE_SEVERITY.OFF || hasCommentRules)
     ) {
-      analyzeInterfaces(sourceFile, tsConfigDir, isTestFile, unusedProperties, project, propertyAnalyzeOptions);
-      analyzeTypeAliases(sourceFile, tsConfigDir, isTestFile, unusedProperties, project, propertyAnalyzeOptions);
+      analyzeInterfaces(
+        sourceFile,
+        tsConfigDir,
+        classifyUsageSource,
+        unusedProperties,
+        project,
+        propertyAnalyzeOptions,
+      );
+      analyzeTypeAliases(
+        sourceFile,
+        tsConfigDir,
+        classifyUsageSource,
+        unusedProperties,
+        project,
+        propertyAnalyzeOptions,
+      );
     }
 
     // Analyze never-returned types
@@ -215,13 +238,14 @@ export async function analyzeProject(
       const counts = fileExportCounts.get(unusedExport.filePath);
       if (counts) {
         counts.unused++;
-        if (unusedExport.onlyUsedInTests || unusedExport.todoComment !== undefined) {
+        if (unusedExport.onlyUsedInTests || unusedExport.onlyUsedInStories || unusedExport.todoComment !== undefined) {
           counts.protectedExports++;
         }
       }
     }
 
-    // Keep TODO/ignore and test-only exports, and files imported for side effects, out of deletion candidates.
+    // Keep TODO/ignore, test-only, and story-only exports, and files imported for side effects, out of deletion
+    // candidates.
     for (const [filePath, counts] of fileExportCounts.entries()) {
       const allExportsUnused = counts.total > 0 && counts.unused === counts.total;
       const hasProtectedExports = counts.protectedExports > 0;

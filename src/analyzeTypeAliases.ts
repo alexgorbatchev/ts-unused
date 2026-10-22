@@ -4,14 +4,14 @@ import { Node, type Project, type SourceFile, type TypeAliasDeclaration, type Ty
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment.js";
 import { isPropertyUnused, type IPropertyUsageResult } from "./isPropertyUnused.js";
 import { matchesPattern } from "./patternMatcher.js";
-import type { IAnalyzePropertiesOptions, IsTestFileFn, Severity, IUnusedPropertyResult } from "./types.js";
+import type { ClassifyUsageSourceFn, IAnalyzePropertiesOptions, Severity, IUnusedPropertyResult } from "./types.js";
 
 export function analyzeTypeLiteralMember(
   member: TypeElementTypes,
   typeName: string,
   sourceFile: SourceFile,
   tsConfigDir: string,
-  isTestFile: IsTestFileFn,
+  classifyUsageSource: ClassifyUsageSourceFn,
   results: IUnusedPropertyResult[],
   project: Project,
   options: IAnalyzePropertiesOptions = {},
@@ -29,7 +29,7 @@ export function analyzeTypeLiteralMember(
     return;
   }
 
-  const usage: IPropertyUsageResult = isPropertyUnused(member, isTestFile, project);
+  const usage: IPropertyUsageResult = isPropertyUnused(member, classifyUsageSource, project);
 
   if (!usage.isUnusedOrTestOnly) {
     return;
@@ -41,11 +41,11 @@ export function analyzeTypeLiteralMember(
     ? `[ts-unused-ignore] ${ignoreComment}`
     : extractTodoComment(member);
 
-  // Determine severity: warning for TODO/ignore, info for test-only, error for completely unused
+  // Determine severity: warning for TODO/ignore, info for test-only and story-only, error for completely unused
   let severity: Severity = SEVERITY.ERROR;
   if (todoComment) {
     severity = SEVERITY.WARNING;
-  } else if (usage.onlyUsedInTests) {
+  } else if (usage.onlyUsedInTests || usage.onlyUsedInStories) {
     severity = SEVERITY.INFO;
   }
 
@@ -64,6 +64,7 @@ export function analyzeTypeLiteralMember(
     commentKind: ignoreComment ? COMMENT_KIND.IGNORE : todoComment ? COMMENT_KIND.TODO : undefined,
     severity,
     onlyUsedInTests: usage.onlyUsedInTests,
+    onlyUsedInStories: usage.onlyUsedInStories,
   };
   results.push(result);
 }
@@ -72,7 +73,7 @@ export function analyzeTypeAlias(
   typeAlias: TypeAliasDeclaration,
   sourceFile: SourceFile,
   tsConfigDir: string,
-  isTestFile: IsTestFileFn,
+  classifyUsageSource: ClassifyUsageSourceFn,
   results: IUnusedPropertyResult[],
   project: Project,
   options: IAnalyzePropertiesOptions = {},
@@ -101,14 +102,14 @@ export function analyzeTypeAlias(
   }
 
   for (const member of typeNode.getMembers()) {
-    analyzeTypeLiteralMember(member, typeName, sourceFile, tsConfigDir, isTestFile, results, project, options);
+    analyzeTypeLiteralMember(member, typeName, sourceFile, tsConfigDir, classifyUsageSource, results, project, options);
   }
 }
 
 export function analyzeTypeAliases(
   sourceFile: SourceFile,
   tsConfigDir: string,
-  isTestFile: IsTestFileFn,
+  classifyUsageSource: ClassifyUsageSourceFn,
   results: IUnusedPropertyResult[],
   project: Project,
   options: IAnalyzePropertiesOptions = {},
@@ -116,6 +117,6 @@ export function analyzeTypeAliases(
   const typeAliases: TypeAliasDeclaration[] = sourceFile.getTypeAliases();
 
   for (const typeAlias of typeAliases) {
-    analyzeTypeAlias(typeAlias, sourceFile, tsConfigDir, isTestFile, results, project, options);
+    analyzeTypeAlias(typeAlias, sourceFile, tsConfigDir, classifyUsageSource, results, project, options);
   }
 }

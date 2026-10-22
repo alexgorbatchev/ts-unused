@@ -2,6 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { Project, SyntaxKind, ts } from "ts-morph";
 import { isPropertyUnused } from "../isPropertyUnused";
 import { isTestFile } from "../isTestFile";
+import { createClassifyUsageSource } from "../usageSourceUtils";
+
+const classifyUsageSource = createClassifyUsageSource(isTestFile, [], "/");
 
 describe("property usage relationships", () => {
   test("does not borrow usage from an unrelated interface with an identical shape", () => {
@@ -16,9 +19,10 @@ describe("property usage relationships", () => {
     );
 
     const property = file.getInterfaceOrThrow("Unused").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, isTestFile, project)).toEqual({
+    expect(isPropertyUnused(property, classifyUsageSource, project)).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: false,
+      onlyUsedInStories: false,
     });
   });
 
@@ -34,9 +38,10 @@ describe("property usage relationships", () => {
     );
 
     const signature = file.getTypeAliasOrThrow("Unused").getTypeNodeOrThrow().asKindOrThrow(SyntaxKind.TypeLiteral);
-    expect(isPropertyUnused(signature.getPropertyOrThrow("value"), isTestFile, project)).toEqual({
+    expect(isPropertyUnused(signature.getPropertyOrThrow("value"), classifyUsageSource, project)).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: false,
+      onlyUsedInStories: false,
     });
   });
 
@@ -52,7 +57,7 @@ describe("property usage relationships", () => {
     );
 
     const property = file.getInterfaceOrThrow("Unused").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, isTestFile, project).isUnusedOrTestOnly).toBe(true);
+    expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(true);
   });
 
   test("preserves usage through interface inheritance and redeclaration", () => {
@@ -67,7 +72,7 @@ describe("property usage relationships", () => {
     );
 
     const property = file.getInterfaceOrThrow("Base").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, isTestFile, project).isUnusedOrTestOnly).toBe(false);
+    expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(false);
   });
 
   test("does not count a related property redeclaration as a read", () => {
@@ -81,9 +86,10 @@ describe("property usage relationships", () => {
     );
 
     const property = file.getInterfaceOrThrow("Base").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, isTestFile, project)).toEqual({
+    expect(isPropertyUnused(property, classifyUsageSource, project)).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: false,
+      onlyUsedInStories: false,
     });
   });
 
@@ -101,7 +107,7 @@ describe("property usage relationships", () => {
     );
 
     const property = file.getInterfaceOrThrow("Options").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, isTestFile, project).isUnusedOrTestOnly).toBe(false);
+    expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(false);
   });
 
   test("preserves usage through object spreads", () => {
@@ -119,8 +125,12 @@ describe("property usage relationships", () => {
     );
 
     const source = file.getInterfaceOrThrow("Source");
-    expect(isPropertyUnused(source.getPropertyOrThrow("value"), isTestFile, project).isUnusedOrTestOnly).toBe(false);
-    expect(isPropertyUnused(source.getPropertyOrThrow("unused"), isTestFile, project).isUnusedOrTestOnly).toBe(true);
+    expect(isPropertyUnused(source.getPropertyOrThrow("value"), classifyUsageSource, project).isUnusedOrTestOnly).toBe(
+      false,
+    );
+    expect(isPropertyUnused(source.getPropertyOrThrow("unused"), classifyUsageSource, project).isUnusedOrTestOnly).toBe(
+      true,
+    );
   });
 
   test("does not propagate usage for an overwritten spread property", () => {
@@ -138,7 +148,7 @@ describe("property usage relationships", () => {
     );
 
     const property = file.getInterfaceOrThrow("Source").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, isTestFile, project).isUnusedOrTestOnly).toBe(true);
+    expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(true);
   });
 
   test("preserves usage through assignment and function arguments", () => {
@@ -157,7 +167,7 @@ describe("property usage relationships", () => {
     );
 
     const property = file.getInterfaceOrThrow("Source").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, isTestFile, project).isUnusedOrTestOnly).toBe(false);
+    expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(false);
   });
 
   test("tracks usage through spreads that occur only in tests as test-only", () => {
@@ -182,9 +192,85 @@ describe("property usage relationships", () => {
     );
 
     const property = file.getInterfaceOrThrow("Source").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, isTestFile, project)).toEqual({
+    expect(isPropertyUnused(property, classifyUsageSource, project)).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: true,
+      onlyUsedInStories: false,
+    });
+  });
+});
+
+describe("story usage", () => {
+  const classifyStoryUsageSource = createClassifyUsageSource(isTestFile, ["**/*.stories.ts"], "/");
+  const TYPES_SOURCE = `
+    export interface Source { value: string; }
+    export interface Target { value: string; }
+    export function read(target: Target) { return target.value; }
+  `;
+  const SPREAD_USAGE_SOURCE = `
+    import { read, type Source, type Target } from "./types";
+    export function check(source: Source) {
+      const target: Target = { ...source };
+      return read(target);
+    }
+  `;
+
+  test("tracks usage through spreads that occur only in stories as story-only", () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    const file = project.createSourceFile("/types.ts", TYPES_SOURCE);
+    project.createSourceFile("/usage.stories.ts", SPREAD_USAGE_SOURCE);
+
+    const property = file.getInterfaceOrThrow("Source").getPropertyOrThrow("value");
+    expect(isPropertyUnused(property, classifyStoryUsageSource, project)).toEqual({
+      isUnusedOrTestOnly: true,
+      onlyUsedInTests: false,
+      onlyUsedInStories: true,
+    });
+  });
+
+  test("prefers a story flow over a test flow when both reach the property", () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    const file = project.createSourceFile("/types.ts", TYPES_SOURCE);
+    project.createSourceFile("/usage.test.ts", SPREAD_USAGE_SOURCE);
+    project.createSourceFile("/view.stories.ts", SPREAD_USAGE_SOURCE);
+
+    const property = file.getInterfaceOrThrow("Source").getPropertyOrThrow("value");
+    expect(isPropertyUnused(property, classifyStoryUsageSource, project)).toEqual({
+      isUnusedOrTestOnly: true,
+      onlyUsedInTests: false,
+      onlyUsedInStories: true,
+    });
+  });
+
+  test("counts story usage of a property declared in a story file as usage, and test usage as test-only", () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    const file = project.createSourceFile(
+      "/button.stories.ts",
+      `
+      export interface IStoryState { isOpen: boolean; label?: string; }
+      const state: IStoryState = { isOpen: true };
+      export const Primary = { render: () => state.isOpen };
+    `,
+    );
+    project.createSourceFile(
+      "/button.test.ts",
+      `
+      import type { IStoryState } from "./button.stories";
+      declare const state: IStoryState;
+      console.log(state.label);
+    `,
+    );
+
+    const declaration = file.getInterfaceOrThrow("IStoryState");
+    expect(isPropertyUnused(declaration.getPropertyOrThrow("isOpen"), classifyStoryUsageSource, project)).toEqual({
+      isUnusedOrTestOnly: false,
+      onlyUsedInTests: false,
+      onlyUsedInStories: false,
+    });
+    expect(isPropertyUnused(declaration.getPropertyOrThrow("label"), classifyStoryUsageSource, project)).toEqual({
+      isUnusedOrTestOnly: true,
+      onlyUsedInTests: true,
+      onlyUsedInStories: false,
     });
   });
 });
@@ -195,7 +281,10 @@ describe("keyed property reads", () => {
     return Object.fromEntries(
       declaration
         .getProperties()
-        .map((property) => [property.getName(), isPropertyUnused(property, isTestFile, project).isUnusedOrTestOnly]),
+        .map((property) => [
+          property.getName(),
+          isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly,
+        ]),
     );
   }
 
@@ -397,9 +486,10 @@ describe("keyed property reads", () => {
     );
 
     const property = file.getInterfaceOrThrow("Props").getPropertyOrThrow("'test-key'");
-    expect(isPropertyUnused(property, isTestFile, project)).toEqual({
+    expect(isPropertyUnused(property, classifyUsageSource, project)).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: true,
+      onlyUsedInStories: false,
     });
   });
 });

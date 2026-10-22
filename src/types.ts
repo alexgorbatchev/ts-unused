@@ -6,7 +6,7 @@ import type {
   SourceFile,
   TypeAliasDeclaration,
 } from "ts-morph";
-import { COMMENT_KIND, EXPORT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY } from "./constants.js";
+import { COMMENT_KIND, EXPORT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY, USAGE_SOURCE } from "./constants.js";
 
 export interface IAnalyzePropertiesOptions {
   ignoreProperties?: string[];
@@ -23,6 +23,8 @@ export type RuleSeverity = (typeof RULE_SEVERITY)[keyof typeof RULE_SEVERITY];
 export type RuleName = (typeof RULE_NAME)[keyof typeof RULE_NAME];
 export type CommentKind = (typeof COMMENT_KIND)[keyof typeof COMMENT_KIND];
 export type ExportKind = (typeof EXPORT_KIND)[keyof typeof EXPORT_KIND];
+/** Where a reference comes from: production code, a Storybook story file, or a test file. */
+export type UsageSource = (typeof USAGE_SOURCE)[keyof typeof USAGE_SOURCE];
 
 export interface IUnusedExportResult {
   filePath: string;
@@ -35,6 +37,8 @@ export interface IUnusedExportResult {
   commentKind?: CommentKind;
   severity: Severity;
   onlyUsedInTests: boolean;
+  /** Declared outside story files and used by story files but not by production code; tests may use it as well. */
+  onlyUsedInStories: boolean;
 }
 
 export interface IUnusedPropertyResult {
@@ -48,6 +52,8 @@ export interface IUnusedPropertyResult {
   commentKind?: CommentKind;
   severity: Severity;
   onlyUsedInTests: boolean;
+  /** Declared outside story files and used by story files but not by production code; tests may use it as well. */
+  onlyUsedInStories: boolean;
 }
 
 export interface INeverReturnedTypeResult {
@@ -84,3 +90,6 @@ export interface IDuplicateTypeResult extends ITypeLocation {
 }
 
 export type IsTestFileFn = (sourceFile: SourceFile) => boolean;
+
+/** Classifies the references in a file; a file matching both test and story patterns is a test file. */
+export type ClassifyUsageSourceFn = (sourceFile: SourceFile) => UsageSource;

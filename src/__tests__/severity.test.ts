@@ -18,6 +18,7 @@ describe("Severity system", () => {
           kind: EXPORT_KIND.FUNCTION,
           severity: SEVERITY.ERROR,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
         },
       ],
       unusedProperties: [
@@ -30,6 +31,7 @@ describe("Severity system", () => {
           endCharacter: 13,
           severity: SEVERITY.ERROR,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
         },
       ],
     };
@@ -55,6 +57,7 @@ describe("Severity system", () => {
           endCharacter: 11,
           severity: SEVERITY.WARNING,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
           todoComment: "implement this later",
         },
       ],
@@ -79,6 +82,7 @@ describe("Severity system", () => {
           kind: EXPORT_KIND.FUNCTION,
           severity: SEVERITY.INFO,
           onlyUsedInTests: true,
+          onlyUsedInStories: false,
         },
       ],
       unusedProperties: [
@@ -91,6 +95,7 @@ describe("Severity system", () => {
           endCharacter: 15,
           severity: SEVERITY.INFO,
           onlyUsedInTests: true,
+          onlyUsedInStories: false,
         },
       ],
     };
@@ -115,6 +120,7 @@ describe("Severity system", () => {
           kind: EXPORT_KIND.FUNCTION,
           severity: SEVERITY.ERROR,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
         },
         {
           filePath: "file.ts",
@@ -125,6 +131,7 @@ describe("Severity system", () => {
           kind: EXPORT_KIND.FUNCTION,
           severity: SEVERITY.INFO,
           onlyUsedInTests: true,
+          onlyUsedInStories: false,
         },
       ],
       unusedProperties: [
@@ -137,6 +144,7 @@ describe("Severity system", () => {
           endCharacter: 13,
           severity: SEVERITY.ERROR,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
         },
         {
           filePath: "types.ts",
@@ -147,6 +155,7 @@ describe("Severity system", () => {
           endCharacter: 11,
           severity: SEVERITY.WARNING,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
           todoComment: "add validation",
         },
       ],

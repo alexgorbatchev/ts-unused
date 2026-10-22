@@ -21,6 +21,7 @@ describe("formatResults", () => {
           kind: EXPORT_KIND.FUNCTION,
           severity: SEVERITY.ERROR,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
         },
       ],
       unusedProperties: [],
@@ -48,6 +49,7 @@ describe("formatResults", () => {
           kind: EXPORT_KIND.FUNCTION,
           severity: SEVERITY.ERROR,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
         },
         {
           filePath: "file.ts",
@@ -58,6 +60,7 @@ describe("formatResults", () => {
           kind: EXPORT_KIND.CONST,
           severity: SEVERITY.ERROR,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
         },
       ],
       unusedProperties: [
@@ -70,6 +73,7 @@ describe("formatResults", () => {
           endCharacter: 13,
           severity: SEVERITY.ERROR,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
         },
       ],
     };
@@ -119,6 +123,7 @@ describe("formatResults", () => {
           kind: EXPORT_KIND.FUNCTION,
           severity: SEVERITY.ERROR,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
         },
       ],
       unusedProperties: [],
@@ -148,6 +153,7 @@ describe("formatResults", () => {
           endCharacter: 13,
           severity: SEVERITY.ERROR,
           onlyUsedInTests: false,
+          onlyUsedInStories: false,
         },
       ],
     };

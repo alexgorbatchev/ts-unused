@@ -19,7 +19,10 @@ afterEach(async () => {
 });
 
 interface IRuleCase {
-  rule: Exclude<RuleName, typeof RULE_NAME.TODO_COMMENTS | typeof RULE_NAME.IGNORE_COMMENTS>;
+  rule: Exclude<
+    RuleName,
+    typeof RULE_NAME.TODO_COMMENTS | typeof RULE_NAME.IGNORE_COMMENTS | typeof RULE_NAME.STORY_ONLY_USAGE
+  >;
   source: string;
 }
 const cases: IRuleCase[] = [
@@ -56,6 +59,7 @@ const disabledRules: Required<NonNullable<IUnusedConfig["rules"]>> = {
   duplicateTypes: RULE_SEVERITY.OFF,
   todoComments: RULE_SEVERITY.OFF,
   ignoreComments: RULE_SEVERITY.OFF,
+  storyOnlyUsage: RULE_SEVERITY.OFF,
 };
 
 describe.each(cases)("$rule severity", ({ rule, source }) => {
