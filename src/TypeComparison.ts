@@ -3,11 +3,16 @@ import { compareDeferredTypes } from "./compareDeferredTypes.js";
 import type { TypeDeclaration } from "./types.js";
 
 type TypePair = readonly [ts.Type, ts.Type];
+type RecursionIdentity = ts.Symbol | ts.Type;
+
+/** Nested member expansions of one declaration pair after which the pair is assumed to match, as in TypeScript. */
+const MAX_EXPANSION_DEPTH = 3;
 
 /** Compare resolved structures, including modifiers deliberately ignored by assignability. */
 export class TypeComparison {
   private readonly parameters = new Map<ts.Type, ts.Type>();
   private readonly active: TypePair[] = [];
+  private readonly expanding: TypePair[] = [];
 
   constructor(private readonly checker: ts.TypeChecker) {}
 
@@ -65,6 +70,15 @@ export class TypeComparison {
     }
     this.active.push([left, right]);
     try {
+      // Instantiations of one alias match when their arguments do; expanding them can recurse without end.
+      if (
+        left.aliasSymbol !== undefined &&
+        left.aliasSymbol === right.aliasSymbol &&
+        left.aliasTypeArguments !== undefined &&
+        right.aliasTypeArguments !== undefined
+      ) {
+        return this.compareTypeLists(left.aliasTypeArguments, right.aliasTypeArguments);
+      }
       if (left.isUnion() || right.isUnion()) {
         return left.isUnion() && right.isUnion() && this.compareUnions(left.types, right.types);
       }
@@ -100,18 +114,78 @@ export class TypeComparison {
     return remaining.length === 0;
   }
 
+  private compareTypeLists(left: readonly ts.Type[], right: readonly ts.Type[]): boolean {
+    return (
+      left.length === right.length &&
+      left.every((type, index) => {
+        const other = right[index];
+        return other !== undefined && this.compare(type, other);
+      })
+    );
+  }
+
   private compareObjects(left: ts.Type, right: ts.Type): boolean {
     if (this.isReference(left) && this.isReference(right) && left.target === right.target) {
-      const argumentsLeft = this.checker.getTypeArguments(left);
-      const argumentsRight = this.checker.getTypeArguments(right);
-      return (
-        argumentsLeft.length === argumentsRight.length &&
-        argumentsLeft.every((argument, index) => {
-          const other = argumentsRight[index];
-          return other !== undefined && this.compare(argument, other);
-        })
-      );
+      return this.compareTypeLists(this.checker.getTypeArguments(left), this.checker.getTypeArguments(right));
     }
+    if (this.isExpandingRecursively(left, right)) {
+      return true;
+    }
+    this.expanding.push([left, right]);
+    try {
+      return this.compareMembers(left, right);
+    } finally {
+      this.expanding.pop();
+    }
+  }
+
+  /**
+   * Whether comparing the members of this pair would expand the same pair of declarations for the
+   * MAX_EXPANSION_DEPTH-th nested time with new type arguments, which TypeScript's isDeeplyNestedType
+   * also treats as a match. Instantiations nested in the type arguments of an enclosing pair are finite
+   * and do not count.
+   */
+  private isExpandingRecursively(left: ts.Type, right: ts.Type): boolean {
+    const leftIdentities = this.getRecursionIdentities(left);
+    const rightIdentities = this.getRecursionIdentities(right);
+    const expansions = this.expanding.filter(
+      ([outerLeft, outerRight]) =>
+        this.hasSameIdentities(this.getRecursionIdentities(outerLeft), leftIdentities) &&
+        this.hasSameIdentities(this.getRecursionIdentities(outerRight), rightIdentities) &&
+        !(this.isTypeArgumentOf(left, outerLeft) && this.isTypeArgumentOf(right, outerRight)),
+    );
+    return expansions.length >= MAX_EXPANSION_DEPTH;
+  }
+
+  /** The declarations a type is instantiated from: its alias, its symbol, or those of its intersected parts. */
+  private getRecursionIdentities(type: ts.Type): Set<RecursionIdentity> {
+    if (type.aliasSymbol) {
+      return new Set([type.aliasSymbol]);
+    }
+    if (type.isIntersection()) {
+      return new Set(type.types.flatMap((part) => [...this.getRecursionIdentities(part)]));
+    }
+    return new Set([type.getSymbol() ?? type]);
+  }
+
+  private hasSameIdentities(left: Set<RecursionIdentity>, right: Set<RecursionIdentity>): boolean {
+    return left.size === right.size && [...left].every((identity) => right.has(identity));
+  }
+
+  private isTypeArgumentOf(type: ts.Type, outer: ts.Type, visited = new Set<ts.Type>()): boolean {
+    if (visited.has(outer)) {
+      return false;
+    }
+    visited.add(outer);
+    const typeArguments = [
+      ...(outer.aliasTypeArguments ?? []),
+      ...(this.isReference(outer) ? this.checker.getTypeArguments(outer) : []),
+      ...(outer.isUnionOrIntersection() ? outer.types : []),
+    ];
+    return typeArguments.some((argument) => argument === type || this.isTypeArgumentOf(type, argument, visited));
+  }
+
+  private compareMembers(left: ts.Type, right: ts.Type): boolean {
     if (
       this.parameters.size === 0 &&
       (!this.checker.isTypeAssignableTo(left, right) || !this.checker.isTypeAssignableTo(right, left))

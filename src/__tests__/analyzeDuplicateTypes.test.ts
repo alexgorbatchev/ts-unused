@@ -437,6 +437,59 @@ describe("duplicate types", () => {
     ]);
   });
 
+  test("compares instantiations of a recursive generic alias by their type arguments", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      type Lens<T> = { narrow<R extends T>(): Lens<R>; value: T };
+      interface FirstProps<T> { lens: Lens<T>; }
+      interface SecondProps<U> { lens: Lens<U>; }
+      interface ListProps<T> { lens: Lens<T[]>; }
+    `,
+    );
+
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
+      ["SecondProps", "FirstProps"],
+    ]);
+  });
+
+  test("compares independently declared generic types that expand on every member", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      type First<T> = { next<R>(): First<[T, R]> };
+      type Second<U> = { next<S>(): Second<[U, S]> };
+      type FirstValue<T> = { next<R>(): FirstValue<[T, R]>; value: string };
+      type SecondValue<U> = { next<S>(): SecondValue<[U, S]>; value: number };
+    `,
+    );
+
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
+      ["Second", "First"],
+    ]);
+  });
+
+  test("distinguishes deeply nested instantiations that differ only at the innermost level", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      type FirstBox<T> = { value: T };
+      type SecondBox<T> = { value: T };
+      interface FirstNested<T> { box: FirstBox<FirstBox<FirstBox<FirstBox<FirstBox<T>>>>>; }
+      interface SecondNested<T> { box: SecondBox<SecondBox<SecondBox<SecondBox<SecondBox<T[]>>>>>; }
+      interface SameNested<U> { box: SecondBox<SecondBox<SecondBox<SecondBox<SecondBox<U>>>>>; }
+    `,
+    );
+
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
+      ["SecondBox", "FirstBox"],
+      ["SameNested", "FirstNested"],
+    ]);
+  });
+
   test("duplicate types make the CLI fail by default", async () => {
     await Bun.write(path.join(projectDir, "types.ts"), "type First = string; type Second = string;");
     const process = Bun.spawn(["bun", "run", "src/cli.ts", "check", configPath], {
