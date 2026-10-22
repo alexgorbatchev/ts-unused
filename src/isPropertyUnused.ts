@@ -1,76 +1,12 @@
-import { Node, SyntaxKind } from "ts-morph";
+import { Node } from "ts-morph";
 import type { Project, ReferencedSymbol, SourceFile } from "ts-morph";
 import { findRelatedProperties } from "./findRelatedProperties.js";
+import { getKeyedPropertyAccesses } from "./getKeyedPropertyAccesses.js";
 import type { IsTestFileFn, PropertyNode } from "./types.js";
 
 interface IPropertyReferenceCount {
   testReferences: number;
   nonTestReferences: number;
-}
-
-const reflectAccessCache = new WeakMap<Project, Map<PropertyNode, Set<SourceFile>>>();
-
-function getReflectAccesses(project: Project): Map<PropertyNode, Set<SourceFile>> {
-  let cache = reflectAccessCache.get(project);
-  if (!cache) {
-    cache = new Map<PropertyNode, Set<SourceFile>>();
-
-    for (const sourceFile of project.getSourceFiles()) {
-      const callExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression);
-      for (const callExpr of callExpressions) {
-        const expr = callExpr.getExpression();
-        let isReflect = false;
-        let methodName: string | undefined;
-
-        if (Node.isPropertyAccessExpression(expr)) {
-          const expression = expr.getExpression();
-          if (Node.isIdentifier(expression) && expression.getText() === "Reflect") {
-            isReflect = true;
-            methodName = expr.getName();
-          }
-        } else if (Node.isElementAccessExpression(expr)) {
-          const expression = expr.getExpression();
-          if (Node.isIdentifier(expression) && expression.getText() === "Reflect") {
-            const argument = expr.getArgumentExpression();
-            if (argument && (Node.isStringLiteral(argument) || Node.isNoSubstitutionTemplateLiteral(argument))) {
-              isReflect = true;
-              methodName = argument.getLiteralValue();
-            }
-          }
-        }
-
-        if (isReflect && methodName) {
-          const validMethods = ["get", "set", "has", "deleteProperty", "getOwnPropertyDescriptor", "defineProperty"];
-          if (validMethods.includes(methodName)) {
-            const args = callExpr.getArguments();
-            if (args.length >= 2) {
-              const keyArg = args[1];
-              let propName: string | undefined;
-
-              if (Node.isStringLiteral(keyArg) || Node.isNoSubstitutionTemplateLiteral(keyArg)) {
-                propName = keyArg.getLiteralValue();
-              }
-
-              const receiver = args[0];
-              if (propName && receiver) {
-                const declarations = receiver.getType().getProperty(propName)?.getDeclarations() ?? [];
-                for (const declaration of declarations) {
-                  if (!Node.isPropertySignature(declaration) && !Node.isPropertyDeclaration(declaration)) {
-                    continue;
-                  }
-                  const files = cache.get(declaration) ?? new Set<SourceFile>();
-                  files.add(sourceFile);
-                  cache.set(declaration, files);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    reflectAccessCache.set(project, cache);
-  }
-  return cache;
 }
 
 function countPropertyReferences(
@@ -103,10 +39,10 @@ function countPropertyReferences(
     }
   }
 
-  // Add Reflect-based references
-  const reflectAccesses = getReflectAccesses(project).get(prop);
-  if (reflectAccesses) {
-    for (const refSourceFile of reflectAccesses) {
+  // Add keyed reads (Reflect calls, literal/computed destructuring keys) that findReferences does not report
+  const keyedAccesses = getKeyedPropertyAccesses(project).get(prop.compilerNode);
+  if (keyedAccesses) {
+    for (const refSourceFile of keyedAccesses) {
       if (isTestFile(refSourceFile)) {
         testReferences++;
       } else {

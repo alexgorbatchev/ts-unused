@@ -14,6 +14,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 - **Auto-Fix Command**: Automatically removes unused exports, properties, deletes unused files, and fixes never-returned types with git safety checks
 - **Related Property Usage**: Tracks properties through inheritance, assignments, function arguments, and object spreads; matching names in unrelated types do not count as usage
 - **Reflect-based Dynamic Access**: Recognizes properties accessed dynamically using `Reflect` methods (such as `Reflect.get`, `Reflect.set`, `Reflect.has`, etc.) with string/template literals as keys
+- **Keyed Property Access**: Counts destructuring with quoted, numeric, or computed keys (`const { "aria-label": label, [KEY]: value } = props`, including parameters and assignment destructuring) and bracket access through a literal-typed key (`props[KEY]` where `KEY` is a constant or a union of literals) as reads of the matching property
 - **Three-Tier Severity System**: Categorizes findings by severity level for better prioritization
   - **ERROR**: Completely unused code that should be removed
   - **WARNING**: Items with TODO comments that need attention
@@ -26,7 +27,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 
 ## Limitations
 
-- **Dynamic Access**: Properties accessed via dynamic computed property names (such as `obj[key]` where `key` is a runtime variable) are not detected (though static literal keys like `obj["prop"]` and dynamic `Reflect` calls are supported)
+- **Dynamic Access**: Properties accessed through a key whose type is not a specific literal (such as `obj[key]` where `key` is a `string`) are not detected. Literal keys like `obj["prop"]`, keys typed as string or number literals (or unions of them), and `Reflect` calls with literal keys are detected.
 - **Re-exports**: By default, items that are only re-exported through barrel files are reported as unused. Use `packageMode` to treat public API exports as used.
 - **Type Narrowing**: Properties accessed after type guards or conditional checks may not always be tracked through complex control flow
 

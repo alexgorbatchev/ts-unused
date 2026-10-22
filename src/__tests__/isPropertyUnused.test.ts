@@ -188,3 +188,157 @@ describe("property usage relationships", () => {
     });
   });
 });
+
+describe("keyed property reads", () => {
+  function getUnusedFlags(project: Project, interfaceName: string): Record<string, boolean> {
+    const declaration = project.getSourceFileOrThrow("/types.ts").getInterfaceOrThrow(interfaceName);
+    return Object.fromEntries(
+      declaration
+        .getProperties()
+        .map((property) => [property.getName(), isPropertyUnused(property, isTestFile, project).isUnusedOrTestOnly]),
+    );
+  }
+
+  test("counts destructuring with string, numeric, and computed keys as reads", () => {
+    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { strict: true } });
+    project.createSourceFile(
+      "/types.ts",
+      `
+      export interface Props {
+        'aria-required'?: boolean;
+        'aria-describedby'?: string;
+        'param-key'?: string;
+        'nested-key'?: { 'inner-key'?: string };
+        'computed-key'?: string;
+        'template-key'?: string;
+        0?: string;
+        'never-read'?: string;
+      }
+      const COMPUTED_KEY = 'computed-key';
+      export function Component(props: Props, { 'param-key': param }: Props) {
+        const {
+          'aria-required': ariaRequired,
+          'aria-describedby': ariaDescribedBy,
+          'nested-key': { 'inner-key': inner } = {},
+          [COMPUTED_KEY]: computed,
+          [\`template-key\`]: template,
+          0: zero,
+        } = props;
+        return [ariaRequired, ariaDescribedBy, param, inner, computed, template, zero];
+      }
+    `,
+    );
+
+    expect(getUnusedFlags(project, "Props")).toEqual({
+      "'aria-required'": false,
+      "'aria-describedby'": false,
+      "'param-key'": false,
+      "'nested-key'": false,
+      "'computed-key'": false,
+      "'template-key'": false,
+      "0": false,
+      "'never-read'": true,
+    });
+  });
+
+  test("counts assignment destructuring with literal and computed keys as reads", () => {
+    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { strict: true } });
+    project.createSourceFile(
+      "/types.ts",
+      `
+      export interface Props {
+        'assigned-key'?: string;
+        'computed-key'?: string;
+        'for-of-key'?: string;
+        1?: string;
+        'never-read'?: string;
+      }
+      const COMPUTED_KEY = 'computed-key';
+      let assigned: string | undefined;
+      let computed: string | undefined;
+      let numeric: string | undefined;
+      let iterated: string | undefined;
+      export function read(props: Props, list: Props[]) {
+        ({ 'assigned-key': assigned, [COMPUTED_KEY]: computed, 1: numeric } = props);
+        for ({ 'for-of-key': iterated } of list) {}
+        return [assigned, computed, numeric, iterated];
+      }
+    `,
+    );
+
+    expect(getUnusedFlags(project, "Props")).toEqual({
+      "'assigned-key'": false,
+      "'computed-key'": false,
+      "'for-of-key'": false,
+      "1": false,
+      "'never-read'": true,
+    });
+  });
+
+  test("counts element access with literal and literal-typed keys as reads", () => {
+    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { strict: true } });
+    project.createSourceFile(
+      "/types.ts",
+      `
+      export interface Props {
+        'literal-key'?: string;
+        'constant-key'?: string;
+        'union-a'?: string;
+        'union-b'?: string;
+        'never-read'?: string;
+      }
+      const CONSTANT_KEY = 'constant-key';
+      export function read(props: Props, key: 'union-a' | 'union-b') {
+        return [props['literal-key'], props[CONSTANT_KEY], props[key]];
+      }
+    `,
+    );
+
+    expect(getUnusedFlags(project, "Props")).toEqual({
+      "'literal-key'": false,
+      "'constant-key'": false,
+      "'union-a'": false,
+      "'union-b'": false,
+      "'never-read'": true,
+    });
+  });
+
+  test("attributes keyed reads to the destructured type only", () => {
+    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { strict: true } });
+    project.createSourceFile(
+      "/types.ts",
+      `
+      export interface Unused { 'shared-key'?: string; }
+      export interface Used { 'shared-key'?: string; }
+      export function read(used: Used) {
+        const { 'shared-key': value } = used;
+        return value;
+      }
+    `,
+    );
+
+    expect(getUnusedFlags(project, "Unused")).toEqual({ "'shared-key'": true });
+    expect(getUnusedFlags(project, "Used")).toEqual({ "'shared-key'": false });
+  });
+
+  test("reports keyed reads that occur only in tests as test-only", () => {
+    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { strict: true } });
+    const file = project.createSourceFile("/types.ts", `export interface Props { 'test-key'?: string; }`);
+    project.createSourceFile(
+      "/usage.test.ts",
+      `
+      import type { Props } from "./types";
+      export function check(props: Props) {
+        const { 'test-key': value } = props;
+        return value;
+      }
+    `,
+    );
+
+    const property = file.getInterfaceOrThrow("Props").getPropertyOrThrow("'test-key'");
+    expect(isPropertyUnused(property, isTestFile, project)).toEqual({
+      isUnusedOrTestOnly: true,
+      onlyUsedInTests: true,
+    });
+  });
+});
