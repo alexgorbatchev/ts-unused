@@ -1,6 +1,6 @@
 import { RULE_NAME, RULE_SEVERITY } from "./constants.js";
 import path from "node:path";
-import { SyntaxKind } from "ts-morph";
+import { type Node, SyntaxKind } from "ts-morph";
 import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes.js";
 import { analyzeDuplicateTypes } from "./analyzeDuplicateTypes.js";
 import { analyzeInterfaces } from "./analyzeInterfaces.js";
@@ -11,7 +11,7 @@ import { applyRuleSeverities } from "./applyRuleSeverities.js";
 import { hasNoCheck } from "./hasNoCheck.js";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile.js";
 import { loadProject } from "./loadProject.js";
-import { findPackageJson, getPackageEntryPoints } from "./packageEntryPoints.js";
+import { findPackageJson, resolvePackageEntryPoints } from "./packageEntryPoints.js";
 import { matchesFilePattern } from "./patternMatcher.js";
 import { tracePublicExports } from "./tracePublicExports.js";
 import type {
@@ -66,24 +66,27 @@ export async function analyzeProject(
   const tsConfigDir: string = path.dirname(tsConfigPath);
 
   // Handle package mode
-  let publicExports: Set<string> | undefined;
+  let publicDeclarations: Set<Node> | undefined;
   if (config.packageMode) {
     const packageJsonPath = findPackageJson(tsConfigDir);
     if (!packageJsonPath) {
       throw new Error(`Package mode is enabled but no package.json was found. ` + `Searched from: ${tsConfigDir}`);
     }
 
-    const entryPoints = getPackageEntryPoints(packageJsonPath);
-    if (entryPoints.length === 0) {
+    const { targets, sourceFiles } = resolvePackageEntryPoints(packageJsonPath, project, projectFiles);
+    if (targets.length === 0) {
       throw new Error(
         `Package mode is enabled but package.json has no entry points. ` +
-          `Expected 'main', 'module', or 'exports' field in: ${packageJsonPath}`,
+          `Expected 'main', 'module', 'types', or 'exports' field in: ${packageJsonPath}`,
+      );
+    }
+    if (sourceFiles.length === 0) {
+      throw new Error(
+        `Package mode is enabled but no package.json entry point resolves to a project source file: ${targets.join(", ")}`,
       );
     }
 
-    const packageDir = path.dirname(packageJsonPath);
-    const entryPointFiles = entryPoints.map((ep) => ep.sourceFile);
-    publicExports = tracePublicExports(project, entryPointFiles, packageDir);
+    publicDeclarations = tracePublicExports(sourceFiles);
   }
 
   // Get total file count for progress reporting
@@ -111,7 +114,7 @@ export async function analyzeProject(
   const exportCheckOptions = {
     ignoreExports: config.ignoreExports,
     ignoreModuleAugmentations: config.ignoreModuleAugmentations,
-    publicExports: publicExports,
+    publicDeclarations,
   };
 
   const propertyAnalyzeOptions = {

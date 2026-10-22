@@ -564,10 +564,13 @@ export default defineConfig({
 
 **How it works:**
 
-1. Finds `package.json` in your project directory
-2. Parses entry points from `main`, `module`, or `exports` fields
-3. Traces all re-exports from entry point files through barrel chains
-4. Marks exports that reach a package entry point as "used"
+1. Finds `package.json` in the same directory as the analyzed `tsconfig.json`
+2. Collects every entry target from `main`, `module`, `types`, `typings`, and `exports`, including nested conditions and fallback arrays (for example `{ "import": { "types": "...", "default": "..." } }`)
+3. Maps each target back to the source file it is built from (see [Entry point resolution](#entry-point-resolution))
+4. Traces every symbol reachable from those source entry points, following named re-exports, aliased re-exports, `export *` chains at any depth, and namespace re-exports (`export * as ns`)
+5. Marks exports that reach a package entry point as "used"
+
+Package mode fails with an error when `package.json` has no entry fields, or when none of its entry targets resolves to a project source file. Targets that do not resolve, such as stylesheets, are skipped as long as at least one entry resolves.
 
 **Example project structure:**
 
@@ -588,9 +591,27 @@ In this example:
 
 - Multiple entry points via `exports` field (e.g., `"."`, `"./utils"`)
 - Nested barrel files (`src/utils/index.ts` → `src/index.ts`)
-- `export *` statements
+- `export *` statements, including nested `export *` chains and `export * as ns`
 - Mixed named and star exports
 - Types and interfaces
+
+`export *` does not re-export a module's `default` export, so a default export that is only reachable through `export *` is still reported as unused.
+
+#### Entry point resolution
+
+Entry targets usually point at build output (`./dist/index.js`, `./dist/index.d.ts`) while the analysis runs on source files. Each target is resolved in this order:
+
+1. **tsconfig build layout**: ts-unused computes the JavaScript and declaration output paths of every project source file from the analyzed tsconfig's `outDir`, `declarationDir`, and `rootDir`, using the same TypeScript API `tsc` uses to name emitted files, and maps a target back to the source that would emit it. This covers any source directory name, `.tsx`/`.mts`/`.cts` sources, and separate declaration directories.
+2. **Source targets**: a target that is itself a project source file (for example `"exports": "./src/index.ts"`) is used directly.
+3. **Conventional mapping**: otherwise a leading `dist/`, `build/`, `lib/`, or `out/` is replaced with `src/` and the extension with `.ts` (or `/index.ts`). This covers bundlers such as Vite, tsup, or `bun build`, whose entry names come from bundler configuration rather than the tsconfig.
+
+When the tsconfig omits `rootDir`, the emitted layout depends on the TypeScript version that builds the package: TypeScript 6.0 and later default `rootDir` to the tsconfig directory, while earlier versions infer the common directory of all emitted source files. ts-unused accepts output paths from both layouts.
+
+Limitations:
+
+- Only the analyzed tsconfig is consulted. If the package is built with a different tsconfig (for example `tsconfig.build.json`) whose `outDir` or `rootDir` differs, the layout cannot be derived; set `rootDir` and `outDir` consistently or rely on the conventional mapping.
+- Subpath pattern exports such as `"./*": "./dist/*.js"` are skipped.
+- Configurations that emit a single `outFile` bundle cannot be mapped back to individual source files.
 
 ### Duplicate Types
 

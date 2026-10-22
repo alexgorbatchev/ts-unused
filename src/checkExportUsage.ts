@@ -10,14 +10,12 @@ import {
 } from "ts-morph";
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment.js";
 import { matchesPattern } from "./patternMatcher.js";
-import { isPublicExport } from "./tracePublicExports.js";
 import type { ExportKind, IsTestFileFn, Severity, IUnusedExportResult } from "./types.js";
 
 export interface ICheckExportOptions {
   ignoreExports?: string[];
   ignoreModuleAugmentations?: boolean;
-  /** Set of public exports in package mode (format: "relativePath::exportName") */
-  publicExports?: Set<string>;
+  publicDeclarations?: Set<Node>;
 }
 
 function getExportKind(declaration: Node): ExportKind {
@@ -127,7 +125,7 @@ export function checkExportUsage(
   isTestFile: IsTestFileFn,
   options: ICheckExportOptions = {},
 ): IUnusedExportResult | null {
-  const { ignoreExports = [], ignoreModuleAugmentations = true, publicExports } = options;
+  const { ignoreExports = [], ignoreModuleAugmentations = true, publicDeclarations } = options;
 
   const firstDeclaration: Node | undefined = declarations[0];
   if (!firstDeclaration) {
@@ -141,8 +139,7 @@ export function checkExportUsage(
 
   const relativePath: string = path.relative(tsConfigDir, sourceFile.getFilePath());
 
-  // In package mode, check if this export is part of the public API
-  if (publicExports && isPublicExport(publicExports, relativePath, exportName)) {
+  if (publicDeclarations && declarations.some((declaration) => publicDeclarations.has(declaration))) {
     return null;
   }
 
