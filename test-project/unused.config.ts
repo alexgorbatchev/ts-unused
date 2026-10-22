@@ -1,4 +1,4 @@
-import { defineConfig } from "../src/config";
+import { defineConfig } from "ts-unused";
 
 export default defineConfig({
   // Custom test file patterns - includes TestLogger.ts style files

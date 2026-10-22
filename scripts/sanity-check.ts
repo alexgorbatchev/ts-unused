@@ -2,9 +2,44 @@
 
 import { $ } from "bun";
 import { existsSync } from "fs";
-import { resolve } from "path";
+import { readdir } from "node:fs/promises";
+import { join, resolve, sep } from "path";
+import { checkGitStatus } from "../src/checkGitStatus";
 
-const TEST_PROJECT_DIR = resolve(import.meta.dir, "../test-project");
+const REPO_ROOT = resolve(import.meta.dir, "..");
+const TEST_PROJECT_DIR = resolve(REPO_ROOT, "test-project");
+const SNAPSHOT_SKIPPED_PATHS = new Set([
+  TEST_PROJECT_DIR,
+  ...[".git", "node_modules", ".tmp", ".workspaces", ".pi"].map((directoryName) => join(REPO_ROOT, directoryName)),
+]);
+
+type FileSnapshot = Map<string, number | bigint>;
+
+function isInsideTestProject(filePath: string): boolean {
+  return filePath.startsWith(TEST_PROJECT_DIR + sep);
+}
+
+async function snapshotFilesOutsideTestProject(
+  directoryPath = REPO_ROOT,
+  snapshot: FileSnapshot = new Map(),
+): Promise<FileSnapshot> {
+  for (const entry of await readdir(directoryPath, { withFileTypes: true })) {
+    const entryPath = join(directoryPath, entry.name);
+    if (SNAPSHOT_SKIPPED_PATHS.has(entryPath)) continue;
+    if (entry.isDirectory()) {
+      await snapshotFilesOutsideTestProject(entryPath, snapshot);
+    } else if (entry.isFile()) {
+      snapshot.set(entryPath, Bun.hash(await Bun.file(entryPath).bytes()));
+    }
+  }
+  return snapshot;
+}
+
+async function findChangesOutsideTestProject(before: FileSnapshot): Promise<string[]> {
+  const after = await snapshotFilesOutsideTestProject();
+  const filePaths = new Set([...before.keys(), ...after.keys()]);
+  return [...filePaths].filter((filePath) => before.get(filePath) !== after.get(filePath)).toSorted();
+}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -24,13 +59,13 @@ async function main() {
 
     // Step 2: Check for git changes in test-project
     console.log("📋 Step 2: Checking test-project has no uncommitted changes...");
-    const gitStatus = await $`git -C ${TEST_PROJECT_DIR} diff --exit-code .`.nothrow().quiet();
-    if (gitStatus.exitCode !== 0) {
+    if ([...checkGitStatus(REPO_ROOT)].some(isInsideTestProject)) {
       console.error("❌ FAILED: test-project has uncommitted changes");
       console.error("Please commit or restore test-project before running sanity check");
       process.exit(1);
     }
     console.log("✅ Test-project is clean\n");
+    const outsideBeforeFix = await snapshotFilesOutsideTestProject();
 
     // Step 3: TypeScript check before fix
     console.log("🔎 Step 3: Running TypeScript check (before fix)...");
@@ -47,8 +82,20 @@ async function main() {
     await $`bun run ${distCli} fix ${TEST_PROJECT_DIR}`;
     console.log();
 
-    // Step 5: Verify changes were made
-    console.log("🔍 Step 5: Verifying changes were made...");
+    console.log("🛡️  Step 5: Verifying fix changed nothing outside test-project...");
+    const outsideChanges = await findChangesOutsideTestProject(outsideBeforeFix);
+    if (outsideChanges.length > 0) {
+      console.error("❌ FAILED: fix command changed files outside test-project:");
+      for (const filePath of outsideChanges) {
+        console.error(`  ${filePath}`);
+      }
+      await $`git -C ${TEST_PROJECT_DIR} restore .`.quiet();
+      process.exit(1);
+    }
+    console.log("✅ No changes outside test-project\n");
+
+    // Step 6: Verify changes were made
+    console.log("🔍 Step 6: Verifying changes were made...");
     const gitDiff = await $`git -C ${TEST_PROJECT_DIR} diff --quiet .`.nothrow().quiet();
     if (gitDiff.exitCode === 0) {
       console.error("❌ FAILED: No changes were made by fix command");
@@ -58,8 +105,8 @@ async function main() {
     }
     console.log("✅ Changes detected\n");
 
-    // Step 6: TypeScript check after fix
-    console.log("🔎 Step 6: Running TypeScript check (after fix)...");
+    // Step 7: TypeScript check after fix
+    console.log("🔎 Step 7: Running TypeScript check (after fix)...");
     const tscAfter = await $`tsgo --noEmit --project ${TEST_PROJECT_DIR}/tsconfig.json`.nothrow().quiet();
     if (tscAfter.exitCode !== 0) {
       console.error("❌ FAILED: TypeScript errors after fix");
@@ -73,8 +120,8 @@ async function main() {
     }
     console.log("✅ TypeScript check passed (after fix)\n");
 
-    // Step 7: Restore test-project
-    console.log("♻️  Step 7: Restoring test-project...");
+    // Step 8: Restore test-project
+    console.log("♻️  Step 8: Restoring test-project...");
     await $`git -C ${TEST_PROJECT_DIR} restore .`.quiet();
     console.log("✅ Test-project restored\n");
 
