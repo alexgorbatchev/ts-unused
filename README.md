@@ -28,7 +28,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 ## Limitations
 
 - **Dynamic Access**: Properties accessed through a key whose type is not a specific literal (such as `obj[key]` where `key` is a `string`) are not detected. Literal keys like `obj["prop"]`, keys typed as string or number literals (or unions of them), and `Reflect` calls with literal keys are detected.
-- **Re-exports**: By default, items that are only re-exported through barrel files are reported as unused. Use `packageMode` to treat public API exports as used.
+- **Re-exports**: Re-exports alone are not usage. An export that is only forwarded through barrel files, whether by `export *`, `export { a } from`, `export { a as b } from`, `export type { A } from`, or importing a name only to list it in `export { a }`, is reported as unused; using the name through the barrel counts. Use `packageMode` to treat the package public API as used.
 - **Type Narrowing**: Properties accessed after type guards or conditional checks may not always be tracked through complex control flow
 
 ## Comparison With Similar Tools
@@ -95,6 +95,7 @@ ts-unused fix <path-to-tsconfig.json>
 **Safety Features:**
 
 - Only edits or deletes files selected by the tsconfig (`files`, `include`, and `exclude`); imported files outside the project are never modified
+- Removes the re-export specifiers (`export { a } from "./a"`, `export { a }`) and the import specifiers that only feed them whenever it removes the declaration they forward, so barrel files keep compiling; an emptied `export`/`import` declaration is removed entirely
 - Checks repository-wide Git status before making changes
 - Skips staged, unstaged, renamed, and untracked files, including files in new directories
 - Stops without editing if Git status fails in a detected repository
@@ -429,7 +430,7 @@ export function dynamicHook(): void {
 ## How It Works
 
 1. **Project Loading**: Uses ts-morph to load the TypeScript project based on the provided tsconfig.json. Only files selected by the tsconfig (`files`, `include`, and `exclude`) are reported or edited. Files outside that set that the program reaches through imports, such as a sibling package or a shared directory, still count as usage sources but are never reported, edited, or deleted.
-2. **Export Analysis**: For each exported declaration, finds all references across the codebase
+2. **Export Analysis**: For each exported declaration, finds all references across the codebase. Re-export specifiers, and imports whose file only re-exports the name, forward the export rather than use it and are not counted
 3. **Property Analysis**: For interfaces and type aliases, checks each property for external references
 4. **Reference Categorization**: Tracks references separately:
    - Total references (definition + all usages)
@@ -597,6 +598,8 @@ In this example:
 - Types and interfaces
 
 `export *` does not re-export a module's `default` export, so a default export that is only reachable through `export *` is still reported as unused.
+
+Re-exports count as public only when they reach an entry point. A named re-export in a barrel file that no entry point exports is not usage, the same as outside package mode.
 
 #### Entry point resolution
 

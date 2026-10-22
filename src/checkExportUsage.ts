@@ -1,13 +1,7 @@
 import { COMMENT_KIND, EXPORT_KIND, SEVERITY } from "./constants.js";
 import path from "node:path";
-import {
-  Node,
-  type ReferenceEntry,
-  type ReferencedSymbol,
-  type SourceFile,
-  SyntaxKind,
-  VariableDeclarationKind,
-} from "ts-morph";
+import { Node, type SourceFile, VariableDeclarationKind } from "ts-morph";
+import { classifyExportReferences } from "./classifyExportReferences.js";
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment.js";
 import { matchesPattern } from "./patternMatcher.js";
 import type { ExportKind, IsTestFileFn, Severity, IUnusedExportResult } from "./types.js";
@@ -78,45 +72,6 @@ function isModuleAugmentation(declaration: Node): boolean {
   return false;
 }
 
-/**
- * Checks if a reference is a re-export (export { X } from './module' or export { X }).
- * Re-exports should not count as actual usage since they're just forwarding the export.
- */
-function isReExport(ref: ReferenceEntry): boolean {
-  const node = ref.getNode();
-  let current: Node | undefined = node;
-
-  // Walk up the AST to check if this reference is part of an export declaration
-  while (current) {
-    const kind = current.getKind();
-
-    // Check for named export: export { X } from './module' or export { X }
-    if (kind === SyntaxKind.ExportSpecifier) {
-      return true;
-    }
-
-    // Check for export declaration that contains this reference
-    if (kind === SyntaxKind.ExportDeclaration) {
-      return true;
-    }
-
-    // Stop at statement boundaries to avoid false positives
-    if (
-      kind === SyntaxKind.VariableStatement ||
-      kind === SyntaxKind.FunctionDeclaration ||
-      kind === SyntaxKind.ClassDeclaration ||
-      kind === SyntaxKind.ExpressionStatement ||
-      kind === SyntaxKind.Block
-    ) {
-      break;
-    }
-
-    current = current.getParent();
-  }
-
-  return false;
-}
-
 export function checkExportUsage(
   exportName: string,
   declarations: readonly Node[],
@@ -158,37 +113,22 @@ export function checkExportUsage(
     return null;
   }
 
-  const references: ReferencedSymbol[] = firstDeclaration.findReferences();
-
-  // Count references by type, excluding re-exports which are just forwarding the symbol
-  let totalReferences = 0;
+  // Count usages by file type; re-exports and imports that only feed them are forwarding, not usage
   let testReferences = 0;
   let nonTestReferences = 0;
 
-  for (const refGroup of references) {
-    const refs = refGroup.getReferences();
-    for (const ref of refs) {
-      const refSourceFile: SourceFile = ref.getSourceFile();
-      totalReferences++;
-
-      // Check if this reference is a re-export (shouldn't count as actual usage)
-      if (isReExport(ref)) {
-        continue;
-      }
-
-      if (isTestFile(refSourceFile)) {
-        testReferences++;
-      } else {
-        nonTestReferences++;
-      }
+  for (const reference of classifyExportReferences(firstDeclaration).usages) {
+    if (isTestFile(reference.getSourceFile())) {
+      testReferences++;
+    } else {
+      nonTestReferences++;
     }
   }
 
-  // An export is unused if it only has 1 non-reexport reference (the definition itself)
-  // Re-exports don't count as actual usage since they just forward the symbol
+  // An export is unused if its only usage is the definition itself
   const onlyUsedInTests: boolean = nonTestReferences === 1 && testReferences > 0;
 
-  if (totalReferences > 1 && !onlyUsedInTests) {
+  if (nonTestReferences + testReferences > 1 && !onlyUsedInTests) {
     return null; // Used in production code
   }
 

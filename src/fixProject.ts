@@ -1,11 +1,13 @@
 import { SEVERITY } from "./constants.js";
 import fs from "node:fs";
 import path from "node:path";
-import { type SourceFile, SyntaxKind } from "ts-morph";
+import { Node, type Project, type SourceFile, SyntaxKind } from "ts-morph";
 import { analyzeProject, type IsTestFileFnOrOptions } from "./analyzeProject.js";
 import { checkGitStatus } from "./checkGitStatus.js";
+import { classifyExportReferences, type ForwardingNode } from "./classifyExportReferences.js";
 import { loadProject } from "./loadProject.js";
-import type { IAnalysisResults } from "./types.js";
+import { removeForwardingNode } from "./removeForwardingNode.js";
+import type { IAnalysisResults, IUnusedExportResult } from "./types.js";
 
 export type FixProgressCallback = (message: string) => void;
 
@@ -44,9 +46,20 @@ export async function fixProject(
   // Create ts-morph project for making fixes
   const { project, projectFiles } = loadProject(tsConfigPath);
 
+  const filesToDelete = analysis.unusedFileSeverity === SEVERITY.ERROR ? analysis.unusedFiles : [];
+
+  // Collect re-exports of the exports about to be removed before any edit changes the references
+  const forwardersByDeclaration = collectForwarders(
+    analysis.unusedExports.filter(
+      (unusedExport) => filesToDelete.includes(unusedExport.filePath) || isFixableExport(unusedExport),
+    ),
+    tsConfigDir,
+    filesWithChanges,
+    project,
+  );
+
   // Fix unused files first (delete them)
   const deletedFiles = new Set<string>();
-  const filesToDelete = analysis.unusedFileSeverity === SEVERITY.ERROR ? analysis.unusedFiles : [];
   for (const relativeFilePath of filesToDelete) {
     const absoluteFilePath = path.resolve(tsConfigDir, relativeFilePath);
 
@@ -69,9 +82,10 @@ export async function fixProject(
   }
 
   // Clean up files that only contain broken imports after deletions
-  if (deletedFiles.size > 0) {
-    cleanupBrokenImports(projectFiles, tsConfigDir, deletedFiles, filesWithChanges, onProgress, results);
-  }
+  const deletedBrokenFiles =
+    deletedFiles.size > 0
+      ? cleanupBrokenImports(projectFiles, tsConfigDir, deletedFiles, filesWithChanges, onProgress, results)
+      : new Set<string>();
 
   // Group never-returned types by file (process BEFORE exports to avoid removing functions)
   const neverReturnedByFile = new Map<string, typeof analysis.neverReturnedTypes>();
@@ -89,11 +103,7 @@ export async function fixProject(
   // Create a set of unused export names for quick lookup (only ERROR severity)
   const unusedExportNames = new Set<string>();
   for (const unusedExport of analysis.unusedExports) {
-    if (
-      unusedExport.severity === SEVERITY.ERROR &&
-      !unusedExport.onlyUsedInTests &&
-      unusedExport.todoComment === undefined
-    ) {
+    if (isFixableExport(unusedExport)) {
       unusedExportNames.add(`${unusedExport.filePath}:${unusedExport.exportName}`);
     }
   }
@@ -152,11 +162,7 @@ export async function fixProject(
   const exportsByFile = new Map<string, typeof analysis.unusedExports>();
   for (const unusedExport of analysis.unusedExports) {
     // Only fix ERROR severity items (skip INFO for test-only, WARNING for TODOs)
-    if (
-      unusedExport.severity !== SEVERITY.ERROR ||
-      unusedExport.onlyUsedInTests ||
-      unusedExport.todoComment !== undefined
-    ) {
+    if (!isFixableExport(unusedExport)) {
       continue;
     }
     if (!exportsByFile.has(unusedExport.filePath)) {
@@ -207,6 +213,20 @@ export async function fixProject(
       onProgress?.(`Error fixing ${relativeFilePath}: ${errorMessage}`);
     }
   }
+
+  // Remove re-exports of the declarations that are gone so barrel files keep compiling
+  const removedFiles = new Set(
+    [...deletedFiles, ...deletedBrokenFiles].map((relativeFilePath) => path.resolve(tsConfigDir, relativeFilePath)),
+  );
+  removeForwarders(
+    forwardersByDeclaration,
+    new Set(projectFiles),
+    removedFiles,
+    filesWithChanges,
+    tsConfigDir,
+    onProgress,
+    results,
+  );
 
   // Group unused properties by file (only ERROR severity)
   const propertiesByFile = new Map<string, typeof analysis.unusedProperties>();
@@ -270,6 +290,106 @@ export async function fixProject(
   }
 
   return results;
+}
+
+/**
+ * Whether fix removes an unused export: only ERROR severity, never test-only usage or TODO/ignore comments
+ */
+function isFixableExport(unusedExport: IUnusedExportResult): boolean {
+  return (
+    unusedExport.severity === SEVERITY.ERROR && !unusedExport.onlyUsedInTests && unusedExport.todoComment === undefined
+  );
+}
+
+/**
+ * Find the specifiers that re-export each declaration of the given unused exports.
+ * Exports in files with local git changes are skipped because fix never removes them.
+ */
+function collectForwarders(
+  unusedExports: IUnusedExportResult[],
+  tsConfigDir: string,
+  filesWithChanges: Set<string>,
+  project: Project,
+): Map<Node, ForwardingNode[]> {
+  const forwardersByDeclaration = new Map<Node, ForwardingNode[]>();
+
+  for (const unusedExport of unusedExports) {
+    const absoluteFilePath = path.resolve(tsConfigDir, unusedExport.filePath);
+    const sourceFile = project.getSourceFile(absoluteFilePath);
+    if (!sourceFile || filesWithChanges.has(absoluteFilePath)) {
+      continue;
+    }
+
+    for (const declaration of sourceFile.getExportedDeclarations().get(unusedExport.exportName) ?? []) {
+      if (declaration.getSourceFile() !== sourceFile || !Node.isReferenceFindable(declaration)) {
+        continue;
+      }
+      const { forwarders } = classifyExportReferences(declaration);
+      if (forwarders.length > 0) {
+        forwardersByDeclaration.set(declaration, forwarders);
+      }
+    }
+  }
+
+  return forwardersByDeclaration;
+}
+
+/**
+ * Remove the re-exports of declarations that fix removed or deleted with their file.
+ * Only files in the analyzed project without local git changes are edited.
+ */
+function removeForwarders(
+  forwardersByDeclaration: Map<Node, ForwardingNode[]>,
+  projectFiles: Set<SourceFile>,
+  removedFiles: Set<string>,
+  filesWithChanges: Set<string>,
+  tsConfigDir: string,
+  onProgress: FixProgressCallback | undefined,
+  results: IFixResults,
+): void {
+  const editedFiles = new Set<SourceFile>();
+
+  for (const [declaration, forwarders] of forwardersByDeclaration) {
+    const isRemoved = declaration.wasForgotten() || removedFiles.has(declaration.getSourceFile().getFilePath());
+    if (!isRemoved) {
+      continue;
+    }
+
+    for (const forwarder of forwarders) {
+      if (forwarder.wasForgotten()) {
+        continue;
+      }
+      const sourceFile = forwarder.getSourceFile();
+      const absoluteFilePath = sourceFile.getFilePath();
+      const relativeFilePath = path.relative(tsConfigDir, absoluteFilePath);
+      if (!projectFiles.has(sourceFile) || removedFiles.has(absoluteFilePath)) {
+        continue;
+      }
+      if (filesWithChanges.has(absoluteFilePath)) {
+        if (!results.skippedFiles.includes(relativeFilePath)) {
+          onProgress?.(`Skipped: ${relativeFilePath} (has local git changes)`);
+          results.skippedFiles.push(relativeFilePath);
+        }
+        continue;
+      }
+
+      const forwarderText = forwarder.getText();
+      removeForwardingNode(forwarder);
+      editedFiles.add(sourceFile);
+      onProgress?.(`  ✓ Removed re-export of unused export: ${forwarderText} (${relativeFilePath})`);
+    }
+  }
+
+  for (const sourceFile of editedFiles) {
+    try {
+      sourceFile.saveSync();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const relativeFilePath = path.relative(tsConfigDir, sourceFile.getFilePath());
+      results.errors.push({ file: relativeFilePath, error: errorMessage });
+      onProgress?.(`Error fixing ${relativeFilePath}: ${errorMessage}`);
+    }
+  }
 }
 
 /**
@@ -538,6 +658,7 @@ function normalizeTypeText(typeText: string): string {
 /**
  * Clean up files that have broken imports after file deletions
  * If a file only contains re-exports from deleted files, remove those exports or delete the file
+ * @returns Relative paths of the files it deleted
  */
 function cleanupBrokenImports(
   sourceFiles: SourceFile[],
@@ -546,7 +667,8 @@ function cleanupBrokenImports(
   filesWithChanges: Set<string>,
   onProgress?: FixProgressCallback,
   results?: IFixResults,
-): void {
+): Set<string> {
+  const deletedBrokenFiles = new Set<string>();
   for (const sourceFile of sourceFiles) {
     const relativePath = path.relative(tsConfigDir, sourceFile.getFilePath());
     const absolutePath = sourceFile.getFilePath();
@@ -598,6 +720,7 @@ function cleanupBrokenImports(
       try {
         onProgress?.(`Deleting: ${relativePath} (only re-exports from deleted files)`);
         fs.unlinkSync(absolutePath);
+        deletedBrokenFiles.add(relativePath);
         if (results) {
           results.deletedFiles++;
         }
@@ -628,6 +751,7 @@ function cleanupBrokenImports(
       }
     }
   }
+  return deletedBrokenFiles;
 }
 
 /**
