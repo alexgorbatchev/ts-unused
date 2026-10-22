@@ -1,6 +1,6 @@
 import { RULE_NAME, RULE_SEVERITY } from "./constants.js";
 import path from "node:path";
-import { type Node, SyntaxKind } from "ts-morph";
+import { type Node, type SourceFile, SyntaxKind } from "ts-morph";
 import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes.js";
 import { analyzeDuplicateTypes } from "./analyzeDuplicateTypes.js";
 import { analyzeInterfaces } from "./analyzeInterfaces.js";
@@ -10,6 +10,7 @@ import { collectPublicApiDeclarations } from "./collectPublicApiDeclarations.js"
 import { mergeConfig, type IUnusedConfig } from "./config.js";
 import { applyRuleSeverities } from "./applyRuleSeverities.js";
 import { hasNoCheck } from "./hasNoCheck.js";
+import { isImportedForSideEffects } from "./isImportedForSideEffects.js";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile.js";
 import { loadProject } from "./loadProject.js";
 import { findPackageJson, resolvePackageEntryPoints } from "./packageEntryPoints.js";
@@ -188,6 +189,7 @@ export async function analyzeProject(
   }
 
   interface IFileExportCount {
+    sourceFile: SourceFile;
     total: number;
     unused: number;
     protectedExports: number;
@@ -206,7 +208,7 @@ export async function analyzeProject(
       const totalExports = exports.size;
 
       if (totalExports > 0) {
-        fileExportCounts.set(filePath, { total: totalExports, unused: 0, protectedExports: 0 });
+        fileExportCounts.set(filePath, { sourceFile, total: totalExports, unused: 0, protectedExports: 0 });
       }
     }
 
@@ -221,12 +223,12 @@ export async function analyzeProject(
       }
     }
 
-    // Keep TODO/ignore and test-only exports as individual findings, never deletion candidates.
+    // Keep TODO/ignore and test-only exports, and files imported for side effects, out of deletion candidates.
     for (const [filePath, counts] of fileExportCounts.entries()) {
       const allExportsUnused = counts.total > 0 && counts.unused === counts.total;
       const hasProtectedExports = counts.protectedExports > 0;
 
-      if (allExportsUnused && !hasProtectedExports) {
+      if (allExportsUnused && !hasProtectedExports && !isImportedForSideEffects(counts.sourceFile)) {
         unusedFiles.push(filePath);
       }
     }

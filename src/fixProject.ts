@@ -1,12 +1,12 @@
 import { SEVERITY } from "./constants.js";
 import fs from "node:fs";
 import path from "node:path";
-import { Node, type Project, type SourceFile, SyntaxKind } from "ts-morph";
+import { type NamespaceImport, Node, type Project, type SourceFile, SyntaxKind } from "ts-morph";
 import { analyzeProject, type IsTestFileFnOrOptions } from "./analyzeProject.js";
 import { checkGitStatus } from "./checkGitStatus.js";
-import { classifyExportReferences, type ForwardingNode } from "./classifyExportReferences.js";
+import { classifyExportReferences } from "./classifyExportReferences.js";
 import { loadProject } from "./loadProject.js";
-import { removeForwardingNode } from "./removeForwardingNode.js";
+import { type RemovableSpecifier, removeSpecifier } from "./removeSpecifier.js";
 import type { IAnalysisResults, IUnusedExportResult } from "./types.js";
 
 export type FixProgressCallback = (message: string) => void;
@@ -46,17 +46,40 @@ export async function fixProject(
   // Create ts-morph project for making fixes
   const { project, projectFiles } = loadProject(tsConfigPath);
 
-  const filesToDelete = analysis.unusedFileSeverity === SEVERITY.ERROR ? analysis.unusedFiles : [];
+  const deletionCandidates = analysis.unusedFileSeverity === SEVERITY.ERROR ? analysis.unusedFiles : [];
 
-  // Collect re-exports of the exports about to be removed before any edit changes the references
-  const forwardersByDeclaration = collectForwarders(
-    analysis.unusedExports.filter(
-      (unusedExport) => filesToDelete.includes(unusedExport.filePath) || isFixableExport(unusedExport),
-    ),
+  // Collect the specifiers that name the exports and files about to be removed before any edit changes the references
+  const removalCandidates = analysis.unusedExports.filter(
+    (unusedExport) => deletionCandidates.includes(unusedExport.filePath) || isFixableExport(unusedExport),
+  );
+  const specifierGroups = collectSpecifierGroups(
+    removalCandidates,
+    findExhaustedFiles(removalCandidates, tsConfigDir, project),
     tsConfigDir,
     filesWithChanges,
     project,
   );
+
+  // Keep every export and file that is named in a file fix cannot edit, so no import or re-export is left dangling
+  const blockedGroups = findBlockedGroups(
+    specifierGroups,
+    new Set(projectFiles),
+    filesWithChanges,
+    tsConfigDir,
+    onProgress,
+    results,
+  );
+  const removableGroups = specifierGroups.filter((group) => !blockedGroups.includes(group));
+  const filesToDelete = deletionCandidates.filter(
+    (relativeFilePath) => !blockedGroups.some((group) => group.filePath === relativeFilePath),
+  );
+  const isRemovableExport = (unusedExport: IUnusedExportResult): boolean =>
+    isFixableExport(unusedExport) &&
+    !blockedGroups.some(
+      (group) =>
+        group.filePath === unusedExport.filePath &&
+        (group.exportName === undefined || group.exportName === unusedExport.exportName),
+    );
 
   // Fix unused files first (delete them)
   const deletedFiles = new Set<string>();
@@ -103,7 +126,7 @@ export async function fixProject(
   // Create a set of unused export names for quick lookup (only ERROR severity)
   const unusedExportNames = new Set<string>();
   for (const unusedExport of analysis.unusedExports) {
-    if (isFixableExport(unusedExport)) {
+    if (isRemovableExport(unusedExport)) {
       unusedExportNames.add(`${unusedExport.filePath}:${unusedExport.exportName}`);
     }
   }
@@ -161,8 +184,8 @@ export async function fixProject(
   // Group unused exports by file (only ERROR severity)
   const exportsByFile = new Map<string, typeof analysis.unusedExports>();
   for (const unusedExport of analysis.unusedExports) {
-    // Only fix ERROR severity items (skip INFO for test-only, WARNING for TODOs)
-    if (!isFixableExport(unusedExport)) {
+    // Only fix ERROR severity items (skip INFO for test-only, WARNING for TODOs) that nothing uneditable names
+    if (!isRemovableExport(unusedExport)) {
       continue;
     }
     if (!exportsByFile.has(unusedExport.filePath)) {
@@ -214,19 +237,11 @@ export async function fixProject(
     }
   }
 
-  // Remove re-exports of the declarations that are gone so barrel files keep compiling
+  // Remove the imports and re-exports of the declarations and files that are gone so importers keep compiling
   const removedFiles = new Set(
     [...deletedFiles, ...deletedBrokenFiles].map((relativeFilePath) => path.resolve(tsConfigDir, relativeFilePath)),
   );
-  removeForwarders(
-    forwardersByDeclaration,
-    new Set(projectFiles),
-    removedFiles,
-    filesWithChanges,
-    tsConfigDir,
-    onProgress,
-    results,
-  );
+  removeSpecifiers(removableGroups, removedFiles, tsConfigDir, onProgress, results);
 
   // Group unused properties by file (only ERROR severity)
   const propertiesByFile = new Map<string, typeof analysis.unusedProperties>();
@@ -301,17 +316,48 @@ function isFixableExport(unusedExport: IUnusedExportResult): boolean {
   );
 }
 
+/** Specifiers that dangle once fix removes the declaration they name, or every export of the file they import. */
+interface ISpecifierGroup {
+  /** Path, relative to the tsconfig directory, of the file that declares the target. */
+  filePath: string;
+  /** The unused export the specifiers name, or undefined for the namespace imports of the whole file. */
+  exportName?: string;
+  /** The declaration, or the source file, whose removal leaves the specifiers dangling. */
+  target: Node;
+  specifiers: RemovableSpecifier[];
+}
+
 /**
- * Find the specifiers that re-export each declaration of the given unused exports.
- * Exports in files with local git changes are skipped because fix never removes them.
+ * Find the files, relative to the tsconfig directory, that fix removes every export from: files it deletes and
+ * files it keeps only because something imports them for side effects. A namespace import of such a file would
+ * no longer resolve to a module.
  */
-function collectForwarders(
+function findExhaustedFiles(removalCandidates: IUnusedExportResult[], tsConfigDir: string, project: Project): string[] {
+  const candidateCounts = new Map<string, number>();
+  for (const unusedExport of removalCandidates) {
+    candidateCounts.set(unusedExport.filePath, (candidateCounts.get(unusedExport.filePath) ?? 0) + 1);
+  }
+
+  return [...candidateCounts].flatMap(([relativeFilePath, count]) => {
+    const sourceFile = project.getSourceFile(path.resolve(tsConfigDir, relativeFilePath));
+    return sourceFile?.getExportedDeclarations().size === count ? [relativeFilePath] : [];
+  });
+}
+
+/**
+ * Find the import and export specifiers that name each declaration of the given unused exports, and the namespace
+ * imports of each file that fix removes every export from. Namespace imports of such a file are unreferenced,
+ * because a referenced one would count as usage of every export. Exports and files with local git changes are
+ * skipped because fix never removes them.
+ */
+function collectSpecifierGroups(
   unusedExports: IUnusedExportResult[],
+  exhaustedFiles: string[],
   tsConfigDir: string,
   filesWithChanges: Set<string>,
   project: Project,
-): Map<Node, ForwardingNode[]> {
-  const forwardersByDeclaration = new Map<Node, ForwardingNode[]>();
+): ISpecifierGroup[] {
+  const groups: ISpecifierGroup[] = [];
 
   for (const unusedExport of unusedExports) {
     const absoluteFilePath = path.resolve(tsConfigDir, unusedExport.filePath);
@@ -324,59 +370,127 @@ function collectForwarders(
       if (declaration.getSourceFile() !== sourceFile || !Node.isReferenceFindable(declaration)) {
         continue;
       }
-      const { forwarders } = classifyExportReferences(declaration);
-      if (forwarders.length > 0) {
-        forwardersByDeclaration.set(declaration, forwarders);
+      const { specifiers } = classifyExportReferences(declaration);
+      if (specifiers.length > 0) {
+        groups.push({
+          filePath: unusedExport.filePath,
+          exportName: unusedExport.exportName,
+          target: declaration,
+          specifiers,
+        });
       }
     }
   }
 
-  return forwardersByDeclaration;
+  for (const relativeFilePath of exhaustedFiles) {
+    const absoluteFilePath = path.resolve(tsConfigDir, relativeFilePath);
+    const sourceFile = project.getSourceFile(absoluteFilePath);
+    if (!sourceFile || filesWithChanges.has(absoluteFilePath)) {
+      continue;
+    }
+
+    const namespaceImports: NamespaceImport[] = [];
+    for (const node of sourceFile.getReferencingNodesInOtherSourceFiles()) {
+      const namedBindings = Node.isImportDeclaration(node) ? node.getImportClause()?.getNamedBindings() : undefined;
+      if (namedBindings && Node.isNamespaceImport(namedBindings)) {
+        namespaceImports.push(namedBindings);
+      }
+    }
+    if (namespaceImports.length > 0) {
+      groups.push({ filePath: relativeFilePath, target: sourceFile, specifiers: namespaceImports });
+    }
+  }
+
+  return groups;
+}
+
+/** Whether fix removed what a group names: the declaration, the deleted file, or every export of the file. */
+function isGroupTargetRemoved(group: ISpecifierGroup, removedFiles: Set<string>): boolean {
+  const { target } = group;
+  if (target.wasForgotten() || removedFiles.has(target.getSourceFile().getFilePath())) {
+    return true;
+  }
+  return Node.isSourceFile(target) && target.getExportedDeclarations().size === 0;
 }
 
 /**
- * Remove the re-exports of declarations that fix removed or deleted with their file.
- * Only files in the analyzed project without local git changes are edited.
+ * Find the groups with a specifier in a file fix does not edit: a file outside the analyzed tsconfig, or one with
+ * local git changes. Fix keeps what such a group names (the export, or the file and all of its exports), because
+ * removing it would leave that specifier dangling.
  */
-function removeForwarders(
-  forwardersByDeclaration: Map<Node, ForwardingNode[]>,
+function findBlockedGroups(
+  groups: ISpecifierGroup[],
   projectFiles: Set<SourceFile>,
-  removedFiles: Set<string>,
   filesWithChanges: Set<string>,
+  tsConfigDir: string,
+  onProgress: FixProgressCallback | undefined,
+  results: IFixResults,
+): ISpecifierGroup[] {
+  const blockedGroups: ISpecifierGroup[] = [];
+
+  for (const group of groups) {
+    const blockingFiles = new Set(
+      group.specifiers
+        .map((specifier) => specifier.getSourceFile())
+        .filter((sourceFile) => !projectFiles.has(sourceFile) || filesWithChanges.has(sourceFile.getFilePath())),
+    );
+    if (blockingFiles.size === 0) {
+      continue;
+    }
+
+    blockedGroups.push(group);
+    const target = group.exportName ? `${group.filePath}:${group.exportName}` : group.filePath;
+    for (const sourceFile of blockingFiles) {
+      const relativeFilePath = path.relative(tsConfigDir, sourceFile.getFilePath());
+      if (!projectFiles.has(sourceFile)) {
+        onProgress?.(`Skipped: ${target} (named in ${relativeFilePath}, outside the analyzed tsconfig)`);
+        continue;
+      }
+      onProgress?.(`Skipped: ${target} (named in ${relativeFilePath}, which has local git changes)`);
+      if (!results.skippedFiles.includes(relativeFilePath)) {
+        results.skippedFiles.push(relativeFilePath);
+      }
+    }
+  }
+
+  return blockedGroups;
+}
+
+/**
+ * Remove the specifiers of the declarations that fix removed and the namespace imports of the files it emptied or deleted.
+ * Every specifier is in an editable file, because findBlockedGroups kept the targets of all others.
+ */
+function removeSpecifiers(
+  groups: ISpecifierGroup[],
+  removedFiles: Set<string>,
   tsConfigDir: string,
   onProgress: FixProgressCallback | undefined,
   results: IFixResults,
 ): void {
   const editedFiles = new Set<SourceFile>();
 
-  for (const [declaration, forwarders] of forwardersByDeclaration) {
-    const isRemoved = declaration.wasForgotten() || removedFiles.has(declaration.getSourceFile().getFilePath());
-    if (!isRemoved) {
+  for (const group of groups) {
+    if (!isGroupTargetRemoved(group, removedFiles)) {
       continue;
     }
 
-    for (const forwarder of forwarders) {
-      if (forwarder.wasForgotten()) {
+    for (const specifier of group.specifiers) {
+      if (specifier.wasForgotten()) {
         continue;
       }
-      const sourceFile = forwarder.getSourceFile();
-      const absoluteFilePath = sourceFile.getFilePath();
-      const relativeFilePath = path.relative(tsConfigDir, absoluteFilePath);
-      if (!projectFiles.has(sourceFile) || removedFiles.has(absoluteFilePath)) {
-        continue;
-      }
-      if (filesWithChanges.has(absoluteFilePath)) {
-        if (!results.skippedFiles.includes(relativeFilePath)) {
-          onProgress?.(`Skipped: ${relativeFilePath} (has local git changes)`);
-          results.skippedFiles.push(relativeFilePath);
-        }
+      const sourceFile = specifier.getSourceFile();
+      if (removedFiles.has(sourceFile.getFilePath())) {
         continue;
       }
 
-      const forwarderText = forwarder.getText();
-      removeForwardingNode(forwarder);
+      const specifierText = specifier.getText();
+      const specifierKind = Node.isExportSpecifier(specifier) ? "re-export" : "import";
+      const targetKind = group.exportName ? "unused export" : "file without exports";
+      removeSpecifier(specifier);
       editedFiles.add(sourceFile);
-      onProgress?.(`  ✓ Removed re-export of unused export: ${forwarderText} (${relativeFilePath})`);
+      onProgress?.(
+        `  ✓ Removed ${specifierKind} of ${targetKind}: ${specifierText} (${path.relative(tsConfigDir, sourceFile.getFilePath())})`,
+      );
     }
   }
 

@@ -5,15 +5,14 @@ import {
   Node,
   type ReferenceEntry,
   type ReferenceFindableNode,
-  type SourceFile,
   SyntaxKind,
 } from "ts-morph";
 
 /** An import specifier or default import clause that binds an imported declaration locally. */
 type ImportBinding = ImportSpecifier | ImportClause;
 
-/** A module-syntax node that only passes a declaration on to another module. */
-export type ForwardingNode = ExportSpecifier | ImportBinding;
+/** An export or import specifier that names a declaration without using it. */
+export type NamingSpecifier = ExportSpecifier | ImportBinding;
 
 /** An exported declaration whose references the language service can find. */
 export type ReferenceFindableDeclaration = ReferenceFindableNode & Node;
@@ -21,8 +20,8 @@ export type ReferenceFindableDeclaration = ReferenceFindableNode & Node;
 export interface IClassifiedExportReferences {
   /** References that count as usage, including the declaration itself. */
   usages: ReferenceEntry[];
-  /** Unique specifiers that forward the declaration without using it. */
-  forwarders: ForwardingNode[];
+  /** Unique export and import specifiers that name the declaration without using it. */
+  specifiers: NamingSpecifier[];
 }
 
 /**
@@ -33,46 +32,38 @@ function getExportSpecifier(node: Node): ExportSpecifier | undefined {
   return Node.isExportSpecifier(node) ? node : node.getParentIfKind(SyntaxKind.ExportSpecifier);
 }
 
-/** Returns the import specifier or default import clause a reference belongs to. */
+/**
+ * Returns the import specifier or default import clause a reference belongs to, covering `import { a }`,
+ * `import { a as b }`, `import { type A }`, `import type { A }`, and `import a`.
+ */
 function getImportBinding(node: Node): ImportBinding | undefined {
   return node.getParentIfKind(SyntaxKind.ImportSpecifier) ?? node.getParentIfKind(SyntaxKind.ImportClause);
 }
 
 /**
- * Splits the references of an exported declaration into usages and forwarders.
+ * Splits the references of an exported declaration into usages and naming specifiers.
  *
- * Re-exports are not usage by themselves, matching `export *`, which creates no reference at all.
- * An import counts as usage unless its file also re-exports the declaration, so importing a name
- * only to list it in `export { ... }` is forwarding too. Any other reference in that file, such as
- * a call, still counts.
+ * Export and import specifiers only name the declaration. Re-exports are not usage by themselves, matching
+ * `export *`, which creates no reference at all, and an import is not usage by itself either: the language
+ * service also reports every reference to the local binding it creates (calls, type positions, JSX, `typeof`,
+ * decorators), and those are what count. An import that is never referenced, or only listed in `export { ... }`,
+ * keeps nothing alive.
  */
 export function classifyExportReferences(declaration: ReferenceFindableDeclaration): IClassifiedExportReferences {
-  const references = declaration.findReferences().flatMap((referencedSymbol) => referencedSymbol.getReferences());
-  const exportSpecifiers = new Map<ReferenceEntry, ExportSpecifier>();
-  const forwardingFiles = new Set<SourceFile>();
-
-  for (const reference of references) {
-    const exportSpecifier = getExportSpecifier(reference.getNode());
-    if (exportSpecifier) {
-      exportSpecifiers.set(reference, exportSpecifier);
-      forwardingFiles.add(reference.getSourceFile());
-    }
-  }
-
   const usages: ReferenceEntry[] = [];
-  const forwarders = new Set<ForwardingNode>();
-  for (const reference of references) {
-    const exportSpecifier = exportSpecifiers.get(reference);
-    const importBinding = forwardingFiles.has(reference.getSourceFile())
-      ? getImportBinding(reference.getNode())
-      : undefined;
-    const forwarder = exportSpecifier ?? importBinding;
-    if (forwarder) {
-      forwarders.add(forwarder);
-    } else {
-      usages.push(reference);
+  const specifiers = new Set<NamingSpecifier>();
+
+  for (const referencedSymbol of declaration.findReferences()) {
+    for (const reference of referencedSymbol.getReferences()) {
+      const node = reference.getNode();
+      const specifier = getExportSpecifier(node) ?? getImportBinding(node);
+      if (specifier) {
+        specifiers.add(specifier);
+      } else {
+        usages.push(reference);
+      }
     }
   }
 
-  return { usages, forwarders: [...forwarders] };
+  return { usages, specifiers: [...specifiers] };
 }

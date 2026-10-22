@@ -3,6 +3,7 @@ import path from "node:path";
 import { Node, type SourceFile, VariableDeclarationKind } from "ts-morph";
 import { classifyExportReferences } from "./classifyExportReferences.js";
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment.js";
+import { getWholeNamespaceImporters } from "./getWholeNamespaceImporters.js";
 import { matchesPattern } from "./patternMatcher.js";
 import type { ExportKind, IsTestFileFn, Severity, IUnusedExportResult } from "./types.js";
 
@@ -115,12 +116,17 @@ export function checkExportUsage(
     return null;
   }
 
-  // Count usages by file type; re-exports and imports that only feed them are forwarding, not usage
+  // Count usages by file type; export and import specifiers only name the export, and a namespace import used as a
+  // whole value counts once for every export of the module
   let testReferences = 0;
   let nonTestReferences = 0;
 
-  for (const reference of classifyExportReferences(firstDeclaration).usages) {
-    if (isTestFile(reference.getSourceFile())) {
+  const usageFiles = [
+    ...classifyExportReferences(firstDeclaration).usages.map((reference) => reference.getSourceFile()),
+    ...getWholeNamespaceImporters(sourceFile),
+  ];
+  for (const usageFile of usageFiles) {
+    if (isTestFile(usageFile)) {
       testReferences++;
     } else {
       nonTestReferences++;

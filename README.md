@@ -6,8 +6,8 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 
 ## Features
 
-- **Finds Unused Exports**: Identifies functions, classes, types, interfaces, and constants that are exported but never imported or used elsewhere
-- **Finds Completely Unused Files**: Identifies files where all exports are unused, suggesting the entire file can be deleted
+- **Finds Unused Exports**: Identifies functions, classes, types, interfaces, and constants that are exported but never used elsewhere; importing a name without referencing it does not count as usage
+- **Finds Completely Unused Files**: Identifies files where all exports are unused, suggesting the entire file can be deleted. A file another file imports for side effects (`import "./setup"`) is never reported as completely unused, because deleting it would break that import; its unused exports are still reported one by one
 - **Finds Unused Type Properties**: Detects properties in interfaces and type aliases that are defined but never accessed
 - **Finds Never-Returned Types**: Detects union type branches in function return types that are declared but never actually returned
 - **Finds Duplicate Types**: Reports differently named interfaces and type aliases with matching structures, including primitive aliases and unions
@@ -29,6 +29,8 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 
 - **Dynamic Access**: Properties accessed through a key whose type is not a specific literal (such as `obj[key]` where `key` is a `string`) are not detected. Literal keys like `obj["prop"]`, keys typed as string or number literals (or unions of them), and `Reflect` calls with literal keys are detected.
 - **Re-exports**: Re-exports alone are not usage. An export that is only forwarded through barrel files, whether by `export *`, `export { a } from`, `export { a as b } from`, `export type { A } from`, or importing a name only to list it in `export { a }`, is reported as unused; using the name through the barrel counts. Use `packageMode` to treat the package public API as used.
+- **Imports**: Imports alone are not usage either. `import { a }`, `import { a as b }`, `import a`, `import type { A }`, and `import { type A }` count only when the imported binding is referenced in that file, in any position: calls, type annotations, JSX, `typeof`, decorators, and so on. For namespace imports, `ns.a` (or `ns.A` in a type) counts as usage of `a`; a namespace binding used as a whole value (`register(ns)`, `Object.keys(ns)`, `typeof ns`, `export { ns }`) counts as usage of every export of that module, because any of them can be reached at runtime; an unreferenced namespace import counts for nothing. A side-effect import (`import "./setup"`) is not usage of any export.
+- **Dynamic imports**: `import("./a")` is not tracked as a module import. Property accesses on its awaited result count as usage of the accessed exports, but a file that is only loaded through `import()` for its side effects is reported as completely unused.
 - **Type Narrowing**: Properties accessed after type guards or conditional checks may not always be tracked through complex control flow
 
 ## Comparison With Similar Tools
@@ -95,7 +97,9 @@ ts-unused fix <path-to-tsconfig.json>
 **Safety Features:**
 
 - Only edits or deletes files selected by the tsconfig (`files`, `include`, and `exclude`); imported files outside the project are never modified
-- Removes the re-export specifiers (`export { a } from "./a"`, `export { a }`) and the import specifiers that only feed them whenever it removes the declaration they forward, so barrel files keep compiling; an emptied `export`/`import` declaration is removed entirely
+- Removes the re-export specifiers (`export { a } from "./a"`, `export { a }`) and the unused import specifiers (`import { a }`, `import a`) that name a declaration whenever it removes that declaration, and the unreferenced namespace imports (`import * as ns`) of a file it deletes or removes every export from, so importers keep compiling; an emptied `export`/`import` declaration is removed entirely
+- Keeps an unused export, or a completely unused file together with all of its exports, when one of those specifiers is in a file it does not edit (a file with local Git changes or outside the tsconfig), so no import or re-export is left dangling; the file with local changes is listed as skipped
+- Never deletes a file that is imported for side effects (`import "./setup"`); it removes the file's unused exports instead
 - Checks repository-wide Git status before making changes
 - Skips staged, unstaged, renamed, and untracked files, including files in new directories
 - Stops without editing if Git status fails in a detected repository
@@ -430,7 +434,7 @@ export function dynamicHook(): void {
 ## How It Works
 
 1. **Project Loading**: Uses ts-morph to load the TypeScript project based on the provided tsconfig.json. Only files selected by the tsconfig (`files`, `include`, and `exclude`) are reported or edited. Files outside that set that the program reaches through imports, such as a sibling package or a shared directory, still count as usage sources but are never reported, edited, or deleted.
-2. **Export Analysis**: For each exported declaration, finds all references across the codebase. Re-export specifiers, and imports whose file only re-exports the name, forward the export rather than use it and are not counted
+2. **Export Analysis**: For each exported declaration, finds all references across the codebase. Export and import specifiers only name the export and are not counted; the references to the binding an import creates are, and a namespace import used as a whole value counts once for every export of its module
 3. **Property Analysis**: For interfaces and type aliases, checks each property for external references
 4. **Reference Categorization**: Tracks references separately:
    - Total references (definition + all usages)
