@@ -1,9 +1,10 @@
 import { SEVERITY } from "./constants.js";
 import fs from "node:fs";
 import path from "node:path";
-import { Project, type SourceFile, SyntaxKind } from "ts-morph";
+import { type SourceFile, SyntaxKind } from "ts-morph";
 import { analyzeProject, type IsTestFileFnOrOptions } from "./analyzeProject.js";
 import { checkGitStatus } from "./checkGitStatus.js";
+import { loadProject } from "./loadProject.js";
 import type { IAnalysisResults } from "./types.js";
 
 export type FixProgressCallback = (message: string) => void;
@@ -41,9 +42,7 @@ export async function fixProject(
   const filesWithChanges = checkGitStatus(tsConfigDir);
 
   // Create ts-morph project for making fixes
-  const project = new Project({
-    tsConfigFilePath: tsConfigPath,
-  });
+  const { project, projectFiles } = loadProject(tsConfigPath);
 
   // Fix unused files first (delete them)
   const deletedFiles = new Set<string>();
@@ -71,7 +70,7 @@ export async function fixProject(
 
   // Clean up files that only contain broken imports after deletions
   if (deletedFiles.size > 0) {
-    cleanupBrokenImports(project, tsConfigDir, deletedFiles, filesWithChanges, onProgress, results);
+    cleanupBrokenImports(projectFiles, tsConfigDir, deletedFiles, filesWithChanges, onProgress, results);
   }
 
   // Group never-returned types by file (process BEFORE exports to avoid removing functions)
@@ -541,16 +540,13 @@ function normalizeTypeText(typeText: string): string {
  * If a file only contains re-exports from deleted files, remove those exports or delete the file
  */
 function cleanupBrokenImports(
-  project: Project,
+  sourceFiles: SourceFile[],
   tsConfigDir: string,
   deletedFiles: Set<string>,
   filesWithChanges: Set<string>,
   onProgress?: FixProgressCallback,
   results?: IFixResults,
 ): void {
-  // Refresh the project to detect errors after deletions
-  const sourceFiles = project.getSourceFiles();
-
   for (const sourceFile of sourceFiles) {
     const relativePath = path.relative(tsConfigDir, sourceFile.getFilePath());
     const absolutePath = sourceFile.getFilePath();

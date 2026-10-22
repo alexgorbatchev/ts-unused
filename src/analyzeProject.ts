@@ -1,6 +1,6 @@
 import { RULE_NAME, RULE_SEVERITY } from "./constants.js";
 import path from "node:path";
-import { Project, SyntaxKind } from "ts-morph";
+import { SyntaxKind } from "ts-morph";
 import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes.js";
 import { analyzeDuplicateTypes } from "./analyzeDuplicateTypes.js";
 import { analyzeInterfaces } from "./analyzeInterfaces.js";
@@ -10,6 +10,7 @@ import { mergeConfig, type IUnusedConfig } from "./config.js";
 import { applyRuleSeverities } from "./applyRuleSeverities.js";
 import { hasNoCheck } from "./hasNoCheck.js";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile.js";
+import { loadProject } from "./loadProject.js";
 import { findPackageJson, getPackageEntryPoints } from "./packageEntryPoints.js";
 import { matchesFilePattern } from "./patternMatcher.js";
 import { tracePublicExports } from "./tracePublicExports.js";
@@ -60,9 +61,7 @@ export async function analyzeProject(
       ? createIsTestFile(config.testFilePatterns)
       : defaultIsTestFile;
 
-  const project: Project = new Project({
-    tsConfigFilePath: tsConfigPath,
-  });
+  const { project, projectFiles } = loadProject(tsConfigPath);
 
   const tsConfigDir: string = path.dirname(tsConfigPath);
 
@@ -88,8 +87,7 @@ export async function analyzeProject(
   }
 
   // Get total file count for progress reporting
-  const allSourceFiles = project.getSourceFiles();
-  const filesToAnalyze = allSourceFiles.filter((sf) => {
+  const filesToAnalyze = projectFiles.filter((sf) => {
     if (isTestFile(sf)) {
       return false;
     }

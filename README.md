@@ -93,6 +93,7 @@ ts-unused fix <path-to-tsconfig.json>
 
 **Safety Features:**
 
+- Only edits or deletes files selected by the tsconfig (`files`, `include`, and `exclude`); imported files outside the project are never modified
 - Checks repository-wide Git status before making changes
 - Skips staged, unstaged, renamed, and untracked files, including files in new directories
 - Stops without editing if Git status fails in a detected repository
@@ -426,7 +427,7 @@ export function dynamicHook(): void {
 
 ## How It Works
 
-1. **Project Loading**: Uses ts-morph to load the TypeScript project based on the provided tsconfig.json
+1. **Project Loading**: Uses ts-morph to load the TypeScript project based on the provided tsconfig.json. Only files selected by the tsconfig (`files`, `include`, and `exclude`) are reported or edited. Files outside that set that the program reaches through imports, such as a sibling package or a shared directory, still count as usage sources but are never reported, edited, or deleted.
 2. **Export Analysis**: For each exported declaration, finds all references across the codebase
 3. **Property Analysis**: For interfaces and type aliases, checks each property for external references
 4. **Reference Categorization**: Tracks references separately:
