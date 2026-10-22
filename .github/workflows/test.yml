@@ -26,9 +26,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Verify package
-        run: |
-          bun run build
-          bun test
-          bun run typecheck
-          npm pack --dry-run
+      - name: Lint, test, build and sanity-check package
+        run: bun run ci
+
+      - name: Typecheck package
+        run: bun run typecheck
+
+      - name: Verify npm package contents
+        run: npm pack --dry-run
