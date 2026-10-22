@@ -15,10 +15,16 @@ const SNAPSHOT_SKIPPED_PATHS = new Set([
 
 type FileSnapshot = Map<string, number | bigint>;
 
+/**
+ * Checks whether a path is inside test-project.
+ */
 function isInsideTestProject(filePath: string): boolean {
   return filePath.startsWith(TEST_PROJECT_DIR + sep);
 }
 
+/**
+ * Records a content hash for every repository file outside test-project and other generated directories.
+ */
 async function snapshotFilesOutsideTestProject(
   directoryPath = REPO_ROOT,
   snapshot: FileSnapshot = new Map(),
@@ -35,6 +41,9 @@ async function snapshotFilesOutsideTestProject(
   return snapshot;
 }
 
+/**
+ * Lists files outside test-project that were added, removed, or changed since the snapshot.
+ */
 async function findChangesOutsideTestProject(before: FileSnapshot): Promise<string[]> {
   const after = await snapshotFilesOutsideTestProject();
   const filePaths = new Set([...before.keys(), ...after.keys()]);
@@ -82,6 +91,7 @@ async function main() {
     await $`bun run ${distCli} fix ${TEST_PROJECT_DIR}`;
     console.log();
 
+    // Step 5: Verify fix changed nothing outside test-project
     console.log("🛡️  Step 5: Verifying fix changed nothing outside test-project...");
     const outsideChanges = await findChangesOutsideTestProject(outsideBeforeFix);
     if (outsideChanges.length > 0) {

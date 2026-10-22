@@ -9,6 +9,7 @@ import type { ExportKind, IsTestFileFn, Severity, IUnusedExportResult } from "./
 export interface ICheckExportOptions {
   ignoreExports?: string[];
   ignoreModuleAugmentations?: boolean;
+  /** Declarations exported from package entry points in package mode */
   publicDeclarations?: Set<Node>;
 }
 
@@ -94,6 +95,7 @@ export function checkExportUsage(
 
   const relativePath: string = path.relative(tsConfigDir, sourceFile.getFilePath());
 
+  // In package mode, check if this export is part of the public API
   if (publicDeclarations && declarations.some((declaration) => publicDeclarations.has(declaration))) {
     return null;
   }
