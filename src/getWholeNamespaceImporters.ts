@@ -1,4 +1,5 @@
 import { type Identifier, Node, type SourceFile } from "ts-morph";
+import { findReferenceNodes } from "./findReferenceNodes.js";
 
 const importersCache = new WeakMap<SourceFile, SourceFile[]>();
 
@@ -18,9 +19,9 @@ function isMemberAccess(reference: Node): boolean {
 }
 
 function isUsedAsWhole(namespaceImport: Identifier): boolean {
-  return namespaceImport
-    .findReferencesAsNodes()
-    .some((reference) => reference !== namespaceImport && !isMemberAccess(reference));
+  return findReferenceNodes(namespaceImport).some(
+    (reference) => reference !== namespaceImport && !isMemberAccess(reference),
+  );
 }
 
 /**

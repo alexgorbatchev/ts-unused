@@ -49,7 +49,7 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 | **Unused Files**         | ✅ Reports completely unused files                  | ✅ Deletes unreachable files              | ✅ Explicit report flag                                                 |
 | **VS Code Integration**  | ✅ **Problem Matcher provided**                     | ❌ Manual setup required                  | ❌ Manual setup / ESLint plugin                                         |
 | **Auto-Fix**             | ✅ Removes unused code safely                       | ✅ **Primary Feature:** Auto-removes code | ❌ Manual removal required                                              |
-| **Accuracy**             | ⭐️ **High** (Language Service)                      | ⚡️ **Fast** (Custom Graph)                | ⚡️ **Fast** (Custom Parser)                                             |
+| **Accuracy**             | ⭐️ **High** (TypeScript semantic APIs)                      | ⚡️ **Fast** (Custom Graph)                | ⚡️ **Fast** (Custom Parser)                                             |
 | **Entrypoints**          | 🟢 Not required (Global scan)                       | 🔴 **Required** (Reachability graph)      | 🟢 Not required (Global scan)                                           |
 
 ### vs [tsr](https://github.com/line/tsr)
@@ -57,14 +57,14 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 **tsr** is primarily a "tree-shaking" tool for source code, designed to automatically remove unused code.
 
 - **Goal**: `tsr` focuses on **removing** code (autofix), while `ts-unused` focuses on **reporting** and analysis.
-- **Detection**: `tsr` uses a reachability graph starting from defined entrypoints. If code isn't reachable, it's deleted. `ts-unused` scans all files and checks for global references using the TypeScript Language Service.
+- **Detection**: `tsr` uses a reachability graph starting from defined entrypoints. If code isn't reachable, it's deleted. `ts-unused` scans all files and checks references using TypeScript’s compiler and language-service APIs.
 
 ### vs [ts-unused-exports](https://github.com/pzavolinsky/ts-unused-exports)
 
 **ts-unused-exports** is a specialized, high-performance tool for finding unused exported symbols.
 
-- **Performance**: `ts-unused-exports` uses a custom parser and resolver, making it potentially faster on very large codebases than `ts-unused` (which uses the full TypeScript Language Service).
-- **Accuracy**: `ts-unused` leverages the standard TypeScript Language Service, ensuring higher accuracy with complex re-exports, type inference, and aliasing.
+- **Performance**: `ts-unused-exports` uses a custom parser and resolver, making it potentially faster on very large codebases than `ts-unused` (which performs semantic TypeScript analysis).
+- **Accuracy**: `ts-unused` resolves complex re-exports, type inference, and aliases through TypeScript’s compiler and language-service APIs.
 - **Granularity**: `ts-unused` provides deeper analysis for **unused properties** and **test-only usage**, whereas `ts-unused-exports` focuses strictly on exported symbols.
 
 ## Installation

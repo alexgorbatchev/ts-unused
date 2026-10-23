@@ -5,6 +5,7 @@ import type {
   PropertySignature,
   SourceFile,
   TypeAliasDeclaration,
+  ts,
 } from "ts-morph";
 import { COMMENT_KIND, EXPORT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY, USAGE_SOURCE } from "./constants.js";
 
@@ -16,6 +17,9 @@ export interface IAnalyzePropertiesOptions {
 }
 
 export type PropertyNode = PropertySignature | PropertyDeclaration;
+/** Source files that access each property declaration, including contextual writes and keyed reads. */
+export type PropertyAccesses = Map<ts.Node, Set<SourceFile>>;
+export type PropertyAccessName = ts.PropertyName | ts.JsxAttributeName;
 export type TypeDeclaration = InterfaceDeclaration | TypeAliasDeclaration;
 
 export type Severity = (typeof SEVERITY)[keyof typeof SEVERITY];

@@ -3,10 +3,10 @@ import {
   type ImportClause,
   type ImportSpecifier,
   Node,
-  type ReferenceEntry,
   type ReferenceFindableNode,
   SyntaxKind,
 } from "ts-morph";
+import { findReferenceNodes } from "./findReferenceNodes.js";
 
 /** An import specifier or default import clause that binds an imported declaration locally. */
 type ImportBinding = ImportSpecifier | ImportClause;
@@ -19,7 +19,7 @@ export type ReferenceFindableDeclaration = ReferenceFindableNode & Node;
 
 export interface IClassifiedExportReferences {
   /** References that count as usage, including the declaration itself. */
-  usages: ReferenceEntry[];
+  usages: Node[];
   /** Unique export and import specifiers that name the declaration without using it. */
   specifiers: NamingSpecifier[];
 }
@@ -50,18 +50,15 @@ function getImportBinding(node: Node): ImportBinding | undefined {
  * keeps nothing alive.
  */
 export function classifyExportReferences(declaration: ReferenceFindableDeclaration): IClassifiedExportReferences {
-  const usages: ReferenceEntry[] = [];
+  const usages: Node[] = [];
   const specifiers = new Set<NamingSpecifier>();
 
-  for (const referencedSymbol of declaration.findReferences()) {
-    for (const reference of referencedSymbol.getReferences()) {
-      const node = reference.getNode();
-      const specifier = getExportSpecifier(node) ?? getImportBinding(node);
-      if (specifier) {
-        specifiers.add(specifier);
-      } else {
-        usages.push(reference);
-      }
+  for (const node of findReferenceNodes(declaration)) {
+    const specifier = getExportSpecifier(node) ?? getImportBinding(node);
+    if (specifier) {
+      specifiers.add(specifier);
+    } else {
+      usages.push(node);
     }
   }
 

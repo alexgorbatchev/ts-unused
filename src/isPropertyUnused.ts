@@ -1,8 +1,7 @@
-import { Node } from "ts-morph";
-import type { Project, ReferencedSymbol, SourceFile } from "ts-morph";
+import type { Project } from "ts-morph";
 import { USAGE_SOURCE } from "./constants.js";
 import { findRelatedProperties } from "./findRelatedProperties.js";
-import { getKeyedPropertyAccesses } from "./getKeyedPropertyAccesses.js";
+import { getPropertyAccesses } from "./getPropertyAccesses.js";
 import type { ClassifyUsageSourceFn, PropertyNode, UsageSource } from "./types.js";
 import { getLowerUsageSource, isUsageSourceAtLeast } from "./usageSourceUtils.js";
 
@@ -11,31 +10,10 @@ function getReferenceSources(
   classifyUsageSource: ClassifyUsageSourceFn,
   project: Project,
 ): Set<UsageSource> {
-  const references: ReferencedSymbol[] = prop.findReferences();
   const sources = new Set<UsageSource>();
 
-  for (const refGroup of references) {
-    const refs = refGroup.getReferences();
-    for (const ref of refs) {
-      const node = ref.getNode();
-      const parent = node.getParent();
-      if (
-        ref.isDefinition() ||
-        ((Node.isPropertySignature(parent) || Node.isPropertyDeclaration(parent)) && parent.getNameNode() === node)
-      ) {
-        continue;
-      }
-      const refSourceFile: SourceFile = ref.getSourceFile();
-      sources.add(classifyUsageSource(refSourceFile));
-    }
-  }
-
-  // Add keyed reads (Reflect calls, literal/computed destructuring keys) that findReferences does not report
-  const keyedAccesses = getKeyedPropertyAccesses(project).get(prop.compilerNode);
-  if (keyedAccesses) {
-    for (const refSourceFile of keyedAccesses) {
-      sources.add(classifyUsageSource(refSourceFile));
-    }
+  for (const sourceFile of getPropertyAccesses(project).get(prop.compilerNode) ?? []) {
+    sources.add(classifyUsageSource(sourceFile));
   }
 
   return sources;
