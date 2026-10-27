@@ -93,4 +93,16 @@ describe("Test-Only Exports", () => {
     expect(tokenProp?.severity).toBe(SEVERITY.WARNING);
     expect(tokenProp?.todoComment).toBe("[ts-unused-ignore] used by database serialization");
   });
+
+  test("reads TODO and @ts-unused-ignore comments above exported variable statements", async () => {
+    const results = await analyzeProject(TSCONFIG_PATH, undefined, undefined, isTestFileForTests);
+
+    const syncInterval = results.unusedExports.find((item) => item.exportName === "syncIntervalMs");
+    expect(syncInterval?.severity).toBe(SEVERITY.WARNING);
+    expect(syncInterval?.todoComment).toBe("replace with the configured sync interval");
+
+    const pluginRegistry = results.unusedExports.find((item) => item.exportName === "pluginRegistry");
+    expect(pluginRegistry?.severity).toBe(SEVERITY.WARNING);
+    expect(pluginRegistry?.todoComment).toBe("[ts-unused-ignore] read by dynamic plugins");
+  });
 });

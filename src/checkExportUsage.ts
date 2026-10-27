@@ -47,6 +47,14 @@ function getExportKind(declaration: Node): ExportKind {
   return EXPORT_KIND.EXPORT;
 }
 
+/** Comments above `export const name = ...` belong to the variable statement, not its declaration. */
+function getCommentNode(declaration: Node): Node {
+  if (Node.isVariableDeclaration(declaration)) {
+    return declaration.getVariableStatement() ?? declaration;
+  }
+  return declaration;
+}
+
 function getNameNode(declaration: Node): Node | undefined {
   if (
     Node.isFunctionDeclaration(declaration) ||
@@ -151,8 +159,9 @@ export function checkExportUsage(
 
   const kind: ExportKind = getExportKind(firstDeclaration);
 
-  const ignoreComment = extractIgnoreComment(firstDeclaration);
-  const todoComment = ignoreComment ? `[ts-unused-ignore] ${ignoreComment}` : extractTodoComment(firstDeclaration);
+  const commentNode = getCommentNode(firstDeclaration);
+  const ignoreComment = extractIgnoreComment(commentNode);
+  const todoComment = ignoreComment ? `[ts-unused-ignore] ${ignoreComment}` : extractTodoComment(commentNode);
 
   // Determine severity: warning for TODO/ignore, info for test-only and story-only, error for completely unused
   let severity: Severity = SEVERITY.ERROR;

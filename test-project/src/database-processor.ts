@@ -19,3 +19,9 @@ export function syncDatabase(): void {
 export function dynamicHook(): void {
   console.log("hook");
 }
+
+// TODO replace with the configured sync interval
+export const syncIntervalMs = 1000;
+
+// @ts-unused-ignore read by dynamic plugins
+export const pluginRegistry = new Map<string, () => void>();
