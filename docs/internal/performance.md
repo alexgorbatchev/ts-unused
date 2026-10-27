@@ -1,12 +1,12 @@
 ---
 created_on: 2026-10-23 03:09
-last_modified: 2026-10-23 03:23
+last_modified: 2026-10-23 04:43
 status: current
 ---
 
 # Semantic analysis memory
 
-For maintainers, this reference describes the analysis caches and the checks that protect their memory behavior.
+For maintainers, this reference describes the analysis caches and the checks that protect their memory behavior. For memory set by the consumer project and the JavaScript runtime, see [consumer-memory.md](./consumer-memory.md).
 
 ## Property access indexing
 

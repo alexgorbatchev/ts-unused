@@ -71,7 +71,7 @@ describe("published library entry", () => {
       ].join("\n"),
     );
 
-    const result = run(["bun", "run", "tsc", "--project", consumerDir], REPO_ROOT);
+    const result = run(["bun", "run", "tsgo", "--project", consumerDir], REPO_ROOT);
 
     expect(result.stdout.toString()).toBe("");
     expect(result.stderr.toString()).toBe("");

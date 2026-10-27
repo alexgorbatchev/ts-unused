@@ -24,7 +24,7 @@
   "type": "module",
   "scripts": {
     "clean": "rm -rf dist",
-    "build:cli": "bun build src/cli.ts --outdir dist --target node --external ts-morph --external typescript --minify --sourcemap=external",
+    "build:cli": "bun build src/cli.ts --outdir dist --target node --external ts-morph --minify --sourcemap=external",
     "build:lib": "tsgo --project tsconfig.build.json",
     "build": "bun clean && bun build:cli && bun build:lib",
     "typecheck": "tsgo --noEmit",
@@ -37,16 +37,15 @@
     "cli": "bun run src/cli.ts"
   },
   "devDependencies": {
-    "@alexgorbatchev/typescript-ai-policy": "^12.0.0",
-    "@types/bun": "^1.4.3",
-    "@types/node": "^26.0.0",
+    "@alexgorbatchev/typescript-ai-policy": "^14.0.1",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^26.6.5",
     "@types/react": "19.3.0",
-    "@typescript/native-preview": "^7.0.0-dev.20260622.1",
-    "oxfmt": "^0.56.0",
-    "oxlint": "^1.71.0"
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2",
+    "oxfmt": "^0.74.0",
+    "oxlint": "^1.89.0"
   },
   "dependencies": {
-    "ts-morph": "^28.0.0",
-    "typescript": "6.0.3"
+    "ts-morph": "^28.0.0"
   }
 }
