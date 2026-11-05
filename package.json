@@ -22,20 +22,7 @@
     "dist"
   ],
   "type": "module",
-  "scripts": {
-    "clean": "rm -rf dist",
-    "build:cli": "bun build src/cli.ts --outdir dist --target node --external ts-morph --minify --sourcemap=external",
-    "build:lib": "tsgo --project tsconfig.build.json",
-    "build": "bun clean && bun build:cli && bun build:lib",
-    "typecheck": "tsgo --noEmit",
-    "lint": "typescript-ai-policy check && bun run lint:unused",
-    "lint:unused": "bun run src/cli.ts check tsconfig.json",
-    "format": "oxfmt .",
-    "fix": "bun run format && typescript-ai-policy fix-semantic src",
-    "sanity-check": "bun run scripts/sanity-check.ts",
-    "ci": "bun lint && bun test && bun run build && bun sanity-check --no-build",
-    "cli": "bun run src/cli.ts"
-  },
+  "packageManager": "bun@1.4.3",
   "devDependencies": {
     "@alexgorbatchev/typescript-ai-policy": "^14.0.1",
     "@types/bun": "^1.4.4",

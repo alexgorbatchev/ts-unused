@@ -60,7 +60,7 @@ async function main() {
     // Step 1: Build the project
     if (!skipBuild) {
       console.log("📦 Step 1: Building project...");
-      await $`bun run build`.quiet();
+      await $`just build`.quiet();
       console.log("✅ Build successful\n");
     } else {
       console.log("⏭️  Step 1: Skipping build (--no-build flag provided)\n");

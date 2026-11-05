@@ -1,6 +1,6 @@
 ---
 created_on: 2026-10-23 04:43
-last_modified: 2026-10-23 04:43
+last_modified: 2026-11-05 08:32
 status: current
 ---
 
@@ -114,7 +114,7 @@ tsc --noEmit --checkers 1 | grep -c TS2859
 Compare runtimes on the same consumer with the built CLI:
 
 ```sh
-bun run build
+just build
 /usr/bin/time -v node dist/cli.js check /absolute/path/to/consumer/tsconfig.json
 /usr/bin/time -v bun dist/cli.js check /absolute/path/to/consumer/tsconfig.json
 ```

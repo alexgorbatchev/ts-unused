@@ -1,6 +1,6 @@
 ---
 created_on: 2026-10-23 03:09
-last_modified: 2026-10-23 04:43
+last_modified: 2026-11-05 08:32
 status: current
 ---
 
@@ -31,7 +31,7 @@ Keep all analysis rules and project files enabled when measuring changes. Preser
 Build the ordinary CLI and measure a real consumer with Node:
 
 ```sh
-bun run build
+just build
 /usr/bin/time -v node dist/cli.js check /absolute/path/to/consumer/tsconfig.json
 ```
 

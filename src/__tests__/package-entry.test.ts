@@ -17,10 +17,7 @@ beforeAll(async () => {
   await Bun.write(path.join(packageDir, "package.json"), Bun.file(path.join(REPO_ROOT, "package.json")));
   await Bun.write(path.join(consumerDir, "package.json"), JSON.stringify({ name: "consumer", type: "module" }));
 
-  const build = run(
-    ["bun", "run", "tsgo", "--project", "tsconfig.build.json", "--outDir", path.join(packageDir, "dist")],
-    REPO_ROOT,
-  );
+  const build = run(["just", "build-lib", "--outDir", path.join(packageDir, "dist")], REPO_ROOT);
   expect(build.stdout.toString()).toBe("");
   expect(build.exitCode).toBe(0);
 }, 60_000);

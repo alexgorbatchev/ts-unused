@@ -174,6 +174,23 @@ describe("duplicate types", () => {
     expect(results.unusedProperties).toEqual(withoutDuplicates.unusedProperties);
   });
 
+  test("recognizes authored constructor signatures inside utility types while excluding aliases", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      type First = Readonly<{ new (value: string): { value: string } }>;
+      type Second = Readonly<{ new (input: string): { value: string } }>;
+      type Derived = First;
+    `,
+    );
+
+    expect(new Project({ tsConfigFilePath: configPath }).getPreEmitDiagnostics()).toEqual([]);
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
+      ["Second", "First"],
+    ]);
+  });
+
   test("reports differently named interfaces and aliases across files regardless of member order", async () => {
     await Bun.write(path.join(projectDir, "a.ts"), "export interface First { id: string; count: number; }");
     await Bun.write(path.join(projectDir, "b.ts"), "export type Second = { count: number; id: string; };");
@@ -434,6 +451,23 @@ describe("duplicate types", () => {
     expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
       ["Second", "First"],
       ["SecondKey", "FirstKey"],
+    ]);
+  });
+
+  test("compares inferred conditional parameters by position while preserving their usage", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      type First<T> = T extends { left: infer A; right: infer B } ? [A, B] : never;
+      type Second<U> = U extends { left: infer C; right: infer D } ? [C, D] : never;
+      type Swapped<T> = T extends { left: infer A; right: infer B } ? [B, A] : never;
+    `,
+    );
+
+    expect(new Project({ tsConfigFilePath: configPath }).getPreEmitDiagnostics()).toEqual([]);
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
+      ["Second", "First"],
     ]);
   });
 
