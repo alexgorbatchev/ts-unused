@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Project, SourceFile } from "ts-morph";
 import { mapBuildOutputsToSources, toComparablePath } from "./mapBuildOutputsToSources.js";
+import { resolvePackageEntryPointSources } from "./resolvePackageEntryPointSources.js";
 
 const ENTRY_FIELDS = ["main", "module", "types", "typings", "exports"];
 
@@ -126,9 +127,11 @@ export function resolvePackageEntryPoints(
   packageJsonPath: string,
   project: Project,
   projectFiles: SourceFile[],
+  packageEntryPointSources: Record<string, string> = {},
 ): IPackageEntryPoints {
   const packageDir = path.dirname(packageJsonPath);
   const targets = getPackageEntryTargets(packageJsonPath);
+  const explicitSources = resolvePackageEntryPointSources(packageDir, targets, projectFiles, packageEntryPointSources);
   const outputsToSources = mapBuildOutputsToSources(project, projectFiles);
   const sourceFiles = new Set<SourceFile>();
 
@@ -136,9 +139,9 @@ export function resolvePackageEntryPoints(
     const targetPath = path.resolve(packageDir, target);
     const directSourceFile = project.getSourceFile(targetPath);
     const conventionalSourcePath = resolveDistToSource(target, packageDir);
-    // Prefer the tsconfig build layout, then a target that is itself a project source file,
-    // then the conventional dist -> src mapping
+    // Explicit mappings take precedence over automatic build and source layouts.
     const sourceFile =
+      explicitSources.get(toComparablePath(targetPath)) ??
       outputsToSources.get(toComparablePath(targetPath)) ??
       (directSourceFile && !directSourceFile.isDeclarationFile() && !directSourceFile.isInNodeModules()
         ? directSourceFile

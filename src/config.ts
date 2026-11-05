@@ -126,6 +126,16 @@ export interface IUnusedConfig {
    * @default false
    */
   packageMode?: boolean;
+
+  /**
+   * Maps explicit package.json entry targets to their source entry files when a
+   * bundler renames outputs. Relative paths resolve from the package directory.
+   * Sources must be included by the analyzed tsconfig, not declarations or dependencies.
+   * Explicit mappings take precedence over automatic resolution and require packageMode.
+   *
+   * @default {}
+   */
+  packageEntryPointSources?: Record<string, string>;
 }
 
 /**
@@ -146,6 +156,7 @@ export const defaultConfig: Required<IUnusedConfig> = {
   analyzeDuplicateTypes: true,
   detectUnusedFiles: true,
   packageMode: false,
+  packageEntryPointSources: {},
 };
 
 /**
@@ -210,6 +221,25 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
  * @returns Complete configuration with all options
  */
 export function mergeConfig(userConfig: IUnusedConfig): Required<IUnusedConfig> {
+  const { packageEntryPointSources: sources, ...options } = userConfig;
+  if (sources !== undefined) {
+    if (
+      sources === null ||
+      typeof sources !== "object" ||
+      Array.isArray(sources) ||
+      (Object.getPrototypeOf(sources) !== Object.prototype && Object.getPrototypeOf(sources) !== null)
+    ) {
+      throw new Error("packageEntryPointSources must be a record of package targets to source paths.");
+    }
+    for (const [target, source] of Object.entries(sources)) {
+      if (!target.trim() || typeof source !== "string" || !source.trim()) {
+        throw new Error(`packageEntryPointSources mapping '${target}' must have a non-empty target and source path.`);
+      }
+    }
+    if (Object.keys(sources).length > 0 && !userConfig.packageMode) {
+      throw new Error("packageEntryPointSources requires packageMode: true.");
+    }
+  }
   const severities: readonly string[] = Object.values(RULE_SEVERITY);
   const ruleNames: readonly string[] = Object.values(RULE_NAME);
   for (const [rule, severity] of Object.entries(userConfig.rules ?? {})) {
@@ -222,5 +252,5 @@ export function mergeConfig(userConfig: IUnusedConfig): Required<IUnusedConfig> 
       );
     }
   }
-  return deepMerge(defaultConfig, userConfig);
+  return { ...deepMerge(defaultConfig, options), packageEntryPointSources: { ...sources } };
 }

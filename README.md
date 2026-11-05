@@ -213,6 +213,7 @@ export default defineConfig({
 | `analyzeDuplicateTypes`     | `boolean`  | `true`                                                                                  | Enable/disable duplicate-type detection                                   |
 | `detectUnusedFiles`         | `boolean`  | `true`                                                                                  | Enable/disable completely unused file detection                           |
 | `packageMode`               | `boolean`  | `false`                                                                                 | Treat exports reachable from package entry points, and properties of public API types, as used (for libraries) |
+| `packageEntryPointSources` | `Record<string, string>` | `{}` | Map package entry targets to source entry files when bundlers rename outputs; requires `packageMode` |
 | `rules`                     | `Partial<Record<RuleName, RuleSeverity>>` | `{}` | Per-rule severity overrides; omitted rules retain their default behavior |
 
 ### Rule Severities
@@ -653,17 +654,39 @@ export function connect(options: Options) {
 
 Entry targets usually point at build output (`./dist/index.js`, `./dist/index.d.ts`) while the analysis runs on source files. Each target is resolved in this order:
 
-1. **tsconfig build layout**: ts-unused computes the JavaScript and declaration output paths of every project source file from the analyzed tsconfig's `outDir`, `declarationDir`, and `rootDir`, using the same TypeScript API `tsc` uses to name emitted files, and maps a target back to the source that would emit it. This covers any source directory name, `.tsx`/`.mts`/`.cts` sources, and separate declaration directories.
-2. **Source targets**: a target that is itself a project source file (for example `"exports": "./src/index.ts"`) is used directly.
-3. **Conventional mapping**: otherwise a leading `dist/`, `build/`, `lib/`, or `out/` is replaced with `src/` and the extension with `.ts` (or `/index.ts`). This covers bundlers such as Vite, tsup, or `bun build`, whose entry names come from bundler configuration rather than the tsconfig.
+1. **Explicit mappings**: `packageEntryPointSources` maps a package target to its source entry file. This takes precedence over automatic resolution when a bundler renames an entry or combines source files into one output.
+2. **tsconfig build layout**: ts-unused computes the JavaScript and declaration output paths of every project source file from the analyzed tsconfig's `outDir`, `declarationDir`, and `rootDir`, using the same TypeScript API `tsc` uses to name emitted files, and maps a target back to the source that would emit it. This covers any source directory name, `.tsx`/`.mts`/`.cts` sources, and separate declaration directories.
+3. **Source targets**: a target that is itself a project source file (for example `"exports": "./src/index.ts"`) is used directly.
+4. **Conventional mapping**: otherwise a leading `dist/`, `build/`, `lib/`, or `out/` is replaced with `src/` and the extension with `.ts` (or `/index.ts`). This covers bundlers such as Vite, tsup, or `bun build`, whose entry names come from bundler configuration rather than the tsconfig.
+
+For a package exporting `./dist/client.js` and `./dist/client.d.ts` built from `src/createClient.ts`:
+
+```typescript
+// unused.config.ts
+import { defineConfig } from "ts-unused";
+
+export default defineConfig({
+  packageMode: true,
+  packageEntryPointSources: {
+    "./dist/client.js": "src/createClient.ts",
+    "./dist/client.d.ts": "src/createClient.ts",
+  },
+});
+```
+
+Keys identify output targets from `main`, `module`, `types`, `typings`, or `exports`, including conditional targets; they are not export subpath names such as `"."`. Relative target and source paths resolve from the directory containing `package.json`, regardless of the working directory or configuration file location. The output files need not exist. Values must identify non-declaration source files included by the analyzed tsconfig, outside `node_modules`. Files loaded only as imported dependencies do not qualify.
+
+Every mapping is validated, even when other entrypoints resolve automatically. Unknown targets, missing or excluded sources, malformed mappings, conflicting mappings for equivalent target paths, and nonempty mappings without `packageMode: true` fail analysis before `fix` changes files. Unmapped targets retain automatic resolution. Mapping a source preserves the usual export and public-signature analysis; unrelated declarations with the same name remain subject to diagnostics.
+
+Because the configuration is TypeScript, `packageEntryPointSources` can be computed from a shared bundler entry definition with `Object.fromEntries`. Include only outputs actually declared as package entry targets, and map each JavaScript and declaration target to its source entry file.
 
 When the tsconfig omits `rootDir`, the emitted layout depends on the TypeScript version that builds the package: TypeScript 6.0 and later default `rootDir` to the tsconfig directory, while earlier versions infer the common directory of all emitted source files. ts-unused accepts output paths from both layouts.
 
 Limitations:
 
-- Only the analyzed tsconfig is consulted. If the package is built with a different tsconfig (for example `tsconfig.build.json`) whose `outDir` or `rootDir` differs, the layout cannot be derived; set `rootDir` and `outDir` consistently or rely on the conventional mapping.
+- Only the analyzed tsconfig is consulted. If the package is built with a different tsconfig (for example `tsconfig.build.json`) whose `outDir` or `rootDir` differs, use explicit mappings, set `rootDir` and `outDir` consistently, or rely on the conventional mapping.
 - Subpath pattern exports such as `"./*": "./dist/*.js"` are skipped.
-- Configurations that emit a single `outFile` bundle cannot be mapped back to individual source files.
+- Configurations that emit a single `outFile` bundle require an explicit mapping to a source entrypoint exposing the bundled API; automatic output-path resolution cannot identify that entrypoint.
 
 ### Storybook Story Files
 

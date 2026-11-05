@@ -61,9 +61,11 @@ describe("published library entry", () => {
       [
         'import { defineConfig, type IUnusedConfig } from "ts-unused";',
         "",
-        'export const config: IUnusedConfig = defineConfig({ ignoreExports: ["publicApi"] });',
+        'export const config: IUnusedConfig = defineConfig({ packageMode: true, packageEntryPointSources: { "./dist/api.js": "src/entry.ts" } });',
         "// @ts-expect-error ignoreExports must be an array of export names",
         "export const invalid: IUnusedConfig = defineConfig({ ignoreExports: 1 });",
+        "// @ts-expect-error mapping values must be source paths",
+        'export const invalidMapping: IUnusedConfig = defineConfig({ packageEntryPointSources: { "./dist/api.js": 1 } });',
         "",
       ].join("\n"),
     );

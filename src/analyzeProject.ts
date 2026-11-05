@@ -81,7 +81,12 @@ export async function analyzeProject(
       throw new Error(`Package mode is enabled but no package.json was found. ` + `Searched from: ${tsConfigDir}`);
     }
 
-    const { targets, sourceFiles } = resolvePackageEntryPoints(packageJsonPath, project, projectFiles);
+    const { targets, sourceFiles } = resolvePackageEntryPoints(
+      packageJsonPath,
+      project,
+      projectFiles,
+      config.packageEntryPointSources,
+    );
     if (targets.length === 0) {
       throw new Error(
         `Package mode is enabled but package.json has no entry points. ` +
