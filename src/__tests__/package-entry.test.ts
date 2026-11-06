@@ -78,9 +78,14 @@ describe("published library entry", () => {
   });
 });
 
-describe.each(["node", "bun"])("synchronous configuration in %s", (runtime) => {
-  test("loads a typed default config from a relative project directory", async () => {
-    const projectDir = path.join(consumerDir, "default-config");
+describe.each([
+  ["node", "loadConfig"],
+  ["node", "loadConfigSync"],
+  ["bun", "loadConfig"],
+  ["bun", "loadConfigSync"],
+])("configuration in %s through %s", (runtime, loader) => {
+  test("loads a typed default config from relative and absolute directories with URL characters", async () => {
+    const projectDir = path.join(consumerDir, "default # config % value");
     await Bun.write(
       path.join(projectDir, "unused.config.ts"),
       [
@@ -93,29 +98,30 @@ describe.each(["node", "bun"])("synchronous configuration in %s", (runtime) => {
     await Bun.write(
       scriptPath,
       [
-        'import { loadConfigSync } from "ts-unused";',
-        'const config = loadConfigSync("./default-config");',
-        "console.log(JSON.stringify([config.ignoreExports, config.analyzeProperties, config.analyzeExports]));",
+        `import { ${loader} } from "ts-unused";`,
+        `const relative = await ${loader}("./default # config % value");`,
+        `const absolute = await ${loader}(${JSON.stringify(projectDir)});`,
+        "console.log(JSON.stringify([relative.ignoreExports, absolute.ignoreExports, relative.analyzeProperties, absolute.analyzeExports]));",
       ].join("\n"),
     );
 
     const result = run([runtime, scriptPath], consumerDir);
 
     expect(result.stderr.toString()).toBe("");
-    expect(result.stdout.toString()).toBe('[["publicApi"],false,true]\n');
+    expect(result.stdout.toString()).toBe('[["publicApi"],["publicApi"],false,true]\n');
     expect(result.exitCode).toBe(0);
   });
 
   test("loads custom paths and named exports independently of the project directory", async () => {
-    const configPath = path.join(consumerDir, "custom-config.ts");
+    const configPath = path.join(consumerDir, "custom # config %.ts");
     await Bun.write(configPath, 'export const ignoreProperties: string[] = ["internalState"];');
     const scriptPath = path.join(consumerDir, "custom-config.mjs");
     await Bun.write(
       scriptPath,
       [
-        'import { loadConfigSync } from "ts-unused";',
-        'const relative = loadConfigSync("missing-project", "./custom-config.ts");',
-        `const absolute = loadConfigSync("missing-project", ${JSON.stringify(configPath)});`,
+        `import { ${loader} } from "ts-unused";`,
+        `const relative = await ${loader}("missing-project", "./custom # config %.ts");`,
+        `const absolute = await ${loader}("missing-project", ${JSON.stringify(configPath)});`,
         "console.log(JSON.stringify([relative.ignoreProperties, absolute.ignoreProperties, absolute.analyzeExports]));",
       ].join("\n"),
     );
@@ -132,9 +138,9 @@ describe.each(["node", "bun"])("synchronous configuration in %s", (runtime) => {
     await Bun.write(
       scriptPath,
       [
-        'import { loadConfigSync } from "ts-unused";',
-        'const implicit = loadConfigSync("./missing-project");',
-        'const explicit = loadConfigSync("./missing-project", "./missing-config.ts");',
+        `import { ${loader} } from "ts-unused";`,
+        `const implicit = await ${loader}("./missing-project");`,
+        `const explicit = await ${loader}("./missing-project", "./missing-config.ts");`,
         "console.log(JSON.stringify([implicit.ignoreExports, implicit.analyzeExports, explicit.ignoreExports, explicit.analyzeExports]));",
       ].join("\n"),
     );
@@ -145,18 +151,21 @@ describe.each(["node", "bun"])("synchronous configuration in %s", (runtime) => {
     expect(result.stdout.toString()).toBe("[[],true,[],true]\n");
     expect(result.exitCode).toBe(0);
   });
+});
 
+describe.each(["node", "bun"])("configuration errors in %s", (runtime) => {
   test("preserves the config path and original failure in loading errors", async () => {
-    const configPath = path.join(consumerDir, "failing-config.ts");
+    const configPath = path.join(consumerDir, "failing # config %.ts");
     await Bun.write(configPath, 'throw new Error("configuration failed");\nexport default {};');
     const scriptPath = path.join(consumerDir, "failing-config.mjs");
     await Bun.write(
       scriptPath,
       [
         'import assert from "node:assert/strict";',
-        'import { loadConfigSync } from "ts-unused";',
-        `assert.throws(() => loadConfigSync(".", ${JSON.stringify(configPath)}),`,
-        `  new Error(${JSON.stringify(`Failed to load config from ${configPath}: configuration failed`)}));`,
+        'import { loadConfig, loadConfigSync } from "ts-unused";',
+        `const expected = new Error(${JSON.stringify(`Failed to load config from ${configPath}: configuration failed`)});`,
+        `assert.throws(() => loadConfigSync(".", ${JSON.stringify(configPath)}), expected);`,
+        `await assert.rejects(() => loadConfig(".", ${JSON.stringify(configPath)}), expected);`,
       ].join("\n"),
     );
 
@@ -164,6 +173,35 @@ describe.each(["node", "bun"])("synchronous configuration in %s", (runtime) => {
 
     expect(result.stderr.toString()).toBe("");
     expect(result.stdout.toString()).toBe("");
+    expect(result.exitCode).toBe(0);
+  });
+});
+
+describe.each(["node", "bun"])("asynchronous configuration in %s", (runtime) => {
+  test("waits for top-level configuration evaluation", async () => {
+    const projectDir = path.join(consumerDir, "await-config");
+    await Bun.write(
+      path.join(projectDir, "unused.config.ts"),
+      [
+        'import { defineConfig } from "ts-unused";',
+        'const ignoreExports: string[] = await Promise.resolve(["deferredApi"]);',
+        "export default defineConfig({ ignoreExports });",
+      ].join("\n"),
+    );
+    const scriptPath = path.join(consumerDir, "await-config.mjs");
+    await Bun.write(
+      scriptPath,
+      [
+        'import { loadConfig } from "ts-unused";',
+        'const config = await loadConfig("./await-config");',
+        "console.log(JSON.stringify(config.ignoreExports));",
+      ].join("\n"),
+    );
+
+    const result = run([runtime, scriptPath], consumerDir);
+
+    expect(result.stderr.toString()).toBe("");
+    expect(result.stdout.toString()).toBe('["deferredApi"]\n');
     expect(result.exitCode).toBe(0);
   });
 });

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { defaultConfig, mergeConfig, type IUnusedConfig } from "./config.js";
 
 const CONFIG_FILE_NAME = "unused.config.ts";
@@ -16,16 +17,14 @@ const require = createRequire(import.meta.url);
  * @returns The merged configuration
  */
 export async function loadConfig(targetDir: string, configPath?: string): Promise<Required<IUnusedConfig>> {
-  const resolvedConfigPath = configPath ? path.resolve(configPath) : path.join(targetDir, CONFIG_FILE_NAME);
+  const resolvedConfigPath = configPath ? path.resolve(configPath) : path.resolve(targetDir, CONFIG_FILE_NAME);
 
   if (!fs.existsSync(resolvedConfigPath)) {
     return { ...defaultConfig };
   }
 
   try {
-    // Use dynamic import to load the TypeScript config file
-    // Bun natively supports TypeScript imports
-    const configModule = await import(resolvedConfigPath);
+    const configModule = await import(pathToFileURL(resolvedConfigPath).href);
     const userConfig: IUnusedConfig = configModule.default ?? configModule;
 
     return mergeConfig(userConfig);
