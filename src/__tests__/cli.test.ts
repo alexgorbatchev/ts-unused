@@ -201,6 +201,53 @@ describe("CLI validation before project access", () => {
 });
 
 describe("CLI commands and paths", () => {
+  test.each(["check", "fix"])("%s preserves the error context of an existing config", async (command) => {
+    await createFixProject(projectDir, {
+      "unused.ts": "export const unused = 1;\n",
+      "unused.config.ts": 'throw new Error("config evaluation failed");\nexport default {};\n',
+    });
+    const before = await snapshotProject();
+    const result = runCli([command, "--config", "unused.config.ts"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout.toString()).toBe("");
+    expect(result.stderr.toString()).toBe(
+      `Failed to load config from ${path.join(projectDir, "unused.config.ts")}: config evaluation failed\n\nRun ts-unused --help for usage.\n`,
+    );
+    expect(await snapshotProject()).toEqual(before);
+  });
+
+  test.each(["check", "fix"])(
+    "rejects a missing explicit config before %s without falling back to the default file",
+    async (command) => {
+      const nestedDir = path.join(projectDir, "project");
+      await createFixProject(nestedDir, {
+        "unused.ts": "export const unused = 1;\n",
+        "unused.config.ts":
+          'import { writeFileSync } from "node:fs";\nwriteFileSync("config-executed", "yes");\nexport default {};\n',
+      });
+      const before = await snapshotProject();
+      const result = runCli([command, "project", "--config", "missing #100%.config.ts"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout.toString()).toBe("");
+      expect(result.stderr.toString()).toBe(
+        `Configuration file not found: ${path.join(projectDir, "missing #100%.config.ts")}\n\nRun ts-unused --help for usage.\n`,
+      );
+      expect(await snapshotProject()).toEqual(before);
+    },
+  );
+
+  test("requires the default filename when it is explicitly requested", async () => {
+    await createFixProject(projectDir, { "unused.ts": "export const unused = 1;\n" });
+    const before = await snapshotProject();
+    const result = runCli(["fix", "--config", "unused.config.ts"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout.toString()).toBe("");
+    expect(result.stderr.toString()).toBe(
+      `Configuration file not found: ${path.join(projectDir, "unused.config.ts")}\n\nRun ts-unused --help for usage.\n`,
+    );
+    expect(await snapshotProject()).toEqual(before);
+  });
+
   test.each(
     [["tsconfig.json"], ["check", "tsconfig.json"], ["check", "."], ["."], ["check"]].map((args) => ({ args })),
   )("checks a project without modifying files: $args", async ({ args }) => {

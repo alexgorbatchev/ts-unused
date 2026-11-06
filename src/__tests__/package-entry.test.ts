@@ -133,15 +133,19 @@ describe.each([
     expect(result.exitCode).toBe(0);
   });
 
-  test("returns defaults for missing default and custom configuration files", async () => {
+  test("returns defaults only for missing implicit configuration files", async () => {
     const scriptPath = path.join(consumerDir, "missing-config.mjs");
     await Bun.write(
       scriptPath,
       [
+        'import assert from "node:assert/strict";',
         `import { ${loader} } from "ts-unused";`,
         `const implicit = await ${loader}("./missing-project");`,
-        `const explicit = await ${loader}("./missing-project", "./missing-config.ts");`,
-        "console.log(JSON.stringify([implicit.ignoreExports, implicit.analyzeExports, explicit.ignoreExports, explicit.analyzeExports]));",
+        `const omitted = await ${loader}("./missing-project", undefined);`,
+        `await assert.rejects(async () => ${loader}("./missing-project", "./missing-config.ts"), new Error(${JSON.stringify(`Configuration file not found: ${path.join(consumerDir, "missing-config.ts")}`)}));`,
+        `await assert.rejects(async () => ${loader}("./missing-project", "./unused.config.ts"), new Error(${JSON.stringify(`Configuration file not found: ${path.join(consumerDir, "unused.config.ts")}`)}));`,
+        `await assert.rejects(async () => ${loader}("./missing-project", ""), new Error("Configuration path must not be empty"));`,
+        "console.log(JSON.stringify([implicit.ignoreExports, implicit.analyzeExports, omitted.ignoreExports, omitted.analyzeExports]));",
       ].join("\n"),
     );
 

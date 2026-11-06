@@ -17,6 +17,22 @@ describe("loadConfigSync", () => {
     expect(result.ignoreModuleAugmentations).toBe(true);
   });
 
+  test("rejects a missing explicit config instead of using defaults", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ts-unused-test-"));
+    const configPath = path.join(tempDir, "unused.config.ts");
+    try {
+      expect(() => loadConfigSync(tempDir, configPath)).toThrow(
+        new Error(`Configuration file not found: ${configPath}`),
+      );
+    } finally {
+      fs.rmSync(tempDir, { recursive: true });
+    }
+  });
+
+  test("rejects an empty explicit config path", () => {
+    expect(() => loadConfigSync("/non-existent-dir", "")).toThrow(new Error("Configuration path must not be empty"));
+  });
+
   test("loads config from specified path", () => {
     // Create a temp directory with a config file
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ts-unused-test-"));
@@ -113,6 +129,24 @@ describe("loadConfig (async)", () => {
       "**/__tests__/**",
     ]);
     expect(result.ignoreModuleAugmentations).toBe(true);
+  });
+
+  test("rejects a missing explicit config instead of using defaults", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ts-unused-test-"));
+    const configPath = path.join(tempDir, "unused.config.ts");
+    try {
+      await expect(loadConfig(tempDir, configPath)).rejects.toThrow(
+        new Error(`Configuration file not found: ${configPath}`),
+      );
+    } finally {
+      fs.rmSync(tempDir, { recursive: true });
+    }
+  });
+
+  test("rejects an empty explicit config path", async () => {
+    await expect(loadConfig("/non-existent-dir", "")).rejects.toThrow(
+      new Error("Configuration path must not be empty"),
+    );
   });
 
   test("loads config from specified path", async () => {

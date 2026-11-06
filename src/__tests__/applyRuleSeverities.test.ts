@@ -211,14 +211,9 @@ test("invalid rule severity aborts analysis", async () => {
   });
   expect(result.exitCode).toBe(1);
   expect(result.stdout.toString()).toBe("");
-  expect(
-    result.stderr
-      .toString()
-      .split("\n")
-      .filter((line) => line.startsWith("error:")),
-  ).toEqual([
-    `error: Failed to load config from ${path.join(projectDir, "unused.config.ts")}: Invalid severity for rule 'unusedExports': warn. Expected off, info, warning, or error.`,
-  ]);
+  expect(result.stderr.toString()).toBe(
+    `Failed to load config from ${path.join(projectDir, "unused.config.ts")}: Invalid severity for rule 'unusedExports': warn. Expected off, info, warning, or error.\n\nRun ts-unused --help for usage.\n`,
+  );
 });
 
 interface ICommentCase {

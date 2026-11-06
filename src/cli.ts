@@ -169,7 +169,13 @@ async function main(): Promise<void> {
     .help()
     .alias("help", "h")
     .strict()
-    .showHelpOnFail(false, "Run ts-unused --help for usage.");
+    .fail((message, error) => {
+      fs.writeFileSync(
+        process.stderr.fd,
+        `${message || error?.message || "Command failed"}\n\nRun ts-unused --help for usage.\n`,
+      );
+      process.exit(1);
+    });
 
   if (args.length === 0) {
     cli.showHelp("log");

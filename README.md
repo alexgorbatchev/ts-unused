@@ -129,6 +129,8 @@ Create an `unused.config.ts` file in your project root (same directory as `tscon
 
 Both `check` and `fix` use this configuration, including ignore patterns, enabled analyses, test-file patterns, and package mode. Use `--config <path>` with either command to select a different configuration file.
 
+Without `--config`, a missing `unused.config.ts` uses the defaults. An explicitly selected file must exist, even when named `unused.config.ts`; a missing file fails before analysis or edits instead of falling back to defaults.
+
 Configuration files use the runtime's native loader. Under Node.js, use [erasable TypeScript syntax](https://nodejs.org/api/typescript.html#type-stripping); enums, parameter properties, and tsconfig path aliases are not supported by native type stripping. The CLI loads configuration synchronously, so its configuration cannot use top-level `await`.
 
 ### Example Configuration
@@ -277,7 +279,7 @@ ts-unused fix [project] [options]
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--config <path>` | `-c` | `unused.config.ts` in the project directory | Select configuration; explicit relative paths resolve from the working directory. Repeated options use the last value. |
+| `--config <path>` | `-c` | Optional `unused.config.ts` in the project directory | Select an existing configuration file; explicit relative paths resolve from the working directory. Repeated options use the last value. |
 | `--help` | `-h` | `false` | Print command help and exit successfully without loading configuration or the project. |
 
 Options can appear before or after the command and paths. Help takes precedence over argument errors, including a missing `--config` value. Unknown options, missing or empty configuration values, and excess operands fail before configuration loading, analysis, or file modification; diagnostics go to stderr with a help hint.
@@ -933,9 +935,9 @@ const configSync = loadConfigSync(".", "./config/unused.config.ts");
 **Parameters:**
 
 - `targetDir` - Directory to search for `unused.config.ts`; relative directories resolve from the current working directory.
-- `configPath` - Optional explicit configuration-file path, used instead of searching `targetDir`. Relative paths resolve from the current working directory, independently of `targetDir`.
+- `configPath` - Optional explicit configuration-file path, used instead of searching `targetDir`. Relative paths resolve from the current working directory, independently of `targetDir`. An explicit path must be nonempty and exist.
 
-**Returns:** `loadConfig` returns `Promise<Required<IUnusedConfig>>`; `loadConfigSync` returns `Required<IUnusedConfig>`. Both return the defaults if the selected file does not exist and report an error if an existing file cannot be loaded. Use `loadConfig` for configurations that use top-level `await`; `loadConfigSync` requires a synchronously loadable configuration.
+**Returns:** `loadConfig` returns `Promise<Required<IUnusedConfig>>`; `loadConfigSync` returns `Required<IUnusedConfig>`. Omitting `configPath` (or passing `undefined`) uses defaults if `targetDir/unused.config.ts` is absent. An explicit missing path reports `Configuration file not found: <absolute path>`; an empty path reports `Configuration path must not be empty`. Both loaders report an error if an existing file cannot be loaded. Use `loadConfig` for configurations that use top-level `await`; `loadConfigSync` requires a synchronously loadable configuration.
 
 #### `defineConfig(config)`
 
