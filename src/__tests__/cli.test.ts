@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import { createFixProject } from "./helpers";
@@ -107,6 +107,37 @@ function expectFixHelp(output: string) {
     "
   `);
 }
+
+test("bootstrap awaits a real check, sets its exit status and preserves the project", async () => {
+  await createFixProject(projectDir, { "entry.ts": 'console.log("entry");\n' });
+  const before = await snapshotProject();
+  const originalArguments = process.argv;
+  const originalExitCode = process.exitCode;
+  const originalEnvironment = { ...process.env };
+  const log = spyOn(console, "log").mockImplementation(() => {});
+  const error = spyOn(console, "error").mockImplementation(() => {});
+  try {
+    process.argv = [process.execPath, cliPath, "check", projectDir];
+    process.env.AGENT = "1";
+    process.exitCode = 43;
+    await import("../cli");
+
+    expect(process.exitCode).toBe(0);
+    expect(log.mock.calls).toEqual([
+      [`Analyzing TypeScript project: ${path.join(projectDir, "tsconfig.json")}`],
+      [""],
+      ["No unused exports or properties found!"],
+    ]);
+    expect(error.mock.calls).toEqual([]);
+    expect(await snapshotProject()).toEqual(before);
+  } finally {
+    log.mockRestore();
+    error.mockRestore();
+    process.argv = originalArguments;
+    process.exitCode = originalExitCode ?? 0;
+    process.env = originalEnvironment;
+  }
+});
 
 describe("CLI validation before project access", () => {
   test.each([

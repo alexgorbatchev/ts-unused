@@ -7,7 +7,7 @@ const REPO_ROOT = path.join(import.meta.dir, "../..");
 let consumerDir = "";
 
 function run(command: string[], cwd: string) {
-  return Bun.spawnSync(command, { cwd, stdout: "pipe", stderr: "pipe" });
+  return Bun.spawnSync(command, { cwd, stdout: "pipe", stderr: "pipe", timeout: 30_000 });
 }
 
 beforeAll(async () => {
