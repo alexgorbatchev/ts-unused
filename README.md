@@ -791,15 +791,15 @@ bun add ts-unused
 import path from "node:path";
 import { analyzeProject, loadConfigSync, formatResults } from "ts-unused";
 
-// Given a project root with unused.config.ts
-const projectRoot = "/path/to/your/project";
+// Run from a project root with tsconfig.json and unused.config.ts
+const projectRoot = path.resolve(".");
 const tsConfigPath = path.join(projectRoot, "tsconfig.json");
 
 // Load config from unused.config.ts (auto-detected in project directory)
-const config = loadConfigSync(tsConfigPath);
+const config = loadConfigSync(projectRoot);
 
 // Analyze with config
-const results = analyzeProject(tsConfigPath, undefined, undefined, { config });
+const results = await analyzeProject(tsConfigPath, undefined, undefined, { config });
 
 // Format and print results (same output as CLI)
 const output = formatResults(results, projectRoot);
@@ -823,7 +823,7 @@ const options: IAnalyzeProjectOptions = {
   },
 };
 
-const results: IAnalysisResults = analyzeProject(
+const results: IAnalysisResults = await analyzeProject(
   "./tsconfig.json",
   (current, total, filePath) => console.log(`Processing ${current}/${total}: ${filePath}`),
   undefined, // targetFilePath - analyze all files
@@ -842,9 +842,11 @@ console.log(`Found ${results.duplicateTypes?.length ?? 0} duplicate types`);
 - `tsConfigPath` - Path to tsconfig.json
 - `onProgress` - Optional callback for progress updates
 - `targetFilePath` - Optional path to analyze a single file
-- `options` - Optional `IAnalyzeProjectOptions` object with `config` and/or `isTestFile`
+- `options` - Optional `IAnalyzeProjectOptions` object with `config` and/or `isTestFile`; also accepts a custom test file detection function directly. `isTestFile` overrides `config.testFilePatterns`.
 
-**Returns:** `IAnalysisResults` object with arrays of findings
+The library uses defaults when `config` is omitted. Load configuration explicitly with `loadConfig` or `loadConfigSync` and pass it through `options.config`.
+
+**Returns:** `Promise<IAnalysisResults>`, resolving to an object with arrays of findings
 
 #### `fixProject(tsConfigPath, onProgress?, options?)`
 
@@ -874,7 +876,7 @@ console.log(`Skipped ${results.skippedFiles.length} files (git changes)`);
 
 The library uses defaults when `config` is omitted. Pass configuration explicitly; automatic config-file loading is handled by the CLI.
 
-**Returns:** `IFixResults` object with counts and lists of changes
+**Returns:** `Promise<IFixResults>`, resolving to an object with counts and lists of changes
 
 #### `formatResults(results, tsConfigDir)`
 
@@ -883,27 +885,44 @@ Formats analysis results into a human-readable string (same format as CLI output
 ```typescript
 import { analyzeProject, formatResults } from "ts-unused";
 
-const results = analyzeProject("./tsconfig.json");
+const results = await analyzeProject("./tsconfig.json");
 const formatted = formatResults(results, "./");
 console.log(formatted);
 ```
 
-#### `loadConfig(tsConfigPath)` / `loadConfigSync(tsConfigPath)`
+#### `loadConfig(targetDir, configPath?)` / `loadConfigSync(targetDir, configPath?)`
 
-Loads configuration from `unused.config.ts` in the project directory.
+Loads configuration from `unused.config.ts` in `targetDir` and merges it with the defaults. Pass the directory containing the configuration file, not the path to `tsconfig.json`.
 
 ```typescript
-import { loadConfig, loadConfigSync, type IUnusedConfig } from "ts-unused";
+import { analyzeProject, loadConfig, loadConfigSync, type IUnusedConfig } from "ts-unused";
 
-// Async version
-const config: IUnusedConfig = await loadConfig("./tsconfig.json");
+// Load unused.config.ts from the current project directory
+const config: Required<IUnusedConfig> = await loadConfig(".");
 
 // Sync version
-const configSync: IUnusedConfig = loadConfigSync("./tsconfig.json");
+const configSync: Required<IUnusedConfig> = loadConfigSync(".");
 
 // Use with analyzeProject
-const results = analyzeProject("./tsconfig.json", undefined, undefined, { config });
+const results = await analyzeProject("./tsconfig.json", undefined, undefined, { config });
 ```
+
+To select a different configuration file, pass its path as the second argument:
+
+```typescript
+import { loadConfig, loadConfigSync } from "ts-unused";
+
+// Load config/unused.config.ts relative to the current working directory
+const config = await loadConfig(".", "./config/unused.config.ts");
+const configSync = loadConfigSync(".", "./config/unused.config.ts");
+```
+
+**Parameters:**
+
+- `targetDir` - Directory to search for `unused.config.ts`; relative directories resolve from the current working directory.
+- `configPath` - Optional explicit configuration-file path, used instead of searching `targetDir`. Relative paths resolve from the current working directory, independently of `targetDir`.
+
+**Returns:** `loadConfig` returns `Promise<Required<IUnusedConfig>>`; `loadConfigSync` returns `Required<IUnusedConfig>`. Both return the defaults if the selected file does not exist and report an error if an existing file cannot be loaded. Use `loadConfig` for configurations that use top-level `await`; `loadConfigSync` requires a synchronously loadable configuration.
 
 #### `defineConfig(config)`
 
@@ -954,12 +973,12 @@ Creates a custom test file detection function from glob patterns, or use the def
 import { analyzeProject, createIsTestFile, isTestFile } from "ts-unused";
 
 // Use default test file detection
-isTestFile(sourceFile); // checks against default patterns
+const defaultResults = await analyzeProject("./tsconfig.json", undefined, undefined, { isTestFile });
 
 // Create custom test file detector
 const customIsTestFile = createIsTestFile(["**/*.test.ts", "**/*.spec.ts", "**/test/**"]);
 
-const results = analyzeProject("./tsconfig.json", undefined, undefined, {
+const results = await analyzeProject("./tsconfig.json", undefined, undefined, {
   isTestFile: customIsTestFile,
 });
 ```
@@ -986,13 +1005,13 @@ regex.test("src/utils.test.ts"); // true
 ```typescript
 import type {
   // Main result types
-  IAnalysisResults, // Return type of analyzeProject()
+  IAnalysisResults, // Resolved result of analyzeProject()
   IUnusedExportResult, // Individual unused export finding
   IUnusedPropertyResult, // Individual unused property finding
   INeverReturnedTypeResult, // Individual never-returned type finding
   IDuplicateTypeResult, // Duplicate declaration and the matching original
   ITypeLocation, // Name and source location of a type declaration
-  IFixResults, // Return type of fixProject()
+  IFixResults, // Resolved result of fixProject()
 
   // Configuration types
   IUnusedConfig, // Configuration options interface
