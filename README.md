@@ -69,6 +69,8 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 
 ## Installation
 
+Requires Node.js 22.18 or newer in the 22.x series, or 23.6 and newer (`^22.18.0 || >=23.6.0`). The installed package is also tested with Bun 1.4.3.
+
 ```bash
 npm install -g ts-unused
 # or
@@ -126,6 +128,8 @@ ts-unused ./tsconfig.json --config ./custom.config.ts
 Create an `unused.config.ts` file in your project root (same directory as `tsconfig.json`) to customize the analysis behavior.
 
 Both `check` and `fix` use this configuration, including ignore patterns, enabled analyses, test-file patterns, and package mode. Use `--config <path>` with either command to select a different configuration file.
+
+Configuration files use the runtime's native loader. Under Node.js, use [erasable TypeScript syntax](https://nodejs.org/api/typescript.html#type-stripping); enums, parameter properties, and tsconfig path aliases are not supported by native type stripping. The CLI loads configuration synchronously, so its configuration cannot use top-level `await`.
 
 ### Example Configuration
 
@@ -265,11 +269,20 @@ Ignored files are skipped entirely: they produce no findings in any analysis (un
 ### CLI Options
 
 ```bash
-ts-unused [command] <path-to-tsconfig.json> [options]
-
-Options:
-  --config, -c <path>  Path to configuration file (default: unused.config.ts in project dir)
+ts-unused [check] [project] [file] [options]
+ts-unused fix [project] [options]
 ```
+
+`project` is a tsconfig file or a directory containing `tsconfig.json`. With an explicit command or configuration option, omitting `project` selects the current directory. A bare invocation prints usage and exits with code 1. `file` limits `check` findings to that file; `fix` accepts no target-file operand.
+
+| Flag | Short | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--config <path>` | `-c` | `unused.config.ts` in the project directory | Select configuration; explicit relative paths resolve from the working directory. Repeated options use the last value. |
+| `--help` | `-h` | `false` | Print command help and exit successfully without loading configuration or the project. |
+
+Options can appear before or after the command and paths. Help takes precedence over argument errors, including a missing `--config` value. Unknown options, missing or empty configuration values, and excess operands fail before configuration loading, analysis, or file modification; diagnostics go to stderr with a help hint.
+
+Operands after `--` are rejected. For a path beginning with `-`, use an explicit relative path such as `./--help`; use `--config=./--help` for configuration. `--config=--help` names a literal configuration path and does not request help.
 
 ### CI/CD and Automation Support
 
@@ -277,8 +290,8 @@ Options:
 
 #### Exit Codes
 
-- **`0`**: Executed successfully with no `ERROR` severity violations.
-- **`1`**: Executed successfully but found one or more `ERROR` severity violations (e.g., completely unused files, unused exports, unused properties, or never-returned types).
+- **`0`**: Printed help, completed `fix`, or completed `check` with no `ERROR` severity violations.
+- **`1`**: Invalid arguments, no arguments, a runtime failure, or one or more `ERROR` severity violations from `check` (e.g., completely unused files, unused exports, unused properties, or never-returned types).
 
 #### Interactive Progress Bar Suppression
 

@@ -3,85 +3,32 @@ import { SEVERITY } from "./constants.js";
 
 import fs from "node:fs";
 import path from "node:path";
-import { analyzeProject } from "./analyzeProject.js";
-import { fixProject } from "./fixProject.js";
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
 import { formatResults } from "./formatResults.js";
 import { loadConfigSync } from "./loadConfig.js";
 
-interface IParsedArgs {
-  command: string;
-  tsConfigPath: string;
-  targetFilePath?: string;
-  configPath?: string;
+interface ICommandArgs {
+  project?: string;
+  file?: string;
+  config?: string;
 }
 
-function parseArgs(args: string[]): IParsedArgs {
-  let command = "check";
-  let tsConfigArg = "";
-  let configPath: string | undefined;
+type Command = "check" | "fix";
 
-  const positionalArgs: string[] = [];
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i] ?? "";
-
-    if (arg === "--config" || arg === "-c") {
-      configPath = args[++i];
-    } else if (arg.startsWith("--config=")) {
-      configPath = arg.slice("--config=".length);
-    } else if (arg === "check" || arg === "fix") {
-      command = arg;
-    } else {
-      positionalArgs.push(arg);
-    }
-  }
-
-  tsConfigArg = positionalArgs[0] ?? "";
-  const targetFilePath = positionalArgs[1];
-
-  let tsConfigPath = path.resolve(tsConfigArg);
-
-  // If the path is a directory, look for tsconfig.json inside it
+async function runCommand(command: Command, args: ICommandArgs): Promise<void> {
+  let tsConfigPath = path.resolve(args.project ?? "");
   if (fs.existsSync(tsConfigPath) && fs.statSync(tsConfigPath).isDirectory()) {
     tsConfigPath = path.join(tsConfigPath, "tsconfig.json");
   }
-
-  return {
-    command,
-    tsConfigPath,
-    targetFilePath: targetFilePath ? path.resolve(targetFilePath) : undefined,
-    configPath,
-  };
-}
-
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-
-  if (args.length === 0) {
-    console.log("Usage: ts-unused <command> <path-to-tsconfig.json> [file-path-to-check] [options]");
-    console.log("");
-    console.log("Commands:");
-    console.log("  check  - Analyze and report unused exports/properties (default)");
-    console.log("  fix    - Automatically remove unused exports/properties and delete unused files");
-    console.log("");
-    console.log("Options:");
-    console.log("  --config, -c <path>  - Path to configuration file (default: unused.config.ts in project dir)");
-    console.log("");
-    console.log("Examples:");
-    console.log("  ts-unused check tsconfig.json");
-    console.log("  ts-unused check ./project-dir    # looks for tsconfig.json inside");
-    console.log("  ts-unused fix tsconfig.json");
-    console.log("  ts-unused check tsconfig.json --config ./unused.config.ts");
-    process.exit(1);
-  }
-
-  const { command, tsConfigPath, targetFilePath, configPath } = parseArgs(args);
+  const targetFilePath = args.file ? path.resolve(args.file) : undefined;
   const tsConfigDir = path.dirname(path.resolve(tsConfigPath));
 
   // Load configuration from the project directory
-  const config = loadConfigSync(tsConfigDir, configPath);
+  const config = loadConfigSync(tsConfigDir, args.config);
 
   if (command === "fix") {
+    const { fixProject } = await import("./fixProject.js");
     console.log(`Fixing TypeScript project: ${tsConfigPath}`);
     console.log("");
 
@@ -116,6 +63,7 @@ async function main(): Promise<void> {
       }
     }
   } else {
+    const { analyzeProject } = await import("./analyzeProject.js");
     console.log(`Analyzing TypeScript project: ${tsConfigPath}`);
     if (targetFilePath) {
       console.log(`Checking only: ${targetFilePath}`);
@@ -160,6 +108,75 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
+}
+
+async function main(): Promise<void> {
+  const args = hideBin(process.argv);
+  const cli = yargs(args)
+    .scriptName("ts-unused")
+    .usage("Usage: $0 [command] [project] [file] [options]")
+    .parserConfiguration({
+      "boolean-negation": false,
+      "camel-case-expansion": false,
+      "duplicate-arguments-array": false,
+      "parse-positional-numbers": false,
+      "populate--": true,
+    })
+    .option("config", {
+      alias: "c",
+      type: "string",
+      requiresArg: true,
+      description: "Configuration file (default: unused.config.ts in project directory)",
+    })
+    .command(
+      ["check [project] [file]", "$0"],
+      "Report unused code without modifying files",
+      (command) =>
+        command
+          .positional("project", {
+            type: "string",
+            description: "tsconfig.json or project directory (default: current directory)",
+          })
+          .positional("file", { type: "string", description: "Limit check results to this file" }),
+      (argv) => runCommand("check", argv),
+    )
+    .command(
+      "fix [project]",
+      "Remove unused code and delete unused files; respects Git safety checks",
+      (command) =>
+        command.positional("project", {
+          type: "string",
+          description: "tsconfig.json or project directory (default: current directory)",
+        }),
+      (argv) => runCommand("fix", argv),
+    )
+    .check((argv) => {
+      if (argv.help === true) return true;
+      if (argv.config === "") {
+        throw new Error("--config requires a nonempty path");
+      }
+      if (Array.isArray(argv["--"]) && argv["--"].length > 0) {
+        throw new Error("Operands after -- are not supported; use ./ before paths beginning with -");
+      }
+      return true;
+    })
+    .example("$0 check tsconfig.json", "Check an explicit project")
+    .example("$0 ./project-dir", "Check a directory containing tsconfig.json")
+    .example("$0 check tsconfig.json src/file.ts", "Report findings only for one file")
+    .example("$0 fix tsconfig.json", "Remove unused code")
+    .example("$0 check tsconfig.json --config ./custom.config.ts", "Use custom configuration")
+    .version(false)
+    .help()
+    .alias("help", "h")
+    .strict()
+    .showHelpOnFail(false, "Run ts-unused --help for usage.");
+
+  if (args.length === 0) {
+    cli.showHelp("log");
+    process.exitCode = 1;
+    return;
+  }
+  await cli.parseAsync();
 }
 
 main();

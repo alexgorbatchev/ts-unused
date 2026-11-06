@@ -45,7 +45,7 @@ clean:
     rm -rf dist
 
 build-cli:
-    bun build src/cli.ts --outdir dist --target node --external ts-morph --minify --sourcemap=external
+    bun build src/cli.ts --outdir dist --target node --external ts-morph --external yargs --minify --sourcemap=external
 
 build-lib *args:
     bun run tsgo --project tsconfig.build.json "$@"

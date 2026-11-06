@@ -2,7 +2,10 @@ import { expect } from "bun:test";
 import path from "node:path";
 
 export function runGit(projectDir: string, args: string[]): string {
-  const result = Bun.spawnSync(["git", ...args], { cwd: projectDir, stderr: "pipe" });
+  const result = Bun.spawnSync(["git", "-c", "maintenance.auto=false", ...args], {
+    cwd: projectDir,
+    stderr: "pipe",
+  });
   expect(result.stderr.toString()).toBe("");
   expect(result.exitCode).toBe(0);
   return result.stdout.toString();

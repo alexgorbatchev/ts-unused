@@ -22,17 +22,22 @@
     "dist"
   ],
   "type": "module",
+  "engines": {
+    "node": "^22.18.0 || >=23.6.0"
+  },
   "packageManager": "bun@1.4.3",
   "devDependencies": {
     "@alexgorbatchev/typescript-ai-policy": "^14.0.1",
     "@types/bun": "^1.4.4",
     "@types/node": "^26.6.5",
     "@types/react": "19.3.0",
+    "@types/yargs": "17.0.35",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "oxfmt": "^0.74.0",
     "oxlint": "^1.89.0"
   },
   "dependencies": {
-    "ts-morph": "^28.0.0"
+    "ts-morph": "^28.0.0",
+    "yargs": "18.2.0"
   }
 }
