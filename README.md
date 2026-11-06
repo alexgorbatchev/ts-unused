@@ -71,6 +71,8 @@ A CLI tool that analyzes TypeScript projects to find unused exports and unused p
 
 Requires Node.js 22.18 or newer in the 22.x series, or 23.6 and newer (`^22.18.0 || >=23.6.0`). The installed package is also tested with Bun 1.4.3.
 
+For applications that reuse a failed configuration module in one process, see the [module cache and Node.js version guidance](#configuration-module-caching).
+
 ```bash
 npm install -g ts-unused
 # or
@@ -938,6 +940,14 @@ const configSync = loadConfigSync(".", "./config/unused.config.ts");
 - `configPath` - Optional explicit configuration-file path, used instead of searching `targetDir`. Relative paths resolve from the current working directory, independently of `targetDir`. An explicit path must be nonempty and exist.
 
 **Returns:** `loadConfig` returns `Promise<Required<IUnusedConfig>>`; `loadConfigSync` returns `Required<IUnusedConfig>`. Omitting `configPath` (or passing `undefined`) uses defaults if `targetDir/unused.config.ts` is absent. An explicit missing path reports `Configuration file not found: <absolute path>`; an empty path reports `Configuration path must not be empty`. Both loaders report an error if an existing file cannot be loaded. Use `loadConfig` for configurations that use top-level `await`; `loadConfigSync` requires a synchronously loadable configuration.
+
+##### Configuration module caching
+
+Both APIs use the runtime's native module cache. Repeatedly loading the same ES module reuses its evaluation result, including an evaluation failure; these APIs do not reload edited ES modules. Restart the process to evaluate an edited ES module again.
+
+On Node.js 22.18.0, reusing an ES module that threw during evaluation can obscure the original configuration error. Calling `loadConfigSync` again, or after `loadConfig`, can report an internal module-status assertion. Calling `loadConfig` after `loadConfigSync` can report an uninitialized-binding error from the runtime. These are symptoms of an [upstream Node.js module-cache bug](https://github.com/nodejs/node/issues/58945).
+
+For applications that reuse failed configuration modules, use Node.js 22.19.0 or newer in the 22.x series, or Node.js 24.5.0 or newer. The [upstream fix](https://github.com/nodejs/node/pull/58957) is included in [Node.js 22.19.0](https://nodejs.org/en/blog/release/v22.19.0) and [Node.js 24.5.0](https://nodejs.org/en/blog/release/v24.5.0); it preserves the original evaluation error when the failed module is loaded again.
 
 #### `defineConfig(config)`
 
