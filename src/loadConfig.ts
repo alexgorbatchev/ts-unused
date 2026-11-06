@@ -1,8 +1,10 @@
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { defaultConfig, mergeConfig, type IUnusedConfig } from "./config.js";
 
 const CONFIG_FILE_NAME = "unused.config.ts";
+const require = createRequire(import.meta.url);
 
 /**
  * Loads configuration from the target directory.
@@ -34,22 +36,21 @@ export async function loadConfig(targetDir: string, configPath?: string): Promis
 }
 
 /**
- * Synchronous version of loadConfig for backward compatibility.
- * Uses Bun's sync import capabilities.
+ * Synchronous version of loadConfig using the runtime's module loader.
+ * Supports Node.js and Bun configurations without top-level await.
  *
  * @param targetDir - The directory to look for the config file
  * @param configPath - Optional explicit path to config file
  * @returns The merged configuration
  */
 export function loadConfigSync(targetDir: string, configPath?: string): Required<IUnusedConfig> {
-  const resolvedConfigPath = configPath ? path.resolve(configPath) : path.join(targetDir, CONFIG_FILE_NAME);
+  const resolvedConfigPath = configPath ? path.resolve(configPath) : path.resolve(targetDir, CONFIG_FILE_NAME);
 
   if (!fs.existsSync(resolvedConfigPath)) {
     return { ...defaultConfig };
   }
 
   try {
-    // Bun supports synchronous require of TypeScript files
     const configModule = require(resolvedConfigPath);
     const userConfig: IUnusedConfig = configModule.default ?? configModule;
 

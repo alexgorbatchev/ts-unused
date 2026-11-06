@@ -77,3 +77,93 @@ describe("published library entry", () => {
     expect(result.exitCode).toBe(0);
   });
 });
+
+describe.each(["node", "bun"])("synchronous configuration in %s", (runtime) => {
+  test("loads a typed default config from a relative project directory", async () => {
+    const projectDir = path.join(consumerDir, "default-config");
+    await Bun.write(
+      path.join(projectDir, "unused.config.ts"),
+      [
+        'import { defineConfig, type IUnusedConfig } from "ts-unused";',
+        'const config: IUnusedConfig = { ignoreExports: ["publicApi"], analyzeProperties: false };',
+        "export default defineConfig(config);",
+      ].join("\n"),
+    );
+    const scriptPath = path.join(consumerDir, "default-config.mjs");
+    await Bun.write(
+      scriptPath,
+      [
+        'import { loadConfigSync } from "ts-unused";',
+        'const config = loadConfigSync("./default-config");',
+        "console.log(JSON.stringify([config.ignoreExports, config.analyzeProperties, config.analyzeExports]));",
+      ].join("\n"),
+    );
+
+    const result = run([runtime, scriptPath], consumerDir);
+
+    expect(result.stderr.toString()).toBe("");
+    expect(result.stdout.toString()).toBe('[["publicApi"],false,true]\n');
+    expect(result.exitCode).toBe(0);
+  });
+
+  test("loads custom paths and named exports independently of the project directory", async () => {
+    const configPath = path.join(consumerDir, "custom-config.ts");
+    await Bun.write(configPath, 'export const ignoreProperties: string[] = ["internalState"];');
+    const scriptPath = path.join(consumerDir, "custom-config.mjs");
+    await Bun.write(
+      scriptPath,
+      [
+        'import { loadConfigSync } from "ts-unused";',
+        'const relative = loadConfigSync("missing-project", "./custom-config.ts");',
+        `const absolute = loadConfigSync("missing-project", ${JSON.stringify(configPath)});`,
+        "console.log(JSON.stringify([relative.ignoreProperties, absolute.ignoreProperties, absolute.analyzeExports]));",
+      ].join("\n"),
+    );
+
+    const result = run([runtime, scriptPath], consumerDir);
+
+    expect(result.stderr.toString()).toBe("");
+    expect(result.stdout.toString()).toBe('[["internalState"],["internalState"],true]\n');
+    expect(result.exitCode).toBe(0);
+  });
+
+  test("returns defaults for missing default and custom configuration files", async () => {
+    const scriptPath = path.join(consumerDir, "missing-config.mjs");
+    await Bun.write(
+      scriptPath,
+      [
+        'import { loadConfigSync } from "ts-unused";',
+        'const implicit = loadConfigSync("./missing-project");',
+        'const explicit = loadConfigSync("./missing-project", "./missing-config.ts");',
+        "console.log(JSON.stringify([implicit.ignoreExports, implicit.analyzeExports, explicit.ignoreExports, explicit.analyzeExports]));",
+      ].join("\n"),
+    );
+
+    const result = run([runtime, scriptPath], consumerDir);
+
+    expect(result.stderr.toString()).toBe("");
+    expect(result.stdout.toString()).toBe("[[],true,[],true]\n");
+    expect(result.exitCode).toBe(0);
+  });
+
+  test("preserves the config path and original failure in loading errors", async () => {
+    const configPath = path.join(consumerDir, "failing-config.ts");
+    await Bun.write(configPath, 'throw new Error("configuration failed");\nexport default {};');
+    const scriptPath = path.join(consumerDir, "failing-config.mjs");
+    await Bun.write(
+      scriptPath,
+      [
+        'import assert from "node:assert/strict";',
+        'import { loadConfigSync } from "ts-unused";',
+        `assert.throws(() => loadConfigSync(".", ${JSON.stringify(configPath)}),`,
+        `  new Error(${JSON.stringify(`Failed to load config from ${configPath}: configuration failed`)}));`,
+      ].join("\n"),
+    );
+
+    const result = run([runtime, scriptPath], consumerDir);
+
+    expect(result.stderr.toString()).toBe("");
+    expect(result.stdout.toString()).toBe("");
+    expect(result.exitCode).toBe(0);
+  });
+});
