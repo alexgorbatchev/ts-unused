@@ -992,10 +992,12 @@ console.log(defaultConfig.testFilePatterns);
 
 #### `createIsTestFile(patterns)` / `isTestFile`
 
-Creates a custom test file detection function from glob patterns, or use the default `isTestFile`.
+Use `isTestFile` for the default patterns or `createIsTestFile` to supply your own. In v5, both detectors and custom `IsTestFileFn` callbacks take an absolute path string. If your callback previously called `sourceFile.getFilePath()`, use the path argument directly.
 
 ```typescript
 import { analyzeProject, createIsTestFile, isTestFile } from "ts-unused";
+
+isTestFile("/work/project/src/example.test.ts"); // true
 
 // Use default test file detection
 const defaultResults = await analyzeProject("./tsconfig.json", undefined, undefined, { isTestFile });

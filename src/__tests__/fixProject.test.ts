@@ -132,6 +132,22 @@ describe("fixProject configuration", () => {
     expect(results.deletedFiles).toBe(1);
     expect(await Bun.file(path.join(projectDir, "model.ts")).exists()).toBe(false);
   });
+
+  test("keeps the live sibling of an unused variable and its import", async () => {
+    const tsConfigPath = await createFixProject(projectDir, {
+      "model.ts": "export const first = 1, used = 2, last = 3;\n",
+      "consumer.ts": 'import { first, used, last } from "./model";\nconsole.log(used);\n',
+    });
+
+    const results = await fixProject(tsConfigPath);
+
+    expect(results.fixedExports).toBe(2);
+    expect(results.errors).toEqual([]);
+    expect(await Bun.file(path.join(projectDir, "model.ts")).text()).toBe("export const used = 2;\n");
+    expect(await Bun.file(path.join(projectDir, "consumer.ts")).text()).toBe(
+      'import { used } from "./model";\nconsole.log(used);\n',
+    );
+  });
 });
 
 describe("fixProject Git safety", () => {
