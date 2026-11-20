@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import { analyzeProject } from "../analyzeProject";
@@ -174,8 +175,11 @@ describe("package entry points resolved through the tsconfig build layout", () =
       ...createLibrarySources("src"),
     });
 
-    await expect(findUnusedExports(tsConfigPath, true)).rejects.toThrow(
-      "Package mode is enabled but no package.json entry point resolves to a project source file: ./dist/missing.js",
+    await assert.rejects(
+      () => findUnusedExports(tsConfigPath, true),
+      new Error(
+        "Package mode is enabled but no package.json entry point resolves to a project source file: ./dist/missing.js",
+      ),
     );
   });
 });

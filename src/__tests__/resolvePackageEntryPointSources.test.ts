@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { analyzeProject } from "../analyzeProject";
@@ -112,7 +113,8 @@ describe("explicit package entrypoint sources", () => {
     async (target) => {
       await writeFiles({ "src/renamed.ts": "export const otherwiseResolved = 1;\n" });
 
-      await expect(analyzeMappings({ [target]: "src/barrel.ts" })).rejects.toThrow(
+      await assert.rejects(
+        () => analyzeMappings({ [target]: "src/barrel.ts" }),
         new Error(`Invalid packageEntryPointSources target '${target}': not an explicit entry target in package.json.`),
       );
     },
@@ -128,7 +130,8 @@ describe("explicit package entrypoint sources", () => {
         "node_modules/vendor/index.ts": "export const dependency = 1;\n",
       });
 
-      await expect(analyzeMappings({ "./dist/renamed.js": source })).rejects.toThrow(
+      await assert.rejects(
+        () => analyzeMappings({ "./dist/renamed.js": source }),
         new Error(
           `Invalid packageEntryPointSources mapping './dist/renamed.js': '${source}' must be a non-declaration source file included by the analyzed tsconfig, outside node_modules.`,
         ),
@@ -137,20 +140,21 @@ describe("explicit package entrypoint sources", () => {
   );
 
   test("rejects conflicting mappings for the same normalized target", async () => {
-    await expect(
-      analyzeMappings({ "./dist/renamed.js": "src/barrel.ts", "dist/renamed.js": "src/internal.ts" }),
-    ).rejects.toThrow(new Error("Conflicting packageEntryPointSources mappings for target 'dist/renamed.js'."));
+    await assert.rejects(
+      () => analyzeMappings({ "./dist/renamed.js": "src/barrel.ts", "dist/renamed.js": "src/internal.ts" }),
+      new Error("Conflicting packageEntryPointSources mappings for target 'dist/renamed.js'."),
+    );
   });
 
   test("invalid mappings stop fix before any files change", async () => {
     const files = await readdir(path.join(packageDir, "src"));
     const before = await Promise.all(files.map((file) => Bun.file(path.join(packageDir, "src", file)).text()));
 
-    await expect(
-      fixProject(tsConfigPath, undefined, {
-        config: { packageMode: true, packageEntryPointSources: { "./dist/renamed.js": "excluded.ts" } },
-      }),
-    ).rejects.toThrow(
+    await assert.rejects(
+      () =>
+        fixProject(tsConfigPath, undefined, {
+          config: { packageMode: true, packageEntryPointSources: { "./dist/renamed.js": "excluded.ts" } },
+        }),
       new Error(
         "Invalid packageEntryPointSources mapping './dist/renamed.js': 'excluded.ts' must be a non-declaration source file included by the analyzed tsconfig, outside node_modules.",
       ),

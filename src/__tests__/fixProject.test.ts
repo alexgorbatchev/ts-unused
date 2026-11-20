@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import type { IUnusedConfig } from "../config";
@@ -240,7 +241,7 @@ describe("fixProject Git safety", () => {
     const tsConfigPath = await createFixProject(projectDir, { "model.ts": source });
     await Bun.write(path.join(projectDir, ".git/index"), "corrupted index");
 
-    await expect(fixProject(tsConfigPath)).rejects.toThrow();
+    await assert.rejects(() => fixProject(tsConfigPath));
 
     expect(await Bun.file(path.join(projectDir, "model.ts")).text()).toBe(source);
   });
