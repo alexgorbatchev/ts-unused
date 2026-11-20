@@ -12,6 +12,7 @@ import { mergeConfig, type IUnusedConfig } from "./config.js";
 import { applyRuleSeverities } from "./applyRuleSeverities.js";
 import { hasNoCheck } from "./hasNoCheck.js";
 import { isImportedForSideEffects } from "./isImportedForSideEffects.js";
+import { findUsedImports } from "./findUsedImports.js";
 import { findEmittedDeclarationFiles } from "./findEmittedDeclarationFiles.js";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile.js";
 import { loadProject } from "./loadProject.js";
@@ -148,6 +149,7 @@ export async function analyzeProject(
       hasCommentRules ||
       (config.detectUnusedFiles && config.rules[RULE_NAME.UNUSED_FILES] !== RULE_SEVERITY.OFF))
   ) {
+    const usedImports = targetFiles.length > 1 ? findUsedImports(project, classifyUsageSource) : undefined;
     for (const sourceFile of targetFiles) {
       project.forgetNodesCreatedInBlock(() => {
         // Storybook reads the meta and the stories of a story file, so they are used without any reference
@@ -155,7 +157,10 @@ export async function analyzeProject(
           classifyUsageSource(sourceFile) === USAGE_SOURCE.STORY ? createIsCsfExport(sourceFile) : undefined;
         const exports = sourceFile.getExportedDeclarations();
         for (const [exportName, declarations] of exports.entries()) {
-          if (isCsfExport?.(exportName, declarations)) {
+          if (
+            (declarations[0] && usedImports?.has(declarations[0].compilerNode)) ||
+            isCsfExport?.(exportName, declarations)
+          ) {
             continue;
           }
           const unusedExport = checkExportUsage(

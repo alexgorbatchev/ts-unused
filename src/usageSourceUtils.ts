@@ -1,3 +1,4 @@
+import type { SourceFile } from "ts-morph";
 import path from "node:path";
 import { USAGE_SOURCE } from "./constants.js";
 import { matchesFilePattern } from "./patternMatcher.js";
@@ -18,14 +19,17 @@ export function createClassifyUsageSource(
   storyFilePatterns: string[],
   tsConfigDir: string,
 ): ClassifyUsageSourceFn {
+  const sources = new WeakMap<SourceFile, UsageSource>();
   return (sourceFile) => {
-    if (isTestFile(sourceFile)) {
-      return USAGE_SOURCE.TEST;
-    }
-    if (matchesFilePattern(path.relative(tsConfigDir, sourceFile.getFilePath()), storyFilePatterns)) {
-      return USAGE_SOURCE.STORY;
-    }
-    return USAGE_SOURCE.PRODUCTION;
+    const cached = sources.get(sourceFile);
+    if (cached) return cached;
+    const source = isTestFile(sourceFile)
+      ? USAGE_SOURCE.TEST
+      : matchesFilePattern(path.relative(tsConfigDir, sourceFile.getFilePath()), storyFilePatterns)
+        ? USAGE_SOURCE.STORY
+        : USAGE_SOURCE.PRODUCTION;
+    sources.set(sourceFile, source);
+    return source;
   };
 }
 

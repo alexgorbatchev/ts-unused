@@ -1,4 +1,5 @@
 import { type Identifier, Node, type SourceFile } from "ts-morph";
+import { getSpecialImports } from "./getSpecialImports.js";
 import { findReferenceNodes } from "./findReferenceNodes.js";
 
 const importersCache = new WeakMap<SourceFile, SourceFile[]>();
@@ -37,11 +38,10 @@ export function getWholeNamespaceImporters(sourceFile: SourceFile): SourceFile[]
   }
 
   const importers = new Set<SourceFile>();
-  for (const node of sourceFile.getReferencingNodesInOtherSourceFiles()) {
-    const namespaceImport = Node.isImportDeclaration(node) ? node.getNamespaceImport() : undefined;
-    if (namespaceImport && isUsedAsWhole(namespaceImport)) {
-      importers.add(node.getSourceFile());
-    }
+  for (const binding of getSpecialImports(sourceFile)?.namespaces ?? []) {
+    const file = sourceFile.getProject().getSourceFileOrThrow(binding.getSourceFile().fileName);
+    const name = file.getDescendantAtPos(binding.getStart());
+    if (Node.isIdentifier(name) && isUsedAsWhole(name)) importers.add(file);
   }
 
   const result = [...importers];

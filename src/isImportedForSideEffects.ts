@@ -1,4 +1,5 @@
-import { Node, type SourceFile } from "ts-morph";
+import { getSpecialImports } from "./getSpecialImports.js";
+import type { SourceFile } from "ts-morph";
 
 /**
  * Whether another file imports this module only to run it (`import "./setup"`). A side-effect import uses no
@@ -6,7 +7,5 @@ import { Node, type SourceFile } from "ts-morph";
  * break the importer and drop the side effects.
  */
 export function isImportedForSideEffects(sourceFile: SourceFile): boolean {
-  return sourceFile
-    .getReferencingNodesInOtherSourceFiles()
-    .some((node) => Node.isImportDeclaration(node) && node.getImportClause() === undefined);
+  return getSpecialImports(sourceFile)?.sideEffect ?? false;
 }

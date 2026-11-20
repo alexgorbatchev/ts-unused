@@ -16,15 +16,20 @@ export function recordContextualPropertyAccess(
     return;
   }
   const apparent = checker.getApparentType(contextual);
-  const targets = (apparent.isUnion() ? apparent.types : [apparent]).map((type) => ({
+  if (!apparent.isUnion()) {
+    recordPropertySymbols(accesses, checker, getPropertyNameSymbols(name, apparent, checker), sourceFile);
+    return;
+  }
+  const targets = apparent.types.map((type) => ({
     type,
     properties: getPropertyNameSymbols(name, type, checker),
   }));
   const roots = new Set(
     targets.flatMap((target) => target.properties.flatMap((property) => checker.getRootSymbols(property))),
   );
+  if (roots.size === 0) return;
   let selected = targets;
-  if (targets.length > 1 && (roots.size !== 1 || targets.some((target) => target.properties.length === 0))) {
+  if (roots.size !== 1 || targets.some((target) => target.properties.length === 0)) {
     const actual = checker.getTypeAtLocation(expression);
     const compatible = targets.filter((target) => checker.isTypeAssignableTo(actual, target.type));
     if (compatible.length > 0) {

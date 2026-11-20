@@ -1,12 +1,16 @@
 ---
 created_on: 2026-10-23 03:09
-last_modified: 2026-11-19 15:54
+last_modified: 2026-11-19 16:28
 status: current
 ---
 
 # Semantic analysis memory
 
 For maintainers, this reference describes the analysis caches and the checks that protect their memory behavior. For memory set by the consumer project and the JavaScript runtime, see [consumer-memory.md](./consumer-memory.md).
+
+## Export references
+
+The export pass first walks project sources for production uses of named and default imports. It verifies the local binding with the compiler checker before marking the target declaration live. Unproven exports still go through reference classification. A separate index resolves namespace and side-effect imports once per compiler program.
 
 ## Property access indexing
 

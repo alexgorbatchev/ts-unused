@@ -2,6 +2,8 @@ import { expect, spyOn, test } from "bun:test";
 import { Project } from "ts-morph";
 import { checkExportUsage } from "../checkExportUsage";
 import { findReferenceNodes } from "../findReferenceNodes";
+import { findUsedImports } from "../findUsedImports";
+import { isImportedForSideEffects } from "../isImportedForSideEffects";
 import { isPropertyUnused } from "../isPropertyUnused";
 import { isTestFile } from "../isTestFile";
 import { createClassifyUsageSource } from "../usageSourceUtils";
@@ -103,4 +105,42 @@ test("finds imports of an anonymous default function", () => {
   const consumer = project.createSourceFile("/consumer.ts", 'import run from "./source"; run();');
   const references = findReferenceNodes(source.getFunctions()[0]!);
   expect(references.some((node) => node.getSourceFile() === consumer)).toBe(true);
+});
+
+test("proves imported bindings live only from actual production references", () => {
+  const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
+  const file = project.createSourceFile(
+    "/lib.ts",
+    `
+    export default function run() {}
+    export type Used = string;
+    export const shadow = 0, member = 1, forwarded = 2, testOnly = 3, storyOnly = 4;
+  `,
+  );
+  project.createSourceFile(
+    "/app.ts",
+    `
+    import execute, { type Used as T, shadow, member, forwarded } from "./lib";
+    execute(); let x: T;
+    function f(shadow: number) { return shadow + ({member: 7}).member; }
+    export { forwarded };
+  `,
+  );
+  project.createSourceFile("/app.test.ts", 'import { testOnly } from "./lib"; testOnly;');
+  project.createSourceFile("/app.stories.ts", 'import { storyOnly } from "./lib"; storyOnly;');
+  const used = findUsedImports(project, createClassifyUsageSource(isTestFile, ["*.stories.ts"], "/"));
+  expect(
+    [...file.getExportedDeclarations()]
+      .filter(([, declarations]) => declarations.some((declaration) => used.has(declaration.compilerNode)))
+      .map(([name]) => name)
+      .sort(),
+  ).toEqual(["Used", "default"]);
+});
+
+test("refreshes side-effect imports when the compiler program changes", () => {
+  const project = new Project({ useInMemoryFileSystem: true });
+  const file = project.createSourceFile("/setup.ts", 'import "./setup"; export const setup = 1;');
+  expect(isImportedForSideEffects(file)).toBe(false);
+  project.createSourceFile("/app.ts", 'import "./setup";');
+  expect(isImportedForSideEffects(file)).toBe(true);
 });
