@@ -515,3 +515,35 @@ describe("keyed property reads", () => {
     });
   });
 });
+
+test("legacy property scanner counts union return writes only for branches compatible with the returned literal", () => {
+  const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
+  const file = project.createSourceFile(
+    "/union.ts",
+    `
+      interface Success { kind: "success"; data: string; shared: string; }
+      interface Failure { kind: "failure"; error: string; shared: string; }
+      function result(): Success | Failure {
+        return { kind: "success", data: "written", shared: "selected" };
+      }
+    `,
+  );
+  const classify = createClassifyUsageSource(isTestFile, [], "/");
+
+  expect(
+    isPropertyUnused(file.getInterfaceOrThrow("Success").getPropertyOrThrow("data"), classify, project)
+      .isUnusedOrTestOnly,
+  ).toBe(false);
+  expect(
+    isPropertyUnused(file.getInterfaceOrThrow("Success").getPropertyOrThrow("shared"), classify, project)
+      .isUnusedOrTestOnly,
+  ).toBe(false);
+  expect(
+    isPropertyUnused(file.getInterfaceOrThrow("Failure").getPropertyOrThrow("shared"), classify, project)
+      .isUnusedOrTestOnly,
+  ).toBe(true);
+  expect(
+    isPropertyUnused(file.getInterfaceOrThrow("Failure").getPropertyOrThrow("error"), classify, project)
+      .isUnusedOrTestOnly,
+  ).toBe(true);
+});

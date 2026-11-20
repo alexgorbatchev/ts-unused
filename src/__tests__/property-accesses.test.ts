@@ -31,6 +31,18 @@ test.each([
     body: "declare const source: Props; let local: string; ({ value: local } = source);",
   },
   {
+    name: "nested object and tuple assignment destructuring",
+    body: "declare const source: { nested: [Props] }; let local: string; ({ nested: [{ value: local }] } = source);",
+  },
+  {
+    name: "array iteration assignment destructuring",
+    body: "declare const source: Props[]; let local: string; for ({ value: local } of source) {}",
+  },
+  {
+    name: "custom iterator assignment destructuring",
+    body: "declare const source: Iterable<Props>; let local: string; for ({ value: local } of source) {}",
+  },
+  {
     name: "computed contextual writes",
     body: 'const KEY = "value"; const object: Props = { [KEY]: "used" };',
   },
@@ -110,4 +122,17 @@ test("uses compiler source nodes when duplicate dependency packages redirect to 
         'import type { Value as First } from "first"; import type { Value as Second } from "second"; export type Both = First | Second;',
     }),
   ).not.toContain("Props.value");
+});
+
+test("tracks unique-symbol reads and unused computed property declarations", async () => {
+  const results = await analyzeProperties({
+    "computed.ts": `
+      declare const used: unique symbol;
+      declare const unused: unique symbol;
+      interface Computed { [used]: string; [unused]: string; }
+      declare const keys: Computed;
+      keys[used];
+    `,
+  });
+  expect(results).toEqual(["Computed.[unused]"]);
 });

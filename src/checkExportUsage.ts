@@ -3,7 +3,6 @@ import path from "node:path";
 import { Node, type SourceFile, VariableDeclarationKind } from "ts-morph";
 import { classifyExportReferences } from "./classifyExportReferences.js";
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment.js";
-import { getWholeNamespaceImporters } from "./getWholeNamespaceImporters.js";
 import { matchesPattern } from "./patternMatcher.js";
 import type { ClassifyUsageSourceFn, ExportKind, Severity, IUnusedExportResult } from "./types.js";
 import { isUsageSourceAtLeast } from "./usageSourceUtils.js";
@@ -99,7 +98,7 @@ export async function checkExportUsage(
     ignoreModuleAugmentations = true,
     publicDeclarations,
     findReferences = findReferenceNodes,
-    wholeNamespaceImporters = getWholeNamespaceImporters,
+    wholeNamespaceImporters,
   } = options;
 
   const firstDeclaration: Node | undefined = declarations[0];
@@ -146,7 +145,7 @@ export async function checkExportUsage(
     ...classifyExportReferences(firstDeclaration, await findReferences(firstDeclaration)).usages.map((reference) =>
       reference.getSourceFile(),
     ),
-    ...wholeNamespaceImporters(sourceFile),
+    ...(wholeNamespaceImporters?.(sourceFile) ?? []),
   ];
   for (const usageFile of usageFiles) {
     const usageSource = classifyUsageSource(usageFile);

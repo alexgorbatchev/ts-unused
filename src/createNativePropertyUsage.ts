@@ -1,4 +1,4 @@
-import { isComputedPropertyName, isPropertyDeclaration, isPropertySignatureDeclaration } from "typescript/ast";
+import { getTokenAtPosition, isComputedPropertyName } from "typescript/ast";
 import type { Project } from "typescript/async";
 import type { Project as SyntaxProject } from "ts-morph";
 import { Node } from "ts-morph";
@@ -19,29 +19,12 @@ const used: IPropertyUsageResult = { isUnusedOrTestOnly: false, onlyUsedInTests:
 
 async function getPropertyName(project: Project, prop: PropertyNode): Promise<string> {
   if (!Node.isComputedPropertyName(prop.getNameNode())) return prop.getName();
-  const path: string = prop.getSourceFile().getFilePath();
-  const start = prop.getNameNode().getStart();
-  const symbol = await project.checker.getSymbolAtPosition(path, start);
-  if (symbol) return symbol.name;
-  const owner = prop.getParent();
-  const type = await project.checker.getTypeAtPosition(path, owner.getStart());
-  if (type) {
-    for (const member of await type.getProperties()) {
-      for (const handle of member.declarations) {
-        const node = await handle.resolve();
-        if (
-          node &&
-          (isPropertyDeclaration(node) || isPropertySignatureDeclaration(node)) &&
-          isComputedPropertyName(node.name) &&
-          node.name.getStart() === start &&
-          node.getSourceFile().fileName === path
-        ) {
-          return member.name;
-        }
-      }
-    }
-  }
-  return prop.getName();
+  const source = await project.program.getSourceFile(prop.getSourceFile().getFilePath());
+  if (!source) return prop.getName();
+  const start = prop.getStart();
+  const name = getTokenAtPosition(source, start).parent;
+  const symbol = isComputedPropertyName(name) ? await project.checker.getSymbolOfNode(name.parent) : undefined;
+  return symbol?.name ?? prop.getName();
 }
 
 export async function createNativePropertyUsage(

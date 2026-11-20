@@ -10,7 +10,7 @@ import {
 import type { Project } from "typescript/async";
 import type { Project as SyntaxProject, SourceFile } from "ts-morph";
 import { findNativeReferenceNodes } from "./findNativeReferenceNodes.js";
-import { isMemberAccess } from "./getWholeNamespaceImporters.js";
+import { isNamespaceMemberAccess } from "./isNamespaceMemberAccess.js";
 
 interface ISpecialImports {
   sideEffects: Set<string>;
@@ -50,7 +50,7 @@ export async function findNativeSpecialImports(
       const name = file?.getDescendantAtPos(binding.name.getStart(source));
       if (!file || !name) continue;
       const references = await findNativeReferenceNodes(project, name);
-      if (references.some((reference) => reference !== name && !isMemberAccess(reference))) {
+      if (references.some((reference) => reference !== name && !isNamespaceMemberAccess(reference))) {
         const importers = wholeNamespaces.get(target.fileName) ?? new Set();
         importers.add(file);
         wholeNamespaces.set(target.fileName, importers);
