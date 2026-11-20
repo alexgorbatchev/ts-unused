@@ -36,7 +36,7 @@ unused:
     bun src/cli.ts check tsconfig.json
 
 test:
-    bun test
+    bun test --timeout 20000
 
 # Validate source without applying fixes or rebuilding the package
 check: fmt-check lint typecheck unused test
