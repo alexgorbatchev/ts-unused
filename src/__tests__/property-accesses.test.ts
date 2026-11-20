@@ -1,8 +1,25 @@
 import { expect, test } from "bun:test";
-import { Project, ts } from "ts-morph";
-import { isPropertyUnused } from "../isPropertyUnused";
-import { isTestFile } from "../isTestFile";
-import { createClassifyUsageSource } from "../usageSourceUtils";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { analyzeProject } from "../analyzeProject";
+
+async function analyzeProperties(files: Record<string, string>) {
+  const root = await mkdtemp(path.join(tmpdir(), "ts-unused-properties-"));
+  const config = path.join(root, "tsconfig.json");
+  try {
+    await Bun.write(config, JSON.stringify({ compilerOptions: { jsx: "preserve", moduleResolution: "node" } }));
+    for (const [name, content] of Object.entries(files)) {
+      await Bun.write(path.join(root, name), content);
+    }
+    const results = await analyzeProject(config, undefined, undefined, {
+      config: { analyzeExports: false, analyzeDuplicateTypes: false, analyzeNeverReturnedTypes: false },
+    });
+    return results.unusedProperties.map(({ typeName, propertyName }) => `${typeName}.${propertyName}`);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
 
 test.each([
   {
@@ -41,87 +58,37 @@ test.each([
     name: "class implementation and overridden inheritance",
     body: 'class Base implements Props { value = "base"; } class Child extends Base { override value = "child"; read() { return this.value; } }',
   },
-])("counts $name as property usage", ({ body }) => {
-  const project = new Project({
-    useInMemoryFileSystem: true,
-    skipLoadingLibFiles: true,
-    compilerOptions: { jsx: ts.JsxEmit.Preserve },
-  });
-  const file = project.createSourceFile("/reference.tsx", `interface Props { value: string; } ${body}`);
-
-  expect(
-    isPropertyUnused(
-      file.getInterfaceOrThrow("Props").getPropertyOrThrow("value"),
-      createClassifyUsageSource(isTestFile, [], "/"),
-      project,
-    ).isUnusedOrTestOnly,
-  ).toBe(false);
-});
-
-test("counts property references in imported external declarations", () => {
-  const project = new Project({
-    useInMemoryFileSystem: true,
-    skipLoadingLibFiles: true,
-    compilerOptions: { moduleResolution: ts.ModuleResolutionKind.Node10 },
-  });
-  const file = project.createSourceFile("/types.ts", "export interface Props { value: string; }");
-  project
-    .getFileSystem()
-    .writeFileSync(
-      "/node_modules/client/index.d.ts",
-      'import type { Props } from "../../types"; export type Value = Props["value"];',
-    );
-  project.createSourceFile("/main.ts", 'import type { Value } from "client"; export declare const value: Value;');
-  project.resolveSourceFileDependencies();
-
-  expect(
-    isPropertyUnused(
-      file.getInterfaceOrThrow("Props").getPropertyOrThrow("value"),
-      createClassifyUsageSource(isTestFile, [], "/"),
-      project,
-    ).isUnusedOrTestOnly,
-  ).toBe(false);
-});
-
-test("counts union return writes only for branches compatible with the returned literal", () => {
-  const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
-  const file = project.createSourceFile(
-    "/union.ts",
-    `
-      interface Success { kind: "success"; data: string; shared: string; }
-      interface Failure { kind: "failure"; error: string; shared: string; }
-      function result(): Success | Failure {
-        return { kind: "success", data: "written", shared: "selected" };
-      }
-    `,
+])("counts $name as property usage", async ({ body }) => {
+  expect(await analyzeProperties({ "reference.tsx": `interface Props { value: string; } ${body}` })).not.toContain(
+    "Props.value",
   );
-  const classify = createClassifyUsageSource(isTestFile, [], "/");
-
-  expect(
-    isPropertyUnused(file.getInterfaceOrThrow("Success").getPropertyOrThrow("data"), classify, project)
-      .isUnusedOrTestOnly,
-  ).toBe(false);
-  expect(
-    isPropertyUnused(file.getInterfaceOrThrow("Success").getPropertyOrThrow("shared"), classify, project)
-      .isUnusedOrTestOnly,
-  ).toBe(false);
-  expect(
-    isPropertyUnused(file.getInterfaceOrThrow("Failure").getPropertyOrThrow("shared"), classify, project)
-      .isUnusedOrTestOnly,
-  ).toBe(true);
-  expect(
-    isPropertyUnused(file.getInterfaceOrThrow("Failure").getPropertyOrThrow("error"), classify, project)
-      .isUnusedOrTestOnly,
-  ).toBe(true);
 });
 
-test("uses compiler source nodes when duplicate dependency packages redirect to one declaration", () => {
-  const project = new Project({
-    useInMemoryFileSystem: true,
-    skipLoadingLibFiles: true,
-    compilerOptions: { moduleResolution: ts.ModuleResolutionKind.Node10 },
-  });
-  const file = project.createSourceFile("/types.ts", "export interface Props { value: string; }");
+test("counts property references in imported external declarations", async () => {
+  expect(
+    await analyzeProperties({
+      "types.ts": "export interface Props { value: string; }",
+      "node_modules/client/index.d.ts": 'import type { Props } from "../../types"; export type Value = Props["value"];',
+      "main.ts": 'import type { Value } from "client"; export declare const value: Value;',
+    }),
+  ).not.toContain("Props.value");
+});
+
+test("counts union return writes only for branches compatible with the returned literal", async () => {
+  expect(
+    await analyzeProperties({
+      "union.ts": `
+        interface Success { kind: "success"; data: string; shared: string; }
+        interface Failure { kind: "failure"; error: string; shared: string; }
+        function result(): Success | Failure {
+          return { kind: "success", data: "written", shared: "selected" };
+        }
+      `,
+    }),
+  ).toEqual(["Failure.kind", "Failure.error", "Failure.shared"]);
+});
+
+test("uses compiler source nodes when duplicate dependency packages redirect to one declaration", async () => {
   const packageJson = JSON.stringify({ name: "shared-types", version: "1.0.0", types: "index.d.ts" });
   const declaration = `
     import type { Props } from "../../../../types";
@@ -130,32 +97,17 @@ test("uses compiler source nodes when duplicate dependency packages redirect to 
     export declare const holder: { nested: Types.Value };
     export type Value = Props["value"];
   `;
-  project.getFileSystem().writeFileSync("/node_modules/first/index.d.ts", 'export type { Value } from "shared-types";');
-  project
-    .getFileSystem()
-    .writeFileSync("/node_modules/second/index.d.ts", 'export type { Value } from "shared-types";');
-  project.getFileSystem().writeFileSync("/node_modules/first/node_modules/shared-types/package.json", packageJson);
-  project.getFileSystem().writeFileSync("/node_modules/first/node_modules/shared-types/index.d.ts", declaration);
-  project.getFileSystem().writeFileSync("/node_modules/second/node_modules/shared-types/package.json", packageJson);
-  project.getFileSystem().writeFileSync("/node_modules/second/node_modules/shared-types/index.d.ts", declaration);
-  project.createSourceFile(
-    "/main.ts",
-    'import type { Value as First } from "first"; import type { Value as Second } from "second"; export type Both = First | Second;',
-  );
-  project.resolveSourceFileDependencies();
-
   expect(
-    project
-      .getProgram()
-      .compilerObject.getSourceFiles()
-      .some((source) => source !== project.getSourceFileOrThrow(source.fileName).compilerNode),
-  ).toBe(true);
-
-  expect(
-    isPropertyUnused(
-      file.getInterfaceOrThrow("Props").getPropertyOrThrow("value"),
-      createClassifyUsageSource(isTestFile, [], "/"),
-      project,
-    ).isUnusedOrTestOnly,
-  ).toBe(false);
+    await analyzeProperties({
+      "types.ts": "export interface Props { value: string; }",
+      "node_modules/first/index.d.ts": 'export type { Value } from "shared-types";',
+      "node_modules/second/index.d.ts": 'export type { Value } from "shared-types";',
+      "node_modules/first/node_modules/shared-types/package.json": packageJson,
+      "node_modules/first/node_modules/shared-types/index.d.ts": declaration,
+      "node_modules/second/node_modules/shared-types/package.json": packageJson,
+      "node_modules/second/node_modules/shared-types/index.d.ts": declaration,
+      "main.ts":
+        'import type { Value as First } from "first"; import type { Value as Second } from "second"; export type Both = First | Second;',
+    }),
+  ).not.toContain("Props.value");
 });

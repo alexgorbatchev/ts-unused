@@ -1,6 +1,6 @@
 import { Node } from "ts-morph";
 
-function getReferenceLocation(node: Node): Node {
+export function getReferenceLocation(node: Node): Node {
   if (Node.isIdentifier(node) || Node.isStringLiteral(node)) {
     return node;
   }

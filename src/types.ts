@@ -1,26 +1,21 @@
-import type {
-  InterfaceDeclaration,
-  Node,
-  PropertyDeclaration,
-  PropertySignature,
-  SourceFile,
-  TypeAliasDeclaration,
-  ts,
-} from "ts-morph";
+import type { Node, PropertyDeclaration, PropertySignature, SourceFile, ts } from "ts-morph";
 import { COMMENT_KIND, EXPORT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY, USAGE_SOURCE } from "./constants.js";
+
+import type { IPropertyUsageResult } from "./isPropertyUnused.js";
 
 export interface IAnalyzePropertiesOptions {
   ignoreProperties?: string[];
   ignoreTypes?: string[];
   /** Declarations visible through the package public API in package mode; their properties count as used. */
   publicApiDeclarations?: Set<Node>;
+  propertyUsage: PropertyUsageLookup;
 }
 
 export type PropertyNode = PropertySignature | PropertyDeclaration;
 /** Source files that access each property declaration, including contextual writes and keyed reads. */
 export type PropertyAccesses = Map<ts.Node, Set<SourceFile>>;
+export type PropertyUsageLookup = (property: PropertyNode) => Promise<IPropertyUsageResult>;
 export type PropertyAccessName = ts.PropertyName | ts.JsxAttributeName;
-export type TypeDeclaration = InterfaceDeclaration | TypeAliasDeclaration;
 
 export type Severity = (typeof SEVERITY)[keyof typeof SEVERITY];
 export type RuleSeverity = (typeof RULE_SEVERITY)[keyof typeof RULE_SEVERITY];

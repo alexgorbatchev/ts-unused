@@ -7,12 +7,15 @@ import { getWholeNamespaceImporters } from "./getWholeNamespaceImporters.js";
 import { matchesPattern } from "./patternMatcher.js";
 import type { ClassifyUsageSourceFn, ExportKind, Severity, IUnusedExportResult } from "./types.js";
 import { isUsageSourceAtLeast } from "./usageSourceUtils.js";
+import { findReferenceNodes } from "./findReferenceNodes.js";
 
 export interface ICheckExportOptions {
   ignoreExports?: string[];
   ignoreModuleAugmentations?: boolean;
   /** Declarations exported from package entry points in package mode */
   publicDeclarations?: Set<Node>;
+  findReferences?: (declaration: Node) => Node[] | Promise<Node[]>;
+  wholeNamespaceImporters?: (file: SourceFile) => readonly SourceFile[];
 }
 
 function getExportKind(declaration: Node): ExportKind {
@@ -83,15 +86,21 @@ function isModuleAugmentation(declaration: Node): boolean {
   return false;
 }
 
-export function checkExportUsage(
+export async function checkExportUsage(
   exportName: string,
   declarations: readonly Node[],
   sourceFile: SourceFile,
   tsConfigDir: string,
   classifyUsageSource: ClassifyUsageSourceFn,
   options: ICheckExportOptions = {},
-): IUnusedExportResult | null {
-  const { ignoreExports = [], ignoreModuleAugmentations = true, publicDeclarations } = options;
+): Promise<IUnusedExportResult | null> {
+  const {
+    ignoreExports = [],
+    ignoreModuleAugmentations = true,
+    publicDeclarations,
+    findReferences = findReferenceNodes,
+    wholeNamespaceImporters = getWholeNamespaceImporters,
+  } = options;
 
   const firstDeclaration: Node | undefined = declarations[0];
   if (!firstDeclaration) {
@@ -134,8 +143,10 @@ export function checkExportUsage(
   let testReferences = 0;
 
   const usageFiles = [
-    ...classifyExportReferences(firstDeclaration).usages.map((reference) => reference.getSourceFile()),
-    ...getWholeNamespaceImporters(sourceFile),
+    ...classifyExportReferences(firstDeclaration, await findReferences(firstDeclaration)).usages.map((reference) =>
+      reference.getSourceFile(),
+    ),
+    ...wholeNamespaceImporters(sourceFile),
   ];
   for (const usageFile of usageFiles) {
     const usageSource = classifyUsageSource(usageFile);

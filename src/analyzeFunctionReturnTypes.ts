@@ -1,276 +1,127 @@
-import { SEVERITY } from "./constants.js";
 import path from "node:path";
-import { type FunctionDeclaration, type SourceFile, SyntaxKind, type Type } from "ts-morph";
+import {
+  isFunctionDeclaration,
+  isReturnStatement,
+  type FunctionDeclaration,
+  type Node,
+  type SourceFile,
+} from "typescript/ast";
+import { type Checker, type Type, TypeFlags, TypeFormatFlags } from "typescript/async";
+import { SEVERITY } from "./constants.js";
 import type { INeverReturnedTypeResult } from "./types.js";
 
-/**
- * Analyzes a function to detect union type branches in the return type that are never actually returned
- */
-export function analyzeFunctionReturnTypes(
+const formatFlags =
+  TypeFormatFlags.UseTypeOfFunction |
+  TypeFormatFlags.NoTruncation |
+  TypeFormatFlags.UseFullyQualifiedType |
+  TypeFormatFlags.WriteTypeArgumentsOfSignature;
+
+function* descendants(node: Node): Iterable<Node> {
+  for (const child of node.childrenIter()) {
+    yield child;
+    yield* descendants(child);
+  }
+}
+
+async function unwrapPromise(checker: Checker, type: Type): Promise<Type> {
+  if (type.isTypeReference() && (await type.getSymbol())?.name === "Promise") {
+    const [argument] = await checker.getTypeArguments(type);
+    if (argument) return argument;
+  }
+  return type;
+}
+
+async function getDisplayName(checker: Checker, type: Type): Promise<string> {
+  const name = (await type.getSymbol())?.name;
+  if (name && name !== "__type") return name;
+
+  const text = (await checker.typeToString(type, undefined, formatFlags)).replace(/import\([^)]+\)\./g, "");
+  if (text === "true" || text === "false") return "boolean";
+  return text.length > 100 ? `${text.slice(0, 100)}...` : text;
+}
+
+async function getEnumName(checker: Checker, type: Type): Promise<string | undefined> {
+  if (!(type.flags & TypeFlags.EnumLiteral)) return undefined;
+  const text = (await checker.typeToString(type, undefined, formatFlags)).replace(/import\([^)]+\)\./g, "");
+  const separator = text.lastIndexOf(".");
+  return separator > 0 ? text.slice(0, separator) : undefined;
+}
+
+async function analyzeFunction(
+  checker: Checker,
   func: FunctionDeclaration,
-  sourceFile: SourceFile,
-  tsConfigDir: string,
-): INeverReturnedTypeResult[] {
+  source: SourceFile,
+  relativePath: string,
+): Promise<INeverReturnedTypeResult[]> {
+  if (!func.name || !func.type) return [];
+
+  const annotated = await unwrapPromise(checker, await checker.getTypeAtLocation(func.type));
+  if (!annotated.isUnionType()) return [];
+  const branches = await annotated.getTypes();
+  if (branches.length < 2) return [];
+
+  const expressions: Node[] = [];
+  for (const node of descendants(func)) {
+    if (isReturnStatement(node) && node.expression) expressions.push(node.expression);
+  }
+  if (!expressions.length) return [];
+
+  const expressionTypes = await checker.getTypeAtLocation(expressions);
+  const returned = await Promise.all(expressionTypes.map((type) => unwrapPromise(checker, type)));
+  const assignability = await Promise.all(
+    returned.map((type) => Promise.all(branches.map((branch) => checker.isTypeAssignableTo(type, branch)))),
+  );
+
+  // A return type compatible with the union as a whole can represent any of its branches.
+  for (const [index, type] of returned.entries()) {
+    if (!assignability[index]?.includes(true) && (await checker.isTypeAssignableTo(type, annotated))) {
+      return [];
+    }
+  }
+
+  const enumNames = await Promise.all(branches.map((branch) => getEnumName(checker, branch)));
+  const displayNames = await Promise.all(branches.map((branch) => getDisplayName(checker, branch)));
+  const returnedBranches = branches.map((branch, index) =>
+    returned.some(
+      (type, returnIndex) =>
+        assignability[returnIndex]?.[index] || (type.isBooleanLiteralType() && branch.isBooleanLiteralType()),
+    ),
+  );
+  const returnedEnums = new Set(enumNames.filter((name, index) => name && returnedBranches[index]));
+
+  const { line, character } = source.getLineAndCharacterOfPosition(func.name.getStart(source));
+  const functionName = func.name.text;
+  const visited = new Set<string>();
   const results: INeverReturnedTypeResult[] = [];
-  const functionName = func.getName();
-
-  // Skip functions without names
-  if (!functionName) {
-    return results;
+  for (const [index, displayName] of displayNames.entries()) {
+    if (visited.has(displayName)) continue;
+    visited.add(displayName);
+    if (returnedBranches[index] || returnedEnums.has(enumNames[index])) continue;
+    results.push({
+      filePath: relativePath,
+      functionName,
+      neverReturnedType: displayName,
+      line: line + 1,
+      character: character + 1,
+      endCharacter: character + 1 + functionName.length,
+      severity: SEVERITY.ERROR,
+    });
   }
-
-  // Get the return type node
-  const returnTypeNode = func.getReturnTypeNode();
-  if (!returnTypeNode) {
-    return results;
-  }
-
-  // Get the actual Type from the type checker
-  const returnType = returnTypeNode.getType();
-
-  // Try to unwrap Promise first
-  const unwrappedPromise = unwrapPromiseType(returnType);
-  const typeToCheck = unwrappedPromise || returnType;
-
-  // Check if it's a union type (or contains a union after unwrapping Promise)
-  if (!typeToCheck.isUnion()) {
-    return results;
-  }
-
-  // Get all union type branches
-  const unionTypes = typeToCheck.getUnionTypes();
-
-  if (unionTypes.length < 2) {
-    // Not a meaningful union
-    return results;
-  }
-
-  // Get all return statements in the function
-  const returnStatements = func.getDescendantsOfKind(SyntaxKind.ReturnStatement);
-
-  // Collect types of all returned values
-  const returnedTypes: Type[] = [];
-  for (const returnStmt of returnStatements) {
-    const expression = returnStmt.getExpression();
-    if (expression) {
-      const exprType = expression.getType();
-      // Unwrap Promise if needed
-      const unwrapped = unwrapPromiseType(exprType);
-      returnedTypes.push(unwrapped || exprType);
-    }
-  }
-
-  // If no return statements, can't determine what's returned
-  if (returnedTypes.length === 0) {
-    return results;
-  }
-
-  // Check if any returned type is a generic type assignable to the whole union but not to specific branches
-  // This happens with destructured objects or other inferred types that satisfy the union structurally
-  for (const returnedType of returnedTypes) {
-    if (returnedType.isAssignableTo(typeToCheck)) {
-      // Check if this type is assignable to ANY specific union branch
-      let assignableToAnyBranch = false;
-      for (const unionBranch of unionTypes) {
-        if (returnedType.isAssignableTo(unionBranch)) {
-          assignableToAnyBranch = true;
-          break;
-        }
-      }
-
-      // If assignable to the union but NOT to any specific branch,
-      // this is a generic type that could be any branch - skip analysis
-      if (!assignableToAnyBranch) {
-        return results;
-      }
-    }
-  }
-
-  // Group enum literals by their parent enum
-  // If any enum member is returned, we consider the entire enum as "returned"
-  const enumGroups = new Map<string, Type[]>();
-  const enumsWithReturnedValues = new Set<string>();
-
-  for (const unionBranch of unionTypes) {
-    if (unionBranch.isEnumLiteral()) {
-      const enumName = getEnumNameFromLiteral(unionBranch);
-      if (enumName) {
-        if (!enumGroups.has(enumName)) {
-          enumGroups.set(enumName, []);
-        }
-        enumGroups.get(enumName)?.push(unionBranch);
-      }
-    }
-  }
-
-  // Check which enums have at least one returned value
-  for (const [enumName, enumBranches] of enumGroups.entries()) {
-    for (const returnedType of returnedTypes) {
-      // Check if this returned type is any member of this enum
-      for (const enumBranch of enumBranches) {
-        if (isTypeAssignableTo(returnedType, enumBranch)) {
-          enumsWithReturnedValues.add(enumName);
-          break;
-        }
-      }
-      if (enumsWithReturnedValues.has(enumName)) {
-        break;
-      }
-    }
-  }
-
-  // Group union branches by display name to handle boolean (true/false) and avoid duplicates
-  const branchMap = new Map<string, Type>();
-  for (const unionBranch of unionTypes) {
-    const displayName = getTypeDisplayName(unionBranch);
-    if (!branchMap.has(displayName)) {
-      branchMap.set(displayName, unionBranch);
-    }
-  }
-
-  // Check each unique union branch to see if it's ever returned
-  for (const [displayName, unionBranch] of branchMap.entries()) {
-    // Skip enum literal branches if the enum has at least one returned value
-    if (unionBranch.isEnumLiteral()) {
-      const enumName = getEnumNameFromLiteral(unionBranch);
-      if (enumName && enumsWithReturnedValues.has(enumName)) {
-        // This enum has at least one returned value, so don't flag any of its members
-        continue;
-      }
-    }
-
-    let isReturned = false;
-
-    for (const returnedType of returnedTypes) {
-      // Check if the returned type is assignable to this union branch
-      if (isTypeAssignableTo(returnedType, unionBranch)) {
-        isReturned = true;
-        break;
-      }
-    }
-
-    if (!isReturned) {
-      // This union branch is never returned
-      const relativePath = path.relative(tsConfigDir, sourceFile.getFilePath());
-      const nameNode = func.getNameNode();
-
-      if (nameNode) {
-        const startPos = nameNode.getStart();
-        const lineStartPos = nameNode.getStartLinePos();
-        const character = startPos - lineStartPos + 1;
-        const endCharacter = character + functionName.length;
-
-        results.push({
-          filePath: relativePath,
-          functionName,
-          neverReturnedType: displayName,
-          line: nameNode.getStartLineNumber(),
-          character,
-          endCharacter,
-          severity: SEVERITY.ERROR,
-        });
-      }
-    }
-  }
-
   return results;
 }
 
-/**
- * Unwrap Promise<T> to get T
- */
-function unwrapPromiseType(type: Type): Type | null {
-  const symbol = type.getSymbol();
-  if (symbol?.getName() === "Promise") {
-    const typeArgs = type.getTypeArguments();
-    if (typeArgs.length > 0 && typeArgs[0]) {
-      return typeArgs[0];
+/** Reports annotated union branches that are absent from every return expression. */
+export async function analyzeFunctionReturnTypes(
+  checker: Checker,
+  source: SourceFile,
+  tsConfigDir: string,
+): Promise<INeverReturnedTypeResult[]> {
+  const relativePath = path.relative(tsConfigDir, source.fileName);
+  const results: INeverReturnedTypeResult[] = [];
+  for (const node of descendants(source)) {
+    if (isFunctionDeclaration(node)) {
+      results.push(...(await analyzeFunction(checker, node, source, relativePath)));
     }
   }
-  return null;
-}
-
-/**
- * Check if sourceType is assignable to targetType
- */
-function isTypeAssignableTo(sourceType: Type, targetType: Type): boolean {
-  // Use TypeScript's built-in type checker for assignability
-  // This properly handles structural compatibility, inferred types, etc.
-  if (sourceType.isAssignableTo(targetType)) {
-    return true;
-  }
-
-  // Special handling for boolean literals (true/false)
-  // TypeScript represents boolean as true | false, so we need to check
-  // if both are boolean literals when comparing
-  const sourceText = sourceType.getText();
-  const targetText = targetType.getText();
-
-  const isBooleanLiteral = (text: string) => text === "true" || text === "false";
-
-  if (isBooleanLiteral(sourceText) && isBooleanLiteral(targetText)) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Extract the enum name from an enum literal type
- * For example: "Status.Idle" -> "Status"
- */
-function getEnumNameFromLiteral(type: Type): string | null {
-  if (!type.isEnumLiteral()) {
-    return null;
-  }
-
-  const typeText = type.getText();
-  // Strip import paths first
-  const cleanedText = typeText.replace(/import\([^)]+\)\./g, "");
-
-  // Extract enum name from "EnumName.MemberName"
-  const lastDotIndex = cleanedText.lastIndexOf(".");
-  if (lastDotIndex > 0) {
-    return cleanedText.substring(0, lastDotIndex);
-  }
-
-  return null;
-}
-
-/**
- * Get a readable display name for a type
- */
-function getTypeDisplayName(type: Type): string {
-  const symbol = type.getSymbol();
-
-  // If it has a symbol with a name, use that
-  if (symbol) {
-    const name = symbol.getName();
-    if (name && name !== "__type") {
-      return name;
-    }
-  }
-
-  // Otherwise, use the type text
-  let typeText = type.getText();
-
-  // Strip import paths from type text
-  // Pattern: import("path/to/file").TypeName -> TypeName
-  typeText = typeText.replace(/import\([^)]+\)\./g, "");
-
-  // Simplify common type texts
-  if (typeText === "string") return "string";
-  if (typeText === "number") return "number";
-  if (typeText === "boolean") return "boolean";
-  if (typeText === "true" || typeText === "false") return "boolean";
-  if (typeText === "null") return "null";
-  if (typeText === "undefined") return "undefined";
-
-  // Truncate very long types (e.g., inline object types)
-  const MAX_TYPE_LENGTH = 100;
-  if (typeText.length > MAX_TYPE_LENGTH) {
-    return `${typeText.substring(0, MAX_TYPE_LENGTH)}...`;
-  }
-
-  return typeText;
+  return results;
 }

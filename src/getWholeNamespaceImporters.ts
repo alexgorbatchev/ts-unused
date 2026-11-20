@@ -8,7 +8,7 @@ const importersCache = new WeakMap<SourceFile, SourceFile[]>();
  * Whether a reference to a namespace import names one member: `ns.a`, `ns.Type`, `typeof ns.a`, or `ns["a"]`.
  * The language service already reports these as references to that member's declaration.
  */
-function isMemberAccess(reference: Node): boolean {
+export function isMemberAccess(reference: Node): boolean {
   const parent = reference.getParent();
   if (Node.isPropertyAccessExpression(parent) || Node.isElementAccessExpression(parent)) {
     const argument = Node.isElementAccessExpression(parent) ? parent.getArgumentExpression() : undefined;

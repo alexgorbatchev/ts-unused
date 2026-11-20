@@ -8,7 +8,7 @@ import { isPropertyUnused } from "../isPropertyUnused";
 import { isTestFile } from "../isTestFile";
 import { createClassifyUsageSource } from "../usageSourceUtils";
 
-test("locates uses of generic values without expanding their inferred types for display", () => {
+test("locates uses of generic values without expanding their inferred types for display", async () => {
   const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
   const keys = Array.from({ length: 160 }, (_, index) => JSON.stringify(`key${index}`)).join(" | ");
   const file = project.createSourceFile(
@@ -22,7 +22,7 @@ test("locates uses of generic values without expanding their inferred types for 
   const declaration = file.getVariableDeclarationOrThrow("value");
 
   expect(
-    checkExportUsage("value", [declaration], file, "/", createClassifyUsageSource(isTestFile, [], "/")),
+    await checkExportUsage("value", [declaration], file, "/", createClassifyUsageSource(isTestFile, [], "/")),
   ).toBeNull();
   expect(project.getLanguageService().compilerObject.getProgram()?.getInstantiationCount()).toBe(0);
 });

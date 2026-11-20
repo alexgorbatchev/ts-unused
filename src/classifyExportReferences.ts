@@ -49,11 +49,14 @@ function getImportBinding(node: Node): ImportBinding | undefined {
  * decorators), and those are what count. An import that is never referenced, or only listed in `export { ... }`,
  * keeps nothing alive.
  */
-export function classifyExportReferences(declaration: ReferenceFindableDeclaration): IClassifiedExportReferences {
+export function classifyExportReferences(
+  declaration: ReferenceFindableDeclaration,
+  references = findReferenceNodes(declaration),
+): IClassifiedExportReferences {
   const usages: Node[] = [];
   const specifiers = new Set<NamingSpecifier>();
 
-  for (const node of findReferenceNodes(declaration)) {
+  for (const node of references) {
     const specifier = getExportSpecifier(node) ?? getImportBinding(node);
     if (specifier) {
       specifiers.add(specifier);

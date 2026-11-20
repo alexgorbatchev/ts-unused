@@ -6,13 +6,6 @@ import { resolvePackageEntryPointSources } from "./resolvePackageEntryPointSourc
 
 const ENTRY_FIELDS = ["main", "module", "types", "typings", "exports"];
 
-export interface IPackageEntryPoints {
-  /** Every entry target listed in package.json (e.g., "./dist/index.js", "./dist/index.d.ts") */
-  targets: string[];
-  /** The project source files the entry targets resolve to */
-  sourceFiles: SourceFile[];
-}
-
 /**
  * Finds package.json by walking up from the given directory.
  * @param startDir - The directory to start searching from
@@ -120,17 +113,15 @@ export function getPackageEntryTargets(packageJsonPath: string): string[] {
 }
 
 /**
- * Parses package.json and resolves its entry targets to the project source files they are built from.
- * Targets that resolve to no project source file (e.g. stylesheets) are left out of `sourceFiles`.
+ * Resolves package entry targets to the project source files they are built from.
  */
 export function resolvePackageEntryPoints(
-  packageJsonPath: string,
+  packageDir: string,
+  targets: string[],
   project: Project,
   projectFiles: SourceFile[],
   packageEntryPointSources: Record<string, string> = {},
-): IPackageEntryPoints {
-  const packageDir = path.dirname(packageJsonPath);
-  const targets = getPackageEntryTargets(packageJsonPath);
+): SourceFile[] {
   const explicitSources = resolvePackageEntryPointSources(packageDir, targets, projectFiles, packageEntryPointSources);
   const outputsToSources = mapBuildOutputsToSources(project, projectFiles);
   const sourceFiles = new Set<SourceFile>();
@@ -153,5 +144,5 @@ export function resolvePackageEntryPoints(
     }
   }
 
-  return { targets, sourceFiles: [...sourceFiles] };
+  return [...sourceFiles];
 }
