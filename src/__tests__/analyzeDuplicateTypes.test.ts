@@ -505,6 +505,22 @@ describe("duplicate types", () => {
     ]);
   });
 
+  test("compares expanding recursive types with inline intersections", async () => {
+    await Bun.write(
+      path.join(projectDir, "types.ts"),
+      `
+      type First<T> = { next<R>(): First<[T, R]> & { value: string } };
+      type Second<U> = { next<S>(): Second<[U, S]> & { value: string } };
+      type Different<U> = { next<S>(): Different<[U, S]> & { value: number } };
+    `,
+    );
+
+    const results = await analyzeProject(configPath);
+    expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
+      ["Second", "First"],
+    ]);
+  });
+
   test("distinguishes deeply nested instantiations that differ only at the innermost level", async () => {
     await Bun.write(
       path.join(projectDir, "types.ts"),
