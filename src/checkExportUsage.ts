@@ -1,46 +1,59 @@
 import { COMMENT_KIND, EXPORT_KIND, SEVERITY, USAGE_SOURCE } from "./constants.js";
 import path from "node:path";
-import { Node, type SourceFile, VariableDeclarationKind } from "ts-morph";
+import {
+  NodeFlags,
+  isFunctionDeclaration,
+  isClassDeclaration,
+  isInterfaceDeclaration,
+  isTypeAliasDeclaration,
+  isEnumDeclaration,
+  isModuleDeclaration,
+  isVariableDeclaration,
+  isVariableDeclarationList,
+  isVariableStatement,
+  isStringLiteral,
+  type Node,
+  type SourceFile,
+} from "typescript/ast";
 import { classifyExportReferences } from "./classifyExportReferences.js";
 import { extractTodoComment, extractIgnoreComment } from "./extractTodoComment.js";
 import { matchesPattern } from "./patternMatcher.js";
 import type { ClassifyUsageSourceFn, ExportKind, Severity, IUnusedExportResult } from "./types.js";
 import { isUsageSourceAtLeast } from "./usageSourceUtils.js";
-import { findReferenceNodes } from "./findReferenceNodes.js";
+import { getReferenceLocation } from "./findNativeReferenceNodes.js";
 
 export interface ICheckExportOptions {
   ignoreExports?: string[];
   ignoreModuleAugmentations?: boolean;
   /** Declarations exported from package entry points in package mode */
   publicDeclarations?: Set<Node>;
-  findReferences?: (declaration: Node) => Node[] | Promise<Node[]>;
-  wholeNamespaceImporters?: (file: SourceFile) => readonly SourceFile[];
+  findReferences: (declaration: Node) => Node[] | Promise<Node[]>;
+  wholeNamespaceImporters?: (file: SourceFile) => readonly string[];
 }
 
 function getExportKind(declaration: Node): ExportKind {
-  if (Node.isFunctionDeclaration(declaration)) {
+  if (isFunctionDeclaration(declaration)) {
     return EXPORT_KIND.FUNCTION;
   }
-  if (Node.isClassDeclaration(declaration)) {
+  if (isClassDeclaration(declaration)) {
     return EXPORT_KIND.CLASS;
   }
-  if (Node.isInterfaceDeclaration(declaration)) {
+  if (isInterfaceDeclaration(declaration)) {
     return EXPORT_KIND.INTERFACE;
   }
-  if (Node.isTypeAliasDeclaration(declaration)) {
+  if (isTypeAliasDeclaration(declaration)) {
     return EXPORT_KIND.TYPE;
   }
-  if (Node.isEnumDeclaration(declaration)) {
+  if (isEnumDeclaration(declaration)) {
     return EXPORT_KIND.ENUM;
   }
-  if (Node.isModuleDeclaration(declaration)) {
+  if (isModuleDeclaration(declaration)) {
     return EXPORT_KIND.NAMESPACE;
   }
-  if (Node.isVariableDeclaration(declaration)) {
-    const parent = declaration.getParent();
-    if (Node.isVariableDeclarationList(parent)) {
-      const declarationKind = parent.getDeclarationKind();
-      if (declarationKind === VariableDeclarationKind.Const) {
+  if (isVariableDeclaration(declaration)) {
+    const parent = declaration.parent;
+    if (isVariableDeclarationList(parent)) {
+      if (parent.flags & NodeFlags.Const) {
         return EXPORT_KIND.CONST;
       }
     }
@@ -51,22 +64,22 @@ function getExportKind(declaration: Node): ExportKind {
 
 /** Comments above `export const name = ...` belong to the variable statement, not its declaration. */
 function getCommentNode(declaration: Node): Node {
-  if (Node.isVariableDeclaration(declaration)) {
-    return declaration.getVariableStatement() ?? declaration;
+  if (isVariableDeclaration(declaration)) {
+    return isVariableStatement(declaration.parent.parent) ? declaration.parent.parent : declaration;
   }
   return declaration;
 }
 
 function getNameNode(declaration: Node): Node | undefined {
   if (
-    Node.isFunctionDeclaration(declaration) ||
-    Node.isClassDeclaration(declaration) ||
-    Node.isInterfaceDeclaration(declaration) ||
-    Node.isTypeAliasDeclaration(declaration) ||
-    Node.isEnumDeclaration(declaration) ||
-    Node.isVariableDeclaration(declaration)
+    isFunctionDeclaration(declaration) ||
+    isClassDeclaration(declaration) ||
+    isInterfaceDeclaration(declaration) ||
+    isTypeAliasDeclaration(declaration) ||
+    isEnumDeclaration(declaration) ||
+    isVariableDeclaration(declaration)
   ) {
-    return declaration.getNameNode();
+    return declaration.name;
   }
   return undefined;
 }
@@ -75,10 +88,10 @@ function getNameNode(declaration: Node): Node | undefined {
  * Checks if a declaration is a module augmentation (declare module "...").
  */
 function isModuleAugmentation(declaration: Node): boolean {
-  if (Node.isModuleDeclaration(declaration)) {
+  if (isModuleDeclaration(declaration)) {
     // Module augmentations have a string literal as name (e.g., "library-name")
-    const nameNode = declaration.getNameNode();
-    if (Node.isStringLiteral(nameNode)) {
+    const nameNode = declaration.name;
+    if (isStringLiteral(nameNode)) {
       return true;
     }
   }
@@ -91,13 +104,13 @@ export async function checkExportUsage(
   sourceFile: SourceFile,
   tsConfigDir: string,
   classifyUsageSource: ClassifyUsageSourceFn,
-  options: ICheckExportOptions = {},
+  options: ICheckExportOptions,
 ): Promise<IUnusedExportResult | null> {
   const {
     ignoreExports = [],
     ignoreModuleAugmentations = true,
     publicDeclarations,
-    findReferences = findReferenceNodes,
+    findReferences,
     wholeNamespaceImporters,
   } = options;
 
@@ -111,7 +124,7 @@ export async function checkExportUsage(
     return null;
   }
 
-  const relativePath: string = path.relative(tsConfigDir, sourceFile.getFilePath());
+  const relativePath: string = path.relative(tsConfigDir, sourceFile.fileName);
 
   // In package mode, check if this export is part of the public API
   if (publicDeclarations && declarations.some((declaration) => publicDeclarations.has(declaration))) {
@@ -125,25 +138,25 @@ export async function checkExportUsage(
 
   // Only report symbols defined in this file, not re-exports
   const declarationSourceFile: SourceFile = firstDeclaration.getSourceFile();
-  if (declarationSourceFile.getFilePath() !== sourceFile.getFilePath()) {
+  if (declarationSourceFile.fileName !== sourceFile.fileName) {
     return null;
   }
 
-  if (!Node.isReferenceFindable(firstDeclaration)) {
+  if (!getReferenceLocation(firstDeclaration)) {
     return null;
   }
 
   // Count usages by file type; export and import specifiers only name the export, and a namespace import used as a
   // whole value counts once for every export of the module. Usage from files at least as close to production as the
   // declaring file keeps the export alive: stories keep story-file exports alive, but not production exports.
-  const declarationSource = classifyUsageSource(sourceFile);
+  const declarationSource = classifyUsageSource(sourceFile.fileName);
   let liveReferences = 0;
   let storyReferences = 0;
   let testReferences = 0;
 
   const usageFiles = [
-    ...classifyExportReferences(firstDeclaration, await findReferences(firstDeclaration)).usages.map((reference) =>
-      reference.getSourceFile(),
+    ...classifyExportReferences(await findReferences(firstDeclaration)).usages.map(
+      (reference) => reference.getSourceFile().fileName,
     ),
     ...(wholeNamespaceImporters?.(sourceFile) ?? []),
   ];
@@ -184,15 +197,13 @@ export async function checkExportUsage(
   // Get the name node for accurate position highlighting
   const nameNode: Node | undefined = getNameNode(firstDeclaration);
   const positionNode: Node = nameNode || firstDeclaration;
-  const startPos: number = positionNode.getStart();
-  const lineStartPos: number = positionNode.getStartLinePos();
-  const character: number = startPos - lineStartPos + 1;
+  const character = sourceFile.getLineAndCharacterOfPosition(positionNode.getStart(sourceFile)).character + 1;
   const endCharacter: number = character + exportName.length;
 
   const result: IUnusedExportResult = {
     filePath: relativePath,
     exportName,
-    line: firstDeclaration.getStartLineNumber(),
+    line: sourceFile.getLineAndCharacterOfPosition(firstDeclaration.getStart(sourceFile)).line + 1,
     character,
     endCharacter,
     kind,

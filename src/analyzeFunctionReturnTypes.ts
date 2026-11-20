@@ -16,14 +16,14 @@ const formatFlags =
   TypeFormatFlags.UseFullyQualifiedType |
   TypeFormatFlags.WriteTypeArgumentsOfSignature;
 
-function* descendants(node: Node): Iterable<Node> {
+export function* descendants(node: Node): Iterable<Node> {
   for (const child of node.childrenIter()) {
     yield child;
     yield* descendants(child);
   }
 }
 
-async function unwrapPromise(checker: Checker, type: Type): Promise<Type> {
+export async function unwrapPromise(checker: Checker, type: Type): Promise<Type> {
   if (type.isTypeReference() && (await type.getSymbol())?.name === "Promise") {
     const [argument] = await checker.getTypeArguments(type);
     if (argument) return argument;
@@ -31,7 +31,7 @@ async function unwrapPromise(checker: Checker, type: Type): Promise<Type> {
   return type;
 }
 
-async function getDisplayName(checker: Checker, type: Type): Promise<string> {
+export async function getDisplayName(checker: Checker, type: Type): Promise<string> {
   const name = (await type.getSymbol())?.name;
   if (name && name !== "__type") return name;
 

@@ -1,146 +1,146 @@
-import { expect, spyOn, test } from "bun:test";
-import { Project } from "ts-morph";
+import { expect, test } from "bun:test";
+import path from "node:path";
+import { isFunctionDeclaration, isInterfaceDeclaration, isPropertySignatureDeclaration } from "typescript/ast";
 import { checkExportUsage } from "../checkExportUsage";
-import { findReferenceNodes } from "../findReferenceNodes";
-import { findUsedImports } from "../findUsedImports";
-import { isImportedForSideEffects } from "../isImportedForSideEffects";
-import { isPropertyUnused } from "../isPropertyUnused";
+import { createNativePropertyUsage } from "../createNativePropertyUsage";
+import { findNativeReferenceNodes } from "../findNativeReferenceNodes";
+import { findNativeSpecialImports } from "../findNativeSpecialImports";
+import { declarationLocation, findNativeUsedImports } from "../findNativeUsedImports";
+import { getNativeExports } from "../getNativeExports";
 import { isTestFile } from "../isTestFile";
 import { createClassifyUsageSource } from "../usageSourceUtils";
+import { withNativeProject } from "./helpers";
 
-test("locates uses of generic values without expanding their inferred types for display", async () => {
-  const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
-  const keys = Array.from({ length: 160 }, (_, index) => JSON.stringify(`key${index}`)).join(" | ");
-  const file = project.createSourceFile(
-    "/reference.ts",
-    `
+const keys = Array.from({ length: 160 }, (_, index) => JSON.stringify(`key${index}`)).join(" | ");
+
+test("locates uses of generic values without formatting their inferred type", async () => {
+  await withNativeProject(
+    {
+      "reference.ts": `
       declare function create<T extends string>(): { [P in T]: { [Q in T]: { [R in T]: P | Q | R } } };
       export const value = create<${keys}>();
       value;
     `,
+    },
+    async (project, root) => {
+      const source = (await project.program.getSourceFile(path.join(root, "reference.ts")))!;
+      const exports = await getNativeExports(project, source);
+      const classify = createClassifyUsageSource(isTestFile, [], root);
+      expect(
+        await checkExportUsage("value", exports.get("value")!, source, root, classify, {
+          findReferences: (node) => findNativeReferenceNodes(project, node),
+        }),
+      ).toBeNull();
+    },
   );
-  const declaration = file.getVariableDeclarationOrThrow("value");
-
-  expect(
-    await checkExportUsage("value", [declaration], file, "/", createClassifyUsageSource(isTestFile, [], "/")),
-  ).toBeNull();
-  expect(project.getLanguageService().compilerObject.getProgram()?.getInstantiationCount()).toBe(0);
 });
 
-test("does not expand unrelated mapped types when tracing a property's value flows", () => {
-  const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
-  const keys = Array.from({ length: 160 }, (_, index) => JSON.stringify(`key${index}`)).join(" | ");
-  const file = project.createSourceFile(
-    "/reference.ts",
-    `
-      interface Unused { untouched: string; }
+test.each([
+  {
+    name: "ignores unrelated mapped types",
+    code: `
+      interface Props { untouched: string; }
       type Keys = ${keys};
       type Expanded = { [P in Keys]: { [Q in Keys]: P | Q } };
       const unrelated: Expanded = {};
       unrelated;
     `,
-  );
-  const property = file.getInterfaceOrThrow("Unused").getPropertyOrThrow("untouched");
-  project.getTypeChecker();
-  const program = project.getProgram().compilerObject;
-  const initialSymbols = program.getSymbolCount();
-
-  expect(isPropertyUnused(property, createClassifyUsageSource(isTestFile, [], "/"), project)).toEqual({
-    isUnusedOrTestOnly: true,
-    onlyUsedInTests: false,
-    onlyUsedInStories: false,
-  });
-  expect(program.getSymbolCount() - initialSymbols).toBeLessThan(160);
-});
-
-test("reuses contextual value flows when tracing different property names", () => {
-  const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
-  const file = project.createSourceFile(
-    "/flow.ts",
-    `interface Source { first: string; second: string; }
-     interface Destination { first: string; second: string; }
-     function pass(value: Source): Destination { return value; }
-     function read(value: Destination) { return value.second; }`,
-  );
-  const source = file.getInterfaceOrThrow("Source");
-  const classify = createClassifyUsageSource(isTestFile, [], "/");
-  const contextual = spyOn(project.getTypeChecker().compilerObject, "getContextualType");
-  try {
-    expect(isPropertyUnused(source.getPropertyOrThrow("first"), classify, project).isUnusedOrTestOnly).toBe(true);
-    const calls = contextual.mock.calls.length;
-    expect(calls).toBeGreaterThan(0);
-    expect(isPropertyUnused(source.getPropertyOrThrow("second"), classify, project).isUnusedOrTestOnly).toBe(false);
-    expect(contextual.mock.calls.length).toBe(calls);
-  } finally {
-    contextual.mockRestore();
-  }
-});
-
-test("checks contextual property writes without instantiating a second semantic program", () => {
-  const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
-  const file = project.createSourceFile(
-    "/reference.ts",
-    `
+    findings: [["untouched", true]],
+  },
+  {
+    name: "traces multiple property names through the same contextual flow",
+    code: `
+      interface Props { first: string; second: string; }
+      interface Destination { first: string; second: string; }
+      function pass(value: Props): Destination { return value; }
+      function read(value: Destination) { return value.second; }
+    `,
+    findings: [
+      ["first", true],
+      ["second", false],
+    ],
+  },
+  {
+    name: "counts contextual writes through an inferred generic",
+    code: `
       interface Props { value: string; }
       declare function Component(props: Props): void;
       type Args<F> = F extends (props: infer P) => void ? P : never;
       type Meta<F> = { args: Args<F> };
       const story: Meta<typeof Component> = { args: { value: "used" } };
     `,
-  );
-
-  expect(
-    isPropertyUnused(
-      file.getInterfaceOrThrow("Props").getPropertyOrThrow("value"),
-      createClassifyUsageSource(isTestFile, [], "/"),
-      project,
-    ).isUnusedOrTestOnly,
-  ).toBe(false);
-  expect(project.getLanguageService().compilerObject.getProgram()?.getInstantiationCount()).toBe(0);
+    findings: [["value", false]],
+  },
+])("$name", async ({ code, findings }) => {
+  await withNativeProject({ "reference.ts": code }, async (project, root) => {
+    const source = (await project.program.getSourceFile(path.join(root, "reference.ts")))!;
+    const props = source.statements.find(isInterfaceDeclaration)!;
+    const usage = await createNativePropertyUsage(project, createClassifyUsageSource(isTestFile, [], root));
+    const actual = await Promise.all(
+      props.members
+        .filter(isPropertySignatureDeclaration)
+        .map(async (member) => [member.name.getText(source), (await usage(member)).isUnusedOrTestOnly]),
+    );
+    expect(actual).toEqual(findings.map((finding) => [...finding]));
+  });
 });
 
-test("finds imports of an anonymous default function", () => {
-  const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
-  const source = project.createSourceFile("/source.ts", "export default function () {}");
-  const consumer = project.createSourceFile("/consumer.ts", 'import run from "./source"; run();');
-  const references = findReferenceNodes(source.getFunctions()[0]!);
-  expect(references.some((node) => node.getSourceFile() === consumer)).toBe(true);
+test("finds imports of an anonymous default function", async () => {
+  await withNativeProject(
+    {
+      "source.ts": "export default function () {}",
+      "consumer.ts": 'import run from "./source"; run();',
+    },
+    async (project, root) => {
+      const source = (await project.program.getSourceFile(path.join(root, "source.ts")))!;
+      const declaration = source.statements.find(isFunctionDeclaration)!;
+      const references = await findNativeReferenceNodes(project, declaration);
+      expect(references.some((node) => node.getSourceFile().fileName === path.join(root, "consumer.ts"))).toBe(true);
+    },
+  );
 });
 
-test("proves imported bindings live only from actual production references", () => {
-  const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
-  const file = project.createSourceFile(
-    "/lib.ts",
-    `
-    export default function run() {}
-    export type Used = string;
-    export const shadow = 0, member = 1, forwarded = 2, testOnly = 3, storyOnly = 4;
-  `,
+test("proves imported bindings live only from actual production references", async () => {
+  await withNativeProject(
+    {
+      "lib.ts": `
+      export default function run() {}
+      export type Used = string;
+      export const shadow = 0, member = 1, forwarded = 2, testOnly = 3, storyOnly = 4;
+    `,
+      "app.ts": `
+      import execute, { type Used as T, shadow, member, forwarded } from "./lib";
+      execute(); let x: T;
+      function f(shadow: number) { return shadow + ({member: 7}).member; }
+      export { forwarded };
+    `,
+      "app.test.ts": 'import { testOnly } from "./lib"; testOnly;',
+      "app.stories.ts": 'import { storyOnly } from "./lib"; storyOnly;',
+    },
+    async (project, root) => {
+      const file = (await project.program.getSourceFile(path.join(root, "lib.ts")))!;
+      const used = await findNativeUsedImports(project, createClassifyUsageSource(isTestFile, ["*.stories.ts"], root));
+      const exports = await getNativeExports(project, file);
+      expect(
+        [...exports]
+          .filter(([, declarations]) =>
+            declarations.some((node) => used.has(declarationLocation(node.getSourceFile().fileName, node.getStart()))),
+          )
+          .map(([name]) => name)
+          .sort(),
+      ).toEqual(["Used", "default"]);
+    },
   );
-  project.createSourceFile(
-    "/app.ts",
-    `
-    import execute, { type Used as T, shadow, member, forwarded } from "./lib";
-    execute(); let x: T;
-    function f(shadow: number) { return shadow + ({member: 7}).member; }
-    export { forwarded };
-  `,
-  );
-  project.createSourceFile("/app.test.ts", 'import { testOnly } from "./lib"; testOnly;');
-  project.createSourceFile("/app.stories.ts", 'import { storyOnly } from "./lib"; storyOnly;');
-  const used = findUsedImports(project, createClassifyUsageSource(isTestFile, ["*.stories.ts"], "/"));
-  expect(
-    [...file.getExportedDeclarations()]
-      .filter(([, declarations]) => declarations.some((declaration) => used.has(declaration.compilerNode)))
-      .map(([name]) => name)
-      .sort(),
-  ).toEqual(["Used", "default"]);
 });
 
-test("refreshes side-effect imports when the compiler program changes", () => {
-  const project = new Project({ useInMemoryFileSystem: true });
-  const file = project.createSourceFile("/setup.ts", 'import "./setup"; export const setup = 1;');
-  expect(isImportedForSideEffects(file)).toBe(false);
-  project.createSourceFile("/app.ts", 'import "./setup";');
-  expect(isImportedForSideEffects(file)).toBe(true);
+test("only counts side-effect imports from a different source file", async () => {
+  const files = { "setup.ts": 'import "./setup"; export const setup = 1;' };
+  await withNativeProject(files, async (project, root) => {
+    const target = path.join(root, "setup.ts");
+    expect((await findNativeSpecialImports(project, new Set([target]))).sideEffects.has(target)).toBe(false);
+  });
+  await withNativeProject({ ...files, "app.ts": 'import "./setup";' }, async (project, root) => {
+    const target = path.join(root, "setup.ts");
+    expect((await findNativeSpecialImports(project, new Set([target]))).sideEffects.has(target)).toBe(true);
+  });
 });

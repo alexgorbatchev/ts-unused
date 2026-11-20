@@ -1,6 +1,25 @@
-import { type Node as NativeNode } from "typescript/ast";
+import {
+  isFunctionLikeDeclaration,
+  isSignatureDeclaration,
+  isModuleBlock,
+  isClassLikeDeclaration,
+  isPrivateIdentifier,
+  isTypeReferenceNode,
+  isExpressionWithTypeArguments,
+  isTypeQueryNode,
+  isQualifiedName,
+  isVariableDeclaration,
+  isPropertyDeclaration,
+  isParameterDeclaration,
+  isImportTypeNode,
+  isSourceFile,
+  isExpression,
+  SyntaxKind,
+  type Node,
+  type SourceFile,
+  type ModifierLike,
+} from "typescript/ast";
 import { ObjectFlags, type Project, type Symbol, SymbolFlags, type Type } from "typescript/async";
-import { Node, Scope, type SourceFile } from "ts-morph";
 import { getNativeExports } from "./getNativeExports.js";
 
 interface IPackageApi {
@@ -10,13 +29,13 @@ interface IPackageApi {
 
 interface IPublicApiWalker {
   project: Project;
-  files: Map<string, SourceFile>;
+  files: Set<string>;
   declarations: Set<Node>;
   visitedTypes: Set<number>;
 }
 
 function addDeclaration(walker: IPublicApiWalker, declaration: Node): void {
-  if (walker.files.has(declaration.getSourceFile().getFilePath())) walker.declarations.add(declaration);
+  if (walker.files.has(declaration.getSourceFile().fileName)) walker.declarations.add(declaration);
 }
 
 async function addSymbol(walker: IPublicApiWalker, symbol: Symbol | undefined): Promise<void> {
@@ -25,14 +44,11 @@ async function addSymbol(walker: IPublicApiWalker, symbol: Symbol | undefined): 
   for (const handle of target.declarations) {
     const declaration = await handle.resolve();
     if (!declaration) continue;
-    const source = walker.files.get(declaration.getSourceFile().fileName);
-    if (!source) continue;
-    const node = source.getDescendantAtStartWithWidth(declaration.getStart(), declaration.getWidth());
-    if (node) addDeclaration(walker, node);
+    addDeclaration(walker, declaration);
   }
 }
 
-async function visitType(walker: IPublicApiWalker, type: Type, location: NativeNode): Promise<void> {
+async function visitType(walker: IPublicApiWalker, type: Type, location: Node): Promise<void> {
   if (walker.visitedTypes.has(type.id)) return;
   walker.visitedTypes.add(type.id);
   const checker = walker.project.checker;
@@ -67,61 +83,64 @@ async function visitType(walker: IPublicApiWalker, type: Type, location: NativeN
 }
 
 function omittedFromDeclaration(node: Node): boolean {
-  const parent = node.getParent();
-  if (parent && (Node.isBodyable(parent) || Node.isBodied(parent)) && parent.getBody() === node) return true;
-  if (parent && Node.isInitializerExpressionGetable(parent) && parent.getInitializer() === node) return true;
-  if ((Node.isScoped(node) || Node.isScopeable(node)) && node.getScope() === Scope.Private) return true;
-  if (Node.isPropertyNamed(node) && Node.isPrivateIdentifier(node.getNameNode())) return true;
-  if (Node.isOverloadable(node) && node.isImplementation() && node.getOverloads().length > 0) return true;
-  return Boolean(parent && Node.isModuleBlock(parent) && Node.isExportGetable(node) && !node.hasExportKeyword());
-}
-
-async function getNativeNode(project: Project, syntax: Node): Promise<NativeNode | undefined> {
-  const source = await project.program.getSourceFile(syntax.getSourceFile().getFilePath());
-  if (!source) return undefined;
-  const start = syntax.getStart();
-  const end = syntax.getEnd();
-  function find(node: NativeNode): NativeNode | undefined {
-    if (node.getStart() > start || node.end < end) return undefined;
-    if (node.getStart() === start && node.end === end) return node;
-    let result: NativeNode | undefined;
-    node.forEachChild((child) => {
-      result ??= find(child);
-    });
-    return result;
+  const parent = node.parent;
+  if (
+    parent &&
+    (("body" in parent && parent.body === node) || ("initializer" in parent && parent.initializer === node))
+  ) {
+    return true;
   }
-  return find(source);
+  const modifiers = ("modifiers" in node ? node.modifiers : undefined) as readonly ModifierLike[] | undefined;
+  if (modifiers?.some((modifier) => modifier.kind === SyntaxKind.PrivateKeyword)) return true;
+  if ("name" in node && node.name && isPrivateIdentifier(node.name as Node)) return true;
+  if (isFunctionLikeDeclaration(node) && node.body && parent) {
+    const name = "name" in node ? node.name?.getText() : undefined;
+    const siblings =
+      isSourceFile(parent) || isModuleBlock(parent)
+        ? parent.statements
+        : isClassLikeDeclaration(parent)
+          ? parent.members
+          : [];
+    if (
+      siblings.some(
+        (sibling) =>
+          sibling.kind === node.kind &&
+          isFunctionLikeDeclaration(sibling) &&
+          !sibling.body &&
+          ("name" in sibling ? sibling.name?.getText() : undefined) === name,
+      )
+    )
+      return true;
+  }
+  return Boolean(
+    parent && isModuleBlock(parent) && !modifiers?.some((modifier) => modifier.kind === SyntaxKind.ExportKeyword),
+  );
 }
 
 async function walkSignature(walker: IPublicApiWalker, node: Node): Promise<void> {
   if (omittedFromDeclaration(node)) return;
   const project = walker.project;
   const checker = project.checker;
-  const path = node.getSourceFile().getFilePath();
-  const reference = Node.isTypeReference(node)
-    ? node.getTypeName()
-    : Node.isExpressionWithTypeArguments(node)
-      ? node.getExpression()
-      : Node.isTypeQuery(node)
-        ? node.getExprName()
+  const path = node.getSourceFile().fileName;
+  const reference = isTypeReferenceNode(node)
+    ? node.typeName
+    : isExpressionWithTypeArguments(node)
+      ? node.expression
+      : isTypeQueryNode(node)
+        ? node.exprName
         : undefined;
   if (reference) {
-    const position = Node.isQualifiedName(reference) ? reference.getRight().getStart() : reference.getStart();
+    const position = isQualifiedName(reference) ? reference.right.getStart() : reference.getStart();
     await addSymbol(walker, await checker.getSymbolAtPosition(path, position));
   }
   const hasInferredType =
-    (Node.isVariableDeclaration(node) || Node.isPropertyDeclaration(node) || Node.isParameterDeclaration(node)) &&
-    !node.getTypeNode();
-  if (Node.isImportTypeNode(node) || hasInferredType) {
-    const native = await getNativeNode(project, node);
-    if (native) await visitType(walker, await checker.getTypeAtLocation(native), native);
+    (isVariableDeclaration(node) || isPropertyDeclaration(node) || isParameterDeclaration(node)) && !node.type;
+  if (isImportTypeNode(node) || hasInferredType) {
+    await visitType(walker, await checker.getTypeAtLocation(node), node);
   }
-  if (Node.isReturnTyped(node) && !node.getReturnTypeNode()) {
-    const native = await getNativeNode(project, node);
-    if (native) {
-      const signature = await checker.getSignatureFromDeclaration(native);
-      await visitType(walker, await checker.getReturnTypeOfSignature(signature), native);
-    }
+  if (isSignatureDeclaration(node) && !node.type) {
+    const signature = await checker.getSignatureFromDeclaration(node);
+    await visitType(walker, await checker.getReturnTypeOfSignature(signature), node);
   }
   const children: Node[] = [];
   node.forEachChild((child) => {
@@ -142,22 +161,21 @@ export async function collectNativePublicApiDeclarations(
     for (const declarations of exports.values()) {
       for (const declaration of declarations) {
         publicDeclarations.add(declaration);
-        if (Node.isSourceFile(declaration)) modules.add(declaration);
+        if (isSourceFile(declaration)) modules.add(declaration);
       }
     }
   }
   const walker: IPublicApiWalker = {
     project,
-    files: new Map(projectFiles.map((source) => [source.getFilePath(), source])),
+    files: new Set(projectFiles.map((source) => source.fileName)),
     declarations: new Set(),
     visitedTypes: new Set(),
   };
   for (const declaration of publicDeclarations) addDeclaration(walker, declaration);
   for (const declaration of walker.declarations) {
-    if (Node.isSourceFile(declaration)) continue;
-    if (Node.isExpression(declaration)) {
-      const native = await getNativeNode(project, declaration);
-      if (native) await visitType(walker, await project.checker.getTypeAtLocation(native), native);
+    if (isSourceFile(declaration)) continue;
+    if (isExpression(declaration)) {
+      await visitType(walker, await project.checker.getTypeAtLocation(declaration), declaration);
     } else {
       await walkSignature(walker, declaration);
     }

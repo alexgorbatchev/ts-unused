@@ -1,41 +1,68 @@
-import { type NamespaceImport, Node } from "ts-morph";
-import type { NamingSpecifier } from "./classifyExportReferences.js";
+import {
+  isExportDeclaration,
+  isExportSpecifier,
+  isImportClause,
+  isImportDeclaration,
+  isNamespaceImport,
+  isNamedImports,
+  isNamedExports,
+  type ExportSpecifier,
+  type ImportClause,
+  type ImportSpecifier,
+  type NamespaceImport,
+} from "typescript/ast";
+import type { ModuleStatement } from "./findModuleReferences.js";
+import { removeListElements, removeSourceNode, type ISourceEdit } from "./sourceEdits.js";
 
-/** A specifier fix removes when the declaration or file it names is removed. */
-export type RemovableSpecifier = NamingSpecifier | NamespaceImport;
+export type RemovableSpecifier = ExportSpecifier | ImportClause | ImportSpecifier | NamespaceImport;
 
-/**
- * Removes an export specifier, import specifier, default import, or namespace import that names a removed
- * declaration or a deleted file. Removes the whole export/import declaration when nothing else is left in it,
- * because ts-morph would otherwise leave an empty `export {} from "./a"` or `import {} from "./a"` behind.
- */
-export function removeSpecifier(node: RemovableSpecifier): void {
-  if (node.wasForgotten()) {
-    return;
-  }
-
-  if (Node.isExportSpecifier(node)) {
-    const exportDeclaration = node.getExportDeclaration();
-    if (exportDeclaration.getNamedExports().length === 1) {
-      exportDeclaration.remove();
+export function planSpecifierEdits(nodes: ReadonlySet<RemovableSpecifier>): ISourceEdit[] {
+  const statements = new Set<ModuleStatement>();
+  for (const node of nodes) {
+    if (isExportSpecifier(node)) {
+      const parent = node.parent.parent;
+      if (isExportDeclaration(parent)) statements.add(parent);
+    } else if (isImportClause(node)) {
+      if (isImportDeclaration(node.parent)) statements.add(node.parent);
+    } else if (isNamespaceImport(node)) {
+      if (isImportDeclaration(node.parent.parent)) statements.add(node.parent.parent);
     } else {
-      node.remove();
+      if (isImportDeclaration(node.parent.parent.parent)) statements.add(node.parent.parent.parent);
     }
-    return;
   }
 
-  const importDeclaration = node.getFirstAncestorOrThrow(Node.isImportDeclaration);
-  const bindingCount =
-    importDeclaration.getNamedImports().length +
-    (importDeclaration.getDefaultImport() === undefined ? 0 : 1) +
-    (importDeclaration.getNamespaceImport() === undefined ? 0 : 1);
-  if (bindingCount === 1) {
-    importDeclaration.remove();
-  } else if (Node.isImportSpecifier(node)) {
-    node.remove();
-  } else if (Node.isNamespaceImport(node)) {
-    importDeclaration.removeNamespaceImport();
-  } else {
-    importDeclaration.removeDefaultImport();
+  const edits: ISourceEdit[] = [];
+  for (const statement of statements) {
+    const source = statement.getSourceFile();
+    if (isImportDeclaration(statement)) {
+      const clause = statement.importClause;
+      if (!clause) continue;
+      const defaultName = clause.name && !nodes.has(clause) ? clause.name : undefined;
+      const bindings = clause.namedBindings;
+      const elements = bindings && isNamedImports(bindings) ? bindings.elements : [];
+      const keepsBindings =
+        bindings &&
+        (isNamespaceImport(bindings) ? !nodes.has(bindings) : elements.some((element) => !nodes.has(element)));
+
+      if (!defaultName && !keepsBindings) {
+        edits.push(removeSourceNode(statement, source));
+      } else if (bindings && defaultName && !keepsBindings) {
+        edits.push({ start: defaultName.end, end: bindings.end, text: "" });
+      } else if (bindings && keepsBindings) {
+        if (clause.name && !defaultName) {
+          edits.push({ start: clause.name.getStart(source), end: bindings.getStart(source), text: "" });
+        }
+        edits.push(...removeListElements(elements, nodes, source));
+      }
+    } else {
+      const clause = statement.exportClause;
+      if (!clause || !isNamedExports(clause)) continue;
+      if (clause.elements.every((element) => nodes.has(element))) {
+        edits.push(removeSourceNode(statement, source));
+      } else {
+        edits.push(...removeListElements(clause.elements, nodes, source));
+      }
+    }
   }
+  return edits;
 }

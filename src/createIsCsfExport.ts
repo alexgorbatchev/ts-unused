@@ -1,4 +1,19 @@
-import { Node, type ObjectLiteralExpression, type SourceFile } from "ts-morph";
+import {
+  isArrayLiteralExpression,
+  isAsExpression,
+  isFunctionDeclaration,
+  isIdentifier,
+  isObjectLiteralExpression,
+  isParenthesizedExpression,
+  isPropertyAssignment,
+  isRegularExpressionLiteral,
+  isSatisfiesExpression,
+  isSpreadAssignment,
+  isStringLiteral,
+  isVariableDeclaration,
+  type Node,
+  type ObjectLiteralExpression,
+} from "typescript/ast";
 
 /** Whether an export of a story file is read by Storybook. */
 export type IsCsfExportFn = (exportName: string, declarations: readonly Node[]) => boolean;
@@ -21,21 +36,20 @@ function isStoryFilterKey(name: string): name is StoryFilterKey {
 
 /** Removes the wrappers Storybook looks through around the meta object: `as`, `satisfies`, and parentheses. */
 function unwrapExpression(node: Node): Node {
-  if (Node.isAsExpression(node) || Node.isSatisfiesExpression(node) || Node.isParenthesizedExpression(node)) {
-    return unwrapExpression(node.getExpression());
+  if (isAsExpression(node) || isSatisfiesExpression(node) || isParenthesizedExpression(node)) {
+    return unwrapExpression(node.expression);
   }
   return node;
 }
 
 /** Finds the object literal of the default export, directly or through the variable it names. */
-function getMetaObject(sourceFile: SourceFile): ObjectLiteralExpression | undefined {
-  const declaration = sourceFile.getExportedDeclarations().get("default")?.[0];
+function getMetaObject(declaration: Node | undefined): ObjectLiteralExpression | undefined {
   if (!declaration) {
     return undefined;
   }
-  const initializer = Node.isVariableDeclaration(declaration) ? declaration.getInitializer() : declaration;
+  const initializer = isVariableDeclaration(declaration) ? declaration.initializer : declaration;
   const meta = initializer ? unwrapExpression(initializer) : undefined;
-  return Node.isObjectLiteralExpression(meta) ? meta : undefined;
+  return meta && isObjectLiteralExpression(meta) ? meta : undefined;
 }
 
 /**
@@ -44,18 +58,22 @@ function getMetaObject(sourceFile: SourceFile): ObjectLiteralExpression | undefi
  * literal. Returns undefined for anything else, which Storybook rejects.
  */
 function parseStoryDescriptor(node: Node | undefined): StoryDescriptor | undefined {
+  if (!node) return undefined;
   try {
-    if (Node.isArrayLiteralExpression(node)) {
-      const elements = node.getElements();
-      return elements.every((element) => Node.isStringLiteral(element))
-        ? elements.map((element) => element.getLiteralValue())
-        : undefined;
+    if (isArrayLiteralExpression(node)) {
+      const names: string[] = [];
+      for (const element of node.elements) {
+        if (!isStringLiteral(element)) return undefined;
+        names.push(element.text);
+      }
+      return names;
     }
-    if (Node.isStringLiteral(node)) {
-      return new RegExp(node.getLiteralValue());
+    if (isStringLiteral(node)) {
+      return new RegExp(node.text);
     }
-    if (Node.isRegularExpressionLiteral(node)) {
-      return node.getLiteralValue();
+    if (isRegularExpressionLiteral(node)) {
+      const end = node.text.lastIndexOf("/");
+      return new RegExp(node.text.slice(1, end), node.text.slice(end + 1));
     }
   } catch {
     return undefined;
@@ -68,24 +86,22 @@ function parseStoryDescriptor(node: Node | undefined): StoryDescriptor | undefin
  * identifier keys are read, so spreads and quoted keys are skipped. Returns an empty filter, which makes every
  * named export a story, when the default export is not an object literal or a filter value cannot be read.
  */
-function readStoryFilter(sourceFile: SourceFile): IStoryFilter {
-  const meta = getMetaObject(sourceFile);
+function readStoryFilter(declaration: Node | undefined): IStoryFilter {
+  const meta = getMetaObject(declaration);
   if (!meta) {
     return {};
   }
 
   const filter: IStoryFilter = {};
-  for (const property of meta.getProperties()) {
-    if (Node.isSpreadAssignment(property) || !Node.isIdentifier(property.getNameNode())) {
+  for (const property of meta.properties) {
+    if (isSpreadAssignment(property) || !isIdentifier(property.name)) {
       continue;
     }
-    const name = property.getName();
+    const name = property.name.text;
     if (!isStoryFilterKey(name)) {
       continue;
     }
-    const descriptor = Node.isPropertyAssignment(property)
-      ? parseStoryDescriptor(property.getInitializer())
-      : undefined;
+    const descriptor = isPropertyAssignment(property) ? parseStoryDescriptor(property.initializer) : undefined;
     if (!descriptor) {
       return {};
     }
@@ -104,15 +120,15 @@ function matchesStoryDescriptor(exportName: string, descriptor: StoryDescriptor)
  * variables and functions as stories (types, classes, and enums are not), keeping those that `includeStories`
  * matches, when set, and that `excludeStories` does not match, as Storybook's `isExportStory` does.
  */
-export function createIsCsfExport(sourceFile: SourceFile): IsCsfExportFn {
-  const { includeStories, excludeStories } = readStoryFilter(sourceFile);
+export function createIsCsfExport(declaration: Node | undefined): IsCsfExportFn {
+  const { includeStories, excludeStories } = readStoryFilter(declaration);
 
   return (exportName, declarations) => {
     if (exportName === "default" || exportName === NAMED_EXPORTS_ORDER) {
       return true;
     }
     const declaration = declarations[0];
-    if (!Node.isVariableDeclaration(declaration) && !Node.isFunctionDeclaration(declaration)) {
+    if (!declaration || (!isVariableDeclaration(declaration) && !isFunctionDeclaration(declaration))) {
       return false;
     }
     return (

@@ -8,7 +8,6 @@ import {
   type Node,
 } from "typescript/ast";
 import { type Project, SymbolFlags } from "typescript/async";
-import type { SourceFile } from "ts-morph";
 import { USAGE_SOURCE } from "./constants.js";
 import type { ClassifyUsageSourceFn } from "./types.js";
 import { resolveNativeExport } from "./getNativeExports.js";
@@ -18,15 +17,11 @@ export function declarationLocation(file: string, start: number): string {
 }
 
 /** Finds original export declarations reached through live named or default imports. */
-export async function findNativeUsedImports(
-  project: Project,
-  files: readonly SourceFile[],
-  classify: ClassifyUsageSourceFn,
-): Promise<Set<string>> {
+export async function findNativeUsedImports(project: Project, classify: ClassifyUsageSourceFn): Promise<Set<string>> {
   const used = new Set<string>();
-  for (const file of files) {
-    if (file.isDeclarationFile() || classify(file) !== USAGE_SOURCE.PRODUCTION) continue;
-    const source = await project.program.getSourceFile(file.getFilePath());
+  for (const file of await project.program.getSourceFileNames()) {
+    if (/\.d\.[cm]?ts$/i.test(file) || classify(file) !== USAGE_SOURCE.PRODUCTION) continue;
+    const source = await project.program.getSourceFile(file);
     if (!source) continue;
 
     const bindings = new Map<string, Identifier>();

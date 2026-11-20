@@ -1,7 +1,11 @@
-import type { Node, PropertyDeclaration, PropertySignature, SourceFile, ts } from "ts-morph";
+import type { Node, PropertyDeclaration, PropertySignatureDeclaration } from "typescript/ast";
 import { COMMENT_KIND, EXPORT_KIND, RULE_NAME, RULE_SEVERITY, SEVERITY, USAGE_SOURCE } from "./constants.js";
 
-import type { IPropertyUsageResult } from "./isPropertyUnused.js";
+export interface IPropertyUsageResult {
+  isUnusedOrTestOnly: boolean;
+  onlyUsedInTests: boolean;
+  onlyUsedInStories: boolean;
+}
 
 export interface IAnalyzePropertiesOptions {
   ignoreProperties?: string[];
@@ -11,11 +15,8 @@ export interface IAnalyzePropertiesOptions {
   propertyUsage: PropertyUsageLookup;
 }
 
-export type PropertyNode = PropertySignature | PropertyDeclaration;
-/** Source files that access each property declaration, including contextual writes and keyed reads. */
-export type PropertyAccesses = Map<ts.Node, Set<SourceFile>>;
+export type PropertyNode = PropertySignatureDeclaration | PropertyDeclaration;
 export type PropertyUsageLookup = (property: PropertyNode) => Promise<IPropertyUsageResult>;
-export type PropertyAccessName = ts.PropertyName | ts.JsxAttributeName;
 
 export type Severity = (typeof SEVERITY)[keyof typeof SEVERITY];
 export type RuleSeverity = (typeof RULE_SEVERITY)[keyof typeof RULE_SEVERITY];
@@ -88,7 +89,7 @@ export interface IDuplicateTypeResult extends ITypeLocation {
   severity: Severity;
 }
 
-export type IsTestFileFn = (sourceFile: SourceFile) => boolean;
+export type IsTestFileFn = (absoluteFilePath: string) => boolean;
 
 /** Classifies the references in a file; a file matching both test and story patterns is a test file. */
-export type ClassifyUsageSourceFn = (sourceFile: SourceFile) => UsageSource;
+export type ClassifyUsageSourceFn = (absoluteFilePath: string) => UsageSource;

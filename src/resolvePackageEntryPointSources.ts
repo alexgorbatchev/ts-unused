@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { SourceFile } from "ts-morph";
+import type { SourceFile } from "typescript/ast";
 import { toComparablePath } from "./mapBuildOutputsToSources.js";
 
 /** Validates explicit package target mappings without adding files to the analyzed project. */
@@ -12,8 +12,10 @@ export function resolvePackageEntryPointSources(
   const targetPaths = new Set(targets.map((target) => toComparablePath(path.resolve(packageDir, target))));
   const eligibleSources = new Map(
     projectFiles
-      .filter((sourceFile) => !sourceFile.isDeclarationFile() && !sourceFile.isInNodeModules())
-      .map((sourceFile) => [toComparablePath(sourceFile.getFilePath()), sourceFile]),
+      .filter(
+        (sourceFile) => !sourceFile.isDeclarationFile && !sourceFile.fileName.split(path.sep).includes("node_modules"),
+      )
+      .map((sourceFile) => [toComparablePath(sourceFile.fileName), sourceFile]),
   );
   const sources = new Map<string, SourceFile>();
 

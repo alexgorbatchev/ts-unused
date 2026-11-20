@@ -1,14 +1,15 @@
-import { Node } from "ts-morph";
+import { getLeadingCommentRanges, type Node } from "typescript/ast";
 
 /**
  * Extracts TODO comment text from the leading comments of a node.
  * Returns undefined if no TODO comment is found.
  */
 export function extractTodoComment(node: Node): string | undefined {
-  const leadingComments = node.getLeadingCommentRanges();
+  const { text } = node.getSourceFile();
+  const leadingComments = getLeadingCommentRanges(text, node.getFullStart()) ?? [];
 
   for (const comment of leadingComments) {
-    const commentText: string = comment.getText();
+    const commentText: string = text.slice(comment.pos, comment.end);
 
     // Match single-line comments: // TODO ...
     const singleLineMatch = commentText.match(/\/\/\s*TODO\s+(.+)/i);
@@ -36,10 +37,11 @@ export function extractTodoComment(node: Node): string | undefined {
  * Extracts the reason from a @ts-unused-ignore comment, or returns undefined if not found/empty.
  */
 export function extractIgnoreComment(node: Node): string | undefined {
-  const leadingComments = node.getLeadingCommentRanges();
+  const { text } = node.getSourceFile();
+  const leadingComments = getLeadingCommentRanges(text, node.getFullStart()) ?? [];
 
   for (const comment of leadingComments) {
-    const commentText: string = comment.getText();
+    const commentText: string = text.slice(comment.pos, comment.end);
 
     // Match single-line comments: // @ts-unused-ignore <reason>
     const singleLineMatch = commentText.match(/\/\/\s*@ts-unused-ignore\s+(.+)/i);

@@ -1,89 +1,44 @@
-import { describe, expect, test } from "bun:test";
-import assert from "node:assert";
-import { Project } from "ts-morph";
+import { expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { API } from "typescript/async";
+import { fixProject } from "../fixProject";
+import { loadProject, resolveConfigPath } from "../loadProject";
+import { createFixProject } from "./helpers";
 
-describe("fix inline object types", () => {
-  test("should preserve inline object type text when removing never-returned union branches", async () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const sourceFile = project.createSourceFile(
-      "/test.ts",
-      `
-      export function processData():
-        | { status: "success"; value: string }
-        | { status: "error"; reason: string } {
-        return { status: "success", value: "ok" };
-      }
-      `,
-    );
-
-    // Simulate what fixProject does
-    const func = sourceFile.getFunctions()[0];
-    assert(func, "Function not found");
-
-    const returnTypeNode = func.getReturnTypeNode();
-    assert(returnTypeNode, "Return type not found");
-
-    const returnType = returnTypeNode.getType();
-    const unionTypes = returnType.getUnionTypes();
-
-    // Get the types as they would be collected
-    const typesToKeep: string[] = unionTypes
-      .map((ut) => {
-        const symbol = ut.getSymbol();
-        return symbol?.getName() || ut.getText();
-      })
-      .filter((typeName) => typeName !== '{ status: "error"; reason: string; }');
-
-    // This test documents the bug: typeName for inline objects is __type
-    expect(typesToKeep[0]).toBe("__type");
-
-    // When we use setReturnType with __type, it creates invalid code
-    func.setReturnType(typesToKeep[0] || "never");
-
-    const fixedCode = sourceFile.getText();
-    expect(fixedCode).toContain("__type");
-  });
-
-  test("should use getText() instead of symbol name for inline objects", async () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const sourceFile = project.createSourceFile(
-      "/test.ts",
-      `
-      export function processData():
-        | { status: "success"; value: string }
-        | { status: "error"; reason: string } {
-        return { status: "success", value: "ok" };
-      }
-      `,
-    );
-
-    const func = sourceFile.getFunctions()[0];
-    assert(func, "Function not found");
-
-    const returnTypeNode = func.getReturnTypeNode();
-    assert(returnTypeNode, "Return type not found");
-
-    const returnType = returnTypeNode.getType();
-    const unionTypes = returnType.getUnionTypes();
-
-    // Get the types using getText() - the correct approach
-    const typesToKeep: string[] = unionTypes
-      .map((ut) => ut.getText())
-      .filter((typeText) => typeText !== '{ status: "error"; reason: string; }');
-
-    // getText() gives us the actual type text
-    expect(typesToKeep[0]).toBe('{ status: "success"; value: string; }');
-
-    // When we use setReturnType with the correct text, it works
-    func.setReturnType(typesToKeep[0] || "never");
-
-    const fixedCode = sourceFile.getText();
-    // Note: ts-morph may add semicolons in the type
-    expect(fixedCode).toMatch(/status: "success"/);
-    expect(fixedCode).not.toContain("__type");
-
-    // Should compile without errors
-    const diagnostics = project.getPreEmitDiagnostics();
-    expect(diagnostics).toHaveLength(0);
-  });
+test.each([
+  [
+    "a multiline union",
+    '\n  | { status: "success"; value: string | number }\n  | { status: "error"; reason: string }',
+    "",
+  ],
+  [
+    "a parenthesized Promise union",
+    'Promise<({ status: "success"; value: string | number } | { status: "error"; reason: string })>',
+    "async ",
+  ],
+])("preserves the retained inline object in %s", async (_description, annotation, modifier) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "ts-unused-inline-"));
+  try {
+    const config = await createFixProject(directory, {
+      "main.ts": `${modifier}function processData(): ${annotation} {
+  return { status: "success", value: "ok" };
+}
+processData();
+`,
+    });
+    const results = await fixProject(config);
+    expect(results.errors).toEqual([]);
+    expect(results.fixedNeverReturnedTypes).toBe(1);
+    const updated = await Bun.file(path.join(directory, "main.ts")).text();
+    expect(updated).toContain('{ status: "success"; value: string | number }');
+    expect(updated).not.toContain('status: "error"');
+    expect(updated).not.toContain("__type");
+    await using api = new API();
+    await using loaded = await loadProject(api, resolveConfigPath(config));
+    expect(await loaded.project.program.getSemanticDiagnostics()).toEqual([]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

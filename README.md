@@ -103,13 +103,13 @@ ts-unused fix <path-to-tsconfig.json>
 
 - Only edits or deletes files selected by the tsconfig (`files`, `include`, and `exclude`); imported files outside the project are never modified
 - Removes the re-export specifiers (`export { a } from "./a"`, `export { a }`) and the unused import specifiers (`import { a }`, `import a`) that name a declaration whenever it removes that declaration, and the unreferenced namespace imports (`import * as ns`) of a file it deletes or removes every export from, so importers keep compiling; an emptied `export`/`import` declaration is removed entirely
-- Keeps an unused export, or a completely unused file together with all of its exports, when one of those specifiers is in a file it does not edit (a file with local Git changes or outside the tsconfig), so no import or re-export is left dangling; the file with local changes is listed as skipped
+- Keeps an unused export, or a completely unused file together with all of its exports, when an import or re-export that would break is in a file it does not edit (a file with local Git changes, an ignored file, or a file outside the tsconfig), so no import or re-export is left dangling; the file with local changes is listed as skipped
 - Never deletes a file that is imported for side effects (`import "./setup"`); it removes the file's unused exports instead
 - Checks repository-wide Git status before making changes
 - Skips staged, unstaged, renamed, and untracked files, including files in new directories
 - Stops without editing if Git status fails in a detected repository
 - Reports which files were skipped
-- Continues processing other files if one fails
+- Verifies file contents and Git status again before applying the edits. Deletes files after updating their importers and re-exporters
 - Provides detailed per-file logging
 
 ### Example
@@ -268,7 +268,7 @@ A `**/` segment also matches no directory at all, so `**/generated/**` matches b
 
 `ignoreFilePatterns` match each file's path relative to the directory of the analyzed `tsconfig.json`, so `generated/**` ignores the top-level `generated` directory, and `**/generated/**` ignores a `generated` directory at any depth inside the project. Patterns never match the directories that contain the project.
 
-Ignored files are skipped entirely: they produce no findings in any analysis (unused exports, files, and properties, never-returned types, duplicate types, and TODO/ignore comments), their declarations are not compared in duplicate-type detection, and `fix` never edits or deletes them. Like files outside the tsconfig, they remain part of the TypeScript program, so their references still count as usage, and `fix` keeps an export or file that an ignored file names in an import, a named re-export, or a namespace import instead of leaving that specifier dangling. Ignoring generated code therefore does not make the source it imports look unused. As with files outside the tsconfig, an `export * from` in an ignored file does not keep the target file: if every export of that file is unused, `fix` deletes it and leaves the ignored file unchanged.
+Ignored files are skipped entirely: they produce no findings in any analysis (unused exports, files, and properties, never-returned types, duplicate types, and TODO/ignore comments), their declarations are not compared in duplicate-type detection, and `fix` never edits or deletes them. Like files outside the tsconfig, they remain part of the TypeScript program, so their references still count as usage, and `fix` keeps an export or file that an ignored file names in an import or re-export, including `export *`, instead of leaving a broken reference. Ignoring generated code therefore does not make the source it imports look unused.
 
 ### CLI Options
 
@@ -466,7 +466,7 @@ export function dynamicHook(): void {
 
 ## How It Works
 
-1. **Project Loading**: Uses ts-morph to load the TypeScript project based on the provided tsconfig.json. Only files selected by the tsconfig (`files`, `include`, and `exclude`) are reported or edited. Files outside that set that the program reaches through imports, such as a sibling package or a shared directory, still count as usage sources but are never reported, edited, or deleted.
+1. **Project Loading**: Uses the native TypeScript compiler to load the project based on the provided tsconfig.json. Only files selected by the tsconfig (`files`, `include`, and `exclude`) are reported or edited. Files outside that set that the program reaches through imports, such as a sibling package or a shared directory, still count as usage sources but are never reported, edited, or deleted.
 2. **Export Analysis**: For each exported declaration, finds all references across the codebase. Export and import specifiers only name the export and are not counted; the references to the binding an import creates are, and a namespace import used as a whole value counts once for every export of its module
 3. **Property Analysis**: For interfaces and type aliases, checks each property for external references
 4. **Reference Categorization**: Tracks references separately:
@@ -859,7 +859,7 @@ console.log(`Found ${results.duplicateTypes?.length ?? 0} duplicate types`);
 - `tsConfigPath` - Path to tsconfig.json
 - `onProgress` - Optional callback for progress updates
 - `targetFilePath` - Optional path to analyze a single file
-- `options` - Optional `IAnalyzeProjectOptions` object with `config` and/or `isTestFile`; also accepts a custom test file detection function directly. `isTestFile` overrides `config.testFilePatterns`.
+- `options` - Optional `IAnalyzeProjectOptions` object with `config` and/or `isTestFile`; also accepts a custom test file detection function directly. `isTestFile` receives the absolute path as a string and overrides `config.testFilePatterns`.
 
 The library uses defaults when `config` is omitted. Load configuration explicitly with `loadConfig` or `loadConfigSync` and pass it through `options.config`.
 
@@ -889,7 +889,7 @@ console.log(`Skipped ${results.skippedFiles.length} files (git changes)`);
 
 - `tsConfigPath` - Path to tsconfig.json
 - `onProgress` - Optional callback for status messages
-- `options` - Optional `IAnalyzeProjectOptions` object with `config` and/or `isTestFile`; also accepts a custom test file detection function directly. `isTestFile` overrides `config.testFilePatterns`.
+- `options` - Optional `IAnalyzeProjectOptions` object with `config` and/or `isTestFile`; also accepts a custom test file detection function directly. `isTestFile` receives the absolute path as a string and overrides `config.testFilePatterns`.
 
 The library uses defaults when `config` is omitted. Pass configuration explicitly; automatic config-file loading is handled by the CLI.
 
@@ -1048,7 +1048,7 @@ import type {
   ExportKind, // "function" | "class" | "interface" | "type" | ...
   Severity, // "error" | "warning" | "info"
   CommentKind, // "todo" | "ignore"
-  IsTestFileFn, // (sourceFile: SourceFile) => boolean
+  IsTestFileFn, // (absoluteFilePath: string) => boolean
   IPropertyUsageResult, // Result of property usage check
 } from "ts-unused";
 ```

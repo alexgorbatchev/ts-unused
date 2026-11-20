@@ -205,7 +205,7 @@ describe("fixProject Git safety", () => {
     expect(await Bun.file(path.join(projectDir, "model.ts")).text()).toBe(modifiedSource);
   });
 
-  test("preserves dirty re-export files while cleaning up deleted modules", async () => {
+  test("preserves modules named by dirty star re-exports", async () => {
     const tsConfigPath = await createFixProject(projectDir, {
       "unused.ts": "export const unused = 1;\n",
       "barrel.ts": 'export * from "./unused";\nexport const own = 1;\n',
@@ -216,8 +216,9 @@ describe("fixProject Git safety", () => {
 
     const results = await fixProject(tsConfigPath);
 
-    expect(results.deletedFiles).toBe(1);
-    expect(await Bun.file(path.join(projectDir, "unused.ts")).exists()).toBe(false);
+    expect(results.deletedFiles).toBe(0);
+    expect(results.skippedFiles).toEqual(["barrel.ts"]);
+    expect(await Bun.file(path.join(projectDir, "unused.ts")).exists()).toBe(true);
     expect(await Bun.file(path.join(projectDir, "barrel.ts")).text()).toBe(modifiedSource);
   });
 
@@ -254,19 +255,24 @@ describe("fixProject return types", () => {
       source:
         'export function read(): { kind: "ok|ready"; value: string } | { kind: "error"; reason: string } { return { kind: "ok|ready", value: "ok" }; }\n',
       expected:
-        'export function read(): { kind: "ok|ready"; value: string }  { return { kind: "ok|ready", value: "ok" }; }\n',
+        'export function read(): { kind: "ok|ready"; value: string } { return { kind: "ok|ready", value: "ok" }; }\n',
     },
     {
       name: "async inline objects with nested generic unions",
       source:
         'export async function read(): Promise<{ kind: "ok"; value: Array<string | number> } | { kind: "error"; reason: string }> { return { kind: "ok", value: [1] }; }\n',
       expected:
-        'export async function read(): Promise<{ kind: "ok"; value: Array<string | number> } > { return { kind: "ok", value: [1] }; }\n',
+        'export async function read(): Promise<{ kind: "ok"; value: Array<string | number> }> { return { kind: "ok", value: [1] }; }\n',
     },
     {
       name: "multiple retained primitive branches",
       source: 'export function read(): string | number | boolean { if (Date.now() > 0) return "ok"; return 1; }\n',
       expected: 'export function read(): string | number { if (Date.now() > 0) return "ok"; return 1; }\n',
+    },
+    {
+      name: "a named union alias",
+      source: 'type Result = string | number;\nexport function read(): Result { return "ok"; }\n',
+      expected: 'type Result = string | number;\nexport function read(): string { return "ok"; }\n',
     },
   ])("removes unused branches and preserves $name", async ({ source, expected }) => {
     const tsConfigPath = await createFixProject(projectDir, { "model.ts": source });

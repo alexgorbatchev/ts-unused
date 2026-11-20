@@ -8,22 +8,20 @@ import {
   type Node,
 } from "typescript/ast";
 import type { Project } from "typescript/async";
-import type { Project as SyntaxProject, SourceFile } from "ts-morph";
 import { findNativeReferenceNodes } from "./findNativeReferenceNodes.js";
 import { isNamespaceMemberAccess } from "./isNamespaceMemberAccess.js";
 
 interface ISpecialImports {
   sideEffects: Set<string>;
-  wholeNamespaces: Map<string, Set<SourceFile>>;
+  wholeNamespaces: Map<string, Set<string>>;
 }
 
 export async function findNativeSpecialImports(
   project: Project,
-  syntax: SyntaxProject,
   targets: ReadonlySet<string>,
 ): Promise<ISpecialImports> {
   const sideEffects = new Set<string>();
-  const wholeNamespaces = new Map<string, Set<SourceFile>>();
+  const wholeNamespaces = new Map<string, Set<string>>();
   for (const name of await project.program.getSourceFileNames()) {
     const source = await project.program.getSourceFile(name);
     if (!source) continue;
@@ -46,13 +44,10 @@ export async function findNativeSpecialImports(
         sideEffects.add(target.fileName);
         continue;
       }
-      const file = syntax.addSourceFileAtPathIfExists(source.fileName);
-      const name = file?.getDescendantAtPos(binding.name.getStart(source));
-      if (!file || !name) continue;
-      const references = await findNativeReferenceNodes(project, name);
-      if (references.some((reference) => reference !== name && !isNamespaceMemberAccess(reference))) {
+      const references = await findNativeReferenceNodes(project, binding.name);
+      if (references.some((reference) => reference !== binding.name && !isNamespaceMemberAccess(reference))) {
         const importers = wholeNamespaces.get(target.fileName) ?? new Set();
-        importers.add(file);
+        importers.add(source.fileName);
         wholeNamespaces.set(target.fileName, importers);
       }
     }

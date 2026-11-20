@@ -1,15 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { Project } from "ts-morph";
+import path from "node:path";
+import { withNativeProject } from "./helpers";
+import { getNativeExports } from "../getNativeExports";
 import { createIsCsfExport } from "../createIsCsfExport";
 
-function getCsfExports(source: string): string[] {
-  const project = new Project({ useInMemoryFileSystem: true });
-  const sourceFile = project.createSourceFile("/button.stories.tsx", source);
-  const isCsfExport = createIsCsfExport(sourceFile);
-  return Array.from(sourceFile.getExportedDeclarations())
-    .filter(([exportName, declarations]) => isCsfExport(exportName, declarations))
-    .map(([exportName]) => exportName)
-    .toSorted();
+async function getCsfExports(source: string): Promise<string[]> {
+  return withNativeProject({ "button.stories.tsx": source }, async (project, root) => {
+    const sourceFile = (await project.program.getSourceFile(path.join(root, "button.stories.tsx")))!;
+    const exported = await getNativeExports(project, sourceFile);
+    const isCsfExport = createIsCsfExport(exported.get("default")?.[0]);
+    return Array.from(exported)
+      .filter(([exportName, declarations]) => isCsfExport(exportName, declarations))
+      .map(([exportName]) => exportName)
+      .toSorted();
+  });
 }
 
 const STORY_EXPORTS = [
@@ -20,8 +24,8 @@ const STORY_EXPORTS = [
 ].join("\n");
 
 describe("createIsCsfExport", () => {
-  test("treats the default export and every named variable or function export as CSF without a filter", () => {
-    expect(getCsfExports(`export default { title: "Button" };\n${STORY_EXPORTS}`)).toEqual([
+  test("treats the default export and every named variable or function export as CSF without a filter", async () => {
+    expect(await getCsfExports(`export default { title: "Button" };\n${STORY_EXPORTS}`)).toEqual([
       "Primary",
       "Secondary",
       "default",
@@ -30,7 +34,7 @@ describe("createIsCsfExport", () => {
     ]);
   });
 
-  test("does not treat exported types, interfaces, classes, or enums as stories", () => {
+  test("does not treat exported types, interfaces, classes, or enums as stories", async () => {
     const source = [
       'export default { title: "Button" };',
       "export type StoryArgs = { label: string };",
@@ -40,17 +44,17 @@ describe("createIsCsfExport", () => {
       "export const Primary = {};",
     ].join("\n");
 
-    expect(getCsfExports(source)).toEqual(["Primary", "default"]);
+    expect(await getCsfExports(source)).toEqual(["Primary", "default"]);
   });
 
-  test("treats __namedExportsOrder as CSF metadata even when includeStories leaves it out", () => {
+  test("treats __namedExportsOrder as CSF metadata even when includeStories leaves it out", async () => {
     const source = [
       'export default { includeStories: ["Primary"] };',
       "export const Primary = {};",
       'export const __namedExportsOrder = ["Primary"];',
     ].join("\n");
 
-    expect(getCsfExports(source)).toEqual(["Primary", "__namedExportsOrder", "default"]);
+    expect(await getCsfExports(source)).toEqual(["Primary", "__namedExportsOrder", "default"]);
   });
 
   test.each([
@@ -72,8 +76,8 @@ describe("createIsCsfExport", () => {
       ["Primary", "userData"],
     ],
     ["an empty includeStories array", "export default { includeStories: [] };", []],
-  ])("honours %s", (_description, meta, stories) => {
-    expect(getCsfExports(`${meta}\n${STORY_EXPORTS}`)).toEqual([...stories, "default"].toSorted());
+  ])("honours %s", async (_description, meta, stories) => {
+    expect(await getCsfExports(`${meta}\n${STORY_EXPORTS}`)).toEqual([...stories, "default"].toSorted());
   });
 
   test.each([
@@ -90,8 +94,8 @@ describe("createIsCsfExport", () => {
     ],
     ["a parenthesized object", "export default ({ excludeStories: /Data$/ });"],
     ["an export specifier", "const meta = { excludeStories: /Data$/ };\nexport { meta as default };"],
-  ])("reads the meta from %s", (_description, meta) => {
-    expect(getCsfExports(`${meta}\n${STORY_EXPORTS}`)).toEqual(["Primary", "Secondary", "default"]);
+  ])("reads the meta from %s", async (_description, meta) => {
+    expect(await getCsfExports(`${meta}\n${STORY_EXPORTS}`)).toEqual(["Primary", "Secondary", "default"]);
   });
 
   test.each([
@@ -113,23 +117,25 @@ describe("createIsCsfExport", () => {
       "a CSF factory file without a default export",
       "declare const preview: { meta(meta: object): { story(story: object): object } };\nconst meta = preview.meta({ excludeStories: /Data$/ });",
     ],
-  ])("treats every named export as a story when the filter is %s", (_description, meta) => {
-    const csfExports = getCsfExports(`${meta}\n${STORY_EXPORTS}`).filter((exportName) => exportName !== "default");
+  ])("treats every named export as a story when the filter is %s", async (_description, meta) => {
+    const csfExports = (await getCsfExports(`${meta}\n${STORY_EXPORTS}`)).filter(
+      (exportName) => exportName !== "default",
+    );
 
     expect(csfExports).toEqual(["Primary", "Secondary", "mockData", "userData"]);
   });
 
-  test("ignores filters behind quoted keys and spreads, like the Storybook indexer", () => {
+  test("ignores filters behind quoted keys and spreads, like the Storybook indexer", async () => {
     const source = [
       "const base = { excludeStories: /Data$/ };",
       'export default { ...base, "includeStories": ["Primary"] };',
       STORY_EXPORTS,
     ].join("\n");
 
-    expect(getCsfExports(source)).toEqual(["Primary", "Secondary", "default", "mockData", "userData"]);
+    expect(await getCsfExports(source)).toEqual(["Primary", "Secondary", "default", "mockData", "userData"]);
   });
 
-  test("treats CSF factory stories as stories", () => {
+  test("treats CSF factory stories as stories", async () => {
     const source = [
       "declare const preview: { meta(meta: object): { story(story: object): object } };",
       'const meta = preview.meta({ title: "Button" });',
@@ -137,6 +143,6 @@ describe("createIsCsfExport", () => {
       "export default meta;",
     ].join("\n");
 
-    expect(getCsfExports(source)).toEqual(["Primary", "default"]);
+    expect(await getCsfExports(source)).toEqual(["Primary", "default"]);
   });
 });

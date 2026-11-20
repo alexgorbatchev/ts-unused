@@ -1,4 +1,3 @@
-import type { SourceFile } from "ts-morph";
 import { defaultConfig } from "./config.js";
 import { matchesFilePattern } from "./patternMatcher.js";
 import type { IsTestFileFn } from "./types.js";
@@ -9,9 +8,7 @@ const TEST_FILE_EXTENSIONS: string[] = [".test.ts", ".test.tsx", ".spec.ts", ".s
  * Default test file detection using built-in patterns.
  * Checks for test file extensions and __tests__ directory.
  */
-export function isTestFile(sourceFile: SourceFile): boolean {
-  const filePath: string = sourceFile.getFilePath();
-
+export function isTestFile(filePath: string): boolean {
   return filePath.includes("__tests__") || TEST_FILE_EXTENSIONS.some((ext) => filePath.endsWith(ext));
 }
 
@@ -22,8 +19,5 @@ export function isTestFile(sourceFile: SourceFile): boolean {
  * @returns A function that checks if a source file is a test file
  */
 export function createIsTestFile(patterns: string[] = defaultConfig.testFilePatterns): IsTestFileFn {
-  return (sourceFile: SourceFile): boolean => {
-    const filePath: string = sourceFile.getFilePath();
-    return matchesFilePattern(filePath, patterns);
-  };
+  return (filePath) => matchesFilePattern(filePath, patterns);
 }

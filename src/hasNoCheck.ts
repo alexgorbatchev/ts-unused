@@ -1,7 +1,4 @@
-import type { SourceFile } from "ts-morph";
-
-export function hasNoCheck(sourceFile: SourceFile): boolean {
-  const fullText: string = sourceFile.getFullText();
+export function hasNoCheck(fullText: string): boolean {
   const firstLine: string | undefined = fullText.split("\n")[0];
   if (!firstLine) {
     return false;

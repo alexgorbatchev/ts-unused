@@ -1,17 +1,41 @@
-import { Project, type SourceFile } from "ts-morph";
+import fs from "node:fs";
+import path from "node:path";
+import type { SourceFile } from "typescript/ast";
+import { formatDiagnostics, type API, type Project } from "typescript/async";
 
-export interface ILoadedProject {
-  project: Project;
-  projectFiles: SourceFile[];
+export function resolveConfigPath(tsConfigPath: string): string {
+  return fs.existsSync(tsConfigPath) ? fs.realpathSync(tsConfigPath) : path.resolve(tsConfigPath);
 }
 
-/**
- * Loads a tsconfig project and records which source files belong to it before resolving dependencies,
- * so files reached only through imports (outside the tsconfig) are analyzable but never reported or edited.
- */
-export function loadProject(tsConfigPath: string, resolveDependencies = true): ILoadedProject {
-  const project = new Project({ tsConfigFilePath: tsConfigPath, skipFileDependencyResolution: true });
-  const projectFiles = project.getSourceFiles();
-  if (resolveDependencies) project.resolveSourceFileDependencies();
-  return { project, projectFiles };
+export async function loadProject(api: API, configPath: string) {
+  const snapshot = await api.createSnapshot({ openProjects: [configPath] });
+  try {
+    const project = snapshot.getConfiguredProject(configPath);
+    if (!project) {
+      throw new Error(`TypeScript could not load project: ${configPath}`);
+    }
+    const diagnostics = await project.program.getConfigFileParsingDiagnostics();
+    if (diagnostics.length > 0) {
+      throw new Error(formatDiagnostics(diagnostics, project.program));
+    }
+    return {
+      project,
+      [Symbol.asyncDispose]: () => snapshot[Symbol.asyncDispose](),
+    };
+  } catch (error) {
+    await snapshot[Symbol.asyncDispose]();
+    throw error;
+  }
+}
+
+export async function getProjectFiles(project: Project): Promise<SourceFile[]> {
+  const files = await Promise.all(
+    project.parsedCommandLine.fileNames.map((file) => project.program.getSourceFile(file)),
+  );
+  return files
+    .filter((file): file is SourceFile => file !== undefined)
+    .sort((left, right) => {
+      const depth = left.fileName.split(path.sep).length - right.fileName.split(path.sep).length;
+      return depth || left.fileName.toLowerCase().localeCompare(right.fileName.toLowerCase(), "en");
+    });
 }

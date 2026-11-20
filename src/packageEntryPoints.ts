@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Project, SourceFile } from "ts-morph";
+import type { SourceFile } from "typescript/ast";
+import type { Project } from "typescript/async";
 import { mapBuildOutputsToSources, toComparablePath } from "./mapBuildOutputsToSources.js";
 import { resolvePackageEntryPointSources } from "./resolvePackageEntryPointSources.js";
 
@@ -115,29 +116,39 @@ export function getPackageEntryTargets(packageJsonPath: string): string[] {
 /**
  * Resolves package entry targets to the project source files they are built from.
  */
-export function resolvePackageEntryPoints(
+export async function resolvePackageEntryPoints(
   packageDir: string,
   targets: string[],
   project: Project,
+  configPath: string,
   projectFiles: SourceFile[],
   packageEntryPointSources: Record<string, string> = {},
-): SourceFile[] {
+): Promise<SourceFile[]> {
   const explicitSources = resolvePackageEntryPointSources(packageDir, targets, projectFiles, packageEntryPointSources);
-  const outputsToSources = mapBuildOutputsToSources(project, projectFiles);
+  const outputsToSources = mapBuildOutputsToSources(
+    configPath,
+    await project.program.getCompilerOptions(),
+    projectFiles,
+    await project.program.getSourceFileNames(),
+  );
   const sourceFiles = new Set<SourceFile>();
 
   for (const target of targets) {
     const targetPath = path.resolve(packageDir, target);
-    const directSourceFile = project.getSourceFile(targetPath);
+    const directSourceFile = await project.program.getSourceFile(targetPath);
     const conventionalSourcePath = resolveDistToSource(target, packageDir);
     // Explicit mappings take precedence over automatic build and source layouts.
     const sourceFile =
       explicitSources.get(toComparablePath(targetPath)) ??
       outputsToSources.get(toComparablePath(targetPath)) ??
-      (directSourceFile && !directSourceFile.isDeclarationFile() && !directSourceFile.isInNodeModules()
+      (directSourceFile &&
+      !directSourceFile.isDeclarationFile &&
+      !directSourceFile.fileName.split(path.sep).includes("node_modules")
         ? directSourceFile
         : undefined) ??
-      (conventionalSourcePath ? project.getSourceFile(path.join(packageDir, conventionalSourcePath)) : undefined);
+      (conventionalSourcePath
+        ? await project.program.getSourceFile(path.join(packageDir, conventionalSourcePath))
+        : undefined);
 
     if (sourceFile) {
       sourceFiles.add(sourceFile);

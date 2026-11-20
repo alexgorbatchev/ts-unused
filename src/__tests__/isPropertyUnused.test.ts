@@ -1,161 +1,126 @@
 import { describe, expect, test } from "bun:test";
-import { Project, SyntaxKind, ts } from "ts-morph";
-import { isPropertyUnused } from "../isPropertyUnused";
-import { isTestFile } from "../isTestFile";
-import { createClassifyUsageSource } from "../usageSourceUtils";
-
-const classifyUsageSource = createClassifyUsageSource(isTestFile, [], "/");
+import { getUsage } from "./helpers";
 
 describe("property usage relationships", () => {
-  test("does not borrow usage from an unrelated interface with an identical shape", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("does not borrow usage from an unrelated interface with an identical shape", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       interface Unused { value: string; }
       interface Used { value: string; }
       function read(item: Used) { return item.value; }
-    `,
-    );
+    `;
 
-    const property = file.getInterfaceOrThrow("Unused").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, classifyUsageSource, project)).toEqual({
+    const usage = await getUsage(files);
+    expect(usage.get("Unused")!.get("value")!).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: false,
       onlyUsedInStories: false,
     });
   });
 
-  test("does not borrow usage from an unrelated object type alias", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("does not borrow usage from an unrelated object type alias", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       type Unused = { value: string };
       type Used = { value: string };
       function read(item: Used) { return item.value; }
-    `,
-    );
+    `;
 
-    const signature = file.getTypeAliasOrThrow("Unused").getTypeNodeOrThrow().asKindOrThrow(SyntaxKind.TypeLiteral);
-    expect(isPropertyUnused(signature.getPropertyOrThrow("value"), classifyUsageSource, project)).toEqual({
+    const usage = await getUsage(files);
+    expect(usage.get("Unused")!.get("value")!).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: false,
       onlyUsedInStories: false,
     });
   });
 
-  test("does not borrow Reflect access from an unrelated receiver", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("does not borrow Reflect access from an unrelated receiver", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       interface Unused { value: string; }
       interface Used { value: string; }
       function read(item: Used) { return Reflect.get(item, "value"); }
-    `,
-    );
+    `;
 
-    const property = file.getInterfaceOrThrow("Unused").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(true);
+    const usage = await getUsage(files);
+    expect(usage.get("Unused")!.get("value")!.isUnusedOrTestOnly).toBe(true);
   });
 
-  test("preserves usage through interface inheritance and redeclaration", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("preserves usage through interface inheritance and redeclaration", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       interface Base { value: string; }
       interface Child extends Base { value: string; }
       function read(item: Child) { return item.value; }
-    `,
-    );
+    `;
 
-    const property = file.getInterfaceOrThrow("Base").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(false);
+    const usage = await getUsage(files);
+    expect(usage.get("Base")!.get("value")!.isUnusedOrTestOnly).toBe(false);
   });
 
-  test("does not count a related property redeclaration as a read", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("does not count a related property redeclaration as a read", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       interface Base { value: string; }
       interface Child extends Base { value: string; }
-    `,
-    );
+    `;
 
-    const property = file.getInterfaceOrThrow("Base").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, classifyUsageSource, project)).toEqual({
+    const usage = await getUsage(files);
+    expect(usage.get("Base")!.get("value")!).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: false,
       onlyUsedInStories: false,
     });
   });
 
-  test("preserves usage through an implementing class", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("preserves usage through an implementing class", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       interface Options { value: string; }
       class Implementation implements Options {
         value = "used";
         read() { return this.value; }
       }
-    `,
-    );
+    `;
 
-    const property = file.getInterfaceOrThrow("Options").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(false);
+    const usage = await getUsage(files);
+    expect(usage.get("Options")!.get("value")!.isUnusedOrTestOnly).toBe(false);
   });
 
-  test("preserves usage through object spreads", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("preserves usage through object spreads", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       interface Source { value: string; unused: number; }
       interface Target { value: string; }
       function read(source: Source) {
         const target: Target = { ...source };
         return target.value;
       }
-    `,
-    );
+    `;
 
-    const source = file.getInterfaceOrThrow("Source");
-    expect(isPropertyUnused(source.getPropertyOrThrow("value"), classifyUsageSource, project).isUnusedOrTestOnly).toBe(
-      false,
-    );
-    expect(isPropertyUnused(source.getPropertyOrThrow("unused"), classifyUsageSource, project).isUnusedOrTestOnly).toBe(
-      true,
-    );
+    const usage = await getUsage(files);
+    expect(usage.get("Source")!.get("value")!.isUnusedOrTestOnly).toBe(false);
+    expect(usage.get("Source")!.get("unused")!.isUnusedOrTestOnly).toBe(true);
   });
 
-  test("does not propagate usage for an overwritten spread property", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("does not propagate usage for an overwritten spread property", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       interface Source { value: string; }
       interface Target { value: string; }
       function read(source: Source) {
         const target: Target = { ...source, value: "replacement" };
         return target.value;
       }
-    `,
-    );
+    `;
 
-    const property = file.getInterfaceOrThrow("Source").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(true);
+    const usage = await getUsage(files);
+    expect(usage.get("Source")!.get("value")!.isUnusedOrTestOnly).toBe(true);
   });
 
-  test("preserves usage through assignment and function arguments", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("preserves usage through assignment and function arguments", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       interface Source { value: string; }
       interface Target { value: string; }
       function read(target: Target) { return target.value; }
@@ -163,58 +128,44 @@ describe("property usage relationships", () => {
         const target: Target = source;
         return read(target);
       }
-    `,
-    );
+    `;
 
-    const property = file.getInterfaceOrThrow("Source").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(false);
+    const usage = await getUsage(files);
+    expect(usage.get("Source")!.get("value")!.isUnusedOrTestOnly).toBe(false);
   });
 
-  test("preserves unique symbol keys across contextual assignments", () => {
-    const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("preserves unique symbol keys across contextual assignments", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       declare const key: unique symbol;
       interface Source { [key]: string; "overwritten": string; }
       interface Target { [key]: string; overwritten: string; }
       function read(target: Target) { return target[key] + target.overwritten; }
       function pass(source: Source) { return read({ ...source, "overwritten": "replacement" }); }
-    `,
-    );
+    `;
 
-    const source = file.getInterfaceOrThrow("Source");
-    expect(isPropertyUnused(source.getPropertyOrThrow("[key]"), classifyUsageSource, project).isUnusedOrTestOnly).toBe(
-      false,
-    );
-    expect(
-      isPropertyUnused(source.getPropertyOrThrow('"overwritten"'), classifyUsageSource, project).isUnusedOrTestOnly,
-    ).toBe(true);
+    const usage = await getUsage(files);
+    expect(usage.get("Source")!.get("[key]")!.isUnusedOrTestOnly).toBe(false);
+    expect(usage.get("Source")!.get('"overwritten"')!.isUnusedOrTestOnly).toBe(true);
   });
 
-  test("tracks usage through spreads that occur only in tests as test-only", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/types.ts",
-      `
+  test("tracks usage through spreads that occur only in tests as test-only", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       export interface Source { value: string; }
       export interface Target { value: string; }
       export function read(target: Target) { return target.value; }
-    `,
-    );
-    project.createSourceFile(
-      "/usage.test.ts",
-      `
+    `;
+    files["/usage.test.ts"] = `
       import { read, type Source, type Target } from "./types";
       function check(source: Source) {
         const target: Target = { ...source };
         return read(target);
       }
-    `,
-    );
+    `;
 
-    const property = file.getInterfaceOrThrow("Source").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, classifyUsageSource, project)).toEqual({
+    const usage = await getUsage(files);
+    expect(usage.get("Source")!.get("value")!).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: true,
       onlyUsedInStories: false,
@@ -223,7 +174,6 @@ describe("property usage relationships", () => {
 });
 
 describe("story usage", () => {
-  const classifyStoryUsageSource = createClassifyUsageSource(isTestFile, ["**/*.stories.ts"], "/");
   const TYPES_SOURCE = `
     export interface Source { value: string; }
     export interface Target { value: string; }
@@ -237,59 +187,53 @@ describe("story usage", () => {
     }
   `;
 
-  test("tracks usage through spreads that occur only in stories as story-only", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile("/types.ts", TYPES_SOURCE);
-    project.createSourceFile("/usage.stories.ts", SPREAD_USAGE_SOURCE);
+  test("tracks usage through spreads that occur only in stories as story-only", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = TYPES_SOURCE;
+    files["/usage.stories.ts"] = SPREAD_USAGE_SOURCE;
 
-    const property = file.getInterfaceOrThrow("Source").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, classifyStoryUsageSource, project)).toEqual({
+    const usage = await getUsage(files, ["**/*.stories.ts"]);
+    expect(usage.get("Source")!.get("value")!).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: false,
       onlyUsedInStories: true,
     });
   });
 
-  test("prefers a story flow over a test flow when both reach the property", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile("/types.ts", TYPES_SOURCE);
-    project.createSourceFile("/usage.test.ts", SPREAD_USAGE_SOURCE);
-    project.createSourceFile("/view.stories.ts", SPREAD_USAGE_SOURCE);
+  test("prefers a story flow over a test flow when both reach the property", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = TYPES_SOURCE;
+    files["/usage.test.ts"] = SPREAD_USAGE_SOURCE;
+    files["/view.stories.ts"] = SPREAD_USAGE_SOURCE;
 
-    const property = file.getInterfaceOrThrow("Source").getPropertyOrThrow("value");
-    expect(isPropertyUnused(property, classifyStoryUsageSource, project)).toEqual({
+    const usage = await getUsage(files, ["**/*.stories.ts"]);
+    expect(usage.get("Source")!.get("value")!).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: false,
       onlyUsedInStories: true,
     });
   });
 
-  test("counts story usage of a property declared in a story file as usage, and test usage as test-only", () => {
-    const project = new Project({ useInMemoryFileSystem: true });
-    const file = project.createSourceFile(
-      "/button.stories.ts",
-      `
+  test("counts story usage of a property declared in a story file as usage, and test usage as test-only", async () => {
+    const files: Record<string, string> = {};
+    files["/button.stories.ts"] = `
       export interface IStoryState { isOpen: boolean; label?: string; }
       const state: IStoryState = { isOpen: true };
       export const Primary = { render: () => state.isOpen };
-    `,
-    );
-    project.createSourceFile(
-      "/button.test.ts",
-      `
+    `;
+    files["/button.test.ts"] = `
       import type { IStoryState } from "./button.stories";
       declare const state: IStoryState;
       console.log(state.label);
-    `,
-    );
+    `;
 
-    const declaration = file.getInterfaceOrThrow("IStoryState");
-    expect(isPropertyUnused(declaration.getPropertyOrThrow("isOpen"), classifyStoryUsageSource, project)).toEqual({
+    const usage = await getUsage(files, ["**/*.stories.ts"]);
+    expect(usage.get("IStoryState")!.get("isOpen")!).toEqual({
       isUnusedOrTestOnly: false,
       onlyUsedInTests: false,
       onlyUsedInStories: false,
     });
-    expect(isPropertyUnused(declaration.getPropertyOrThrow("label"), classifyStoryUsageSource, project)).toEqual({
+    expect(usage.get("IStoryState")!.get("label")!).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: true,
       onlyUsedInStories: false,
@@ -298,23 +242,9 @@ describe("story usage", () => {
 });
 
 describe("keyed property reads", () => {
-  function getUnusedFlags(project: Project, interfaceName: string): Record<string, boolean> {
-    const declaration = project.getSourceFileOrThrow("/types.ts").getInterfaceOrThrow(interfaceName);
-    return Object.fromEntries(
-      declaration
-        .getProperties()
-        .map((property) => [
-          property.getName(),
-          isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly,
-        ]),
-    );
-  }
-
-  test("counts destructuring with string, numeric, and computed keys as reads", () => {
-    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { strict: true } });
-    project.createSourceFile(
-      "/types.ts",
-      `
+  test("counts destructuring with string, numeric, and computed keys as reads", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       export interface Props {
         'aria-required'?: boolean;
         'aria-describedby'?: string;
@@ -337,10 +267,12 @@ describe("keyed property reads", () => {
         } = props;
         return [ariaRequired, ariaDescribedBy, param, inner, computed, template, zero];
       }
-    `,
-    );
+    `;
 
-    expect(getUnusedFlags(project, "Props")).toEqual({
+    const usage = await getUsage(files);
+    expect(
+      Object.fromEntries([...usage.get("Props")!].map(([name, property]) => [name, property.isUnusedOrTestOnly])),
+    ).toEqual({
       "'aria-required'": false,
       "'aria-describedby'": false,
       "'param-key'": false,
@@ -352,11 +284,9 @@ describe("keyed property reads", () => {
     });
   });
 
-  test("counts assignment destructuring with literal and computed keys as reads", () => {
-    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { strict: true } });
-    project.createSourceFile(
-      "/types.ts",
-      `
+  test("counts assignment destructuring with literal and computed keys as reads", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       export interface Props {
         'assigned-key'?: string;
         'computed-key'?: string;
@@ -374,10 +304,12 @@ describe("keyed property reads", () => {
         for ({ 'for-of-key': iterated } of list) {}
         return [assigned, computed, numeric, iterated];
       }
-    `,
-    );
+    `;
 
-    expect(getUnusedFlags(project, "Props")).toEqual({
+    const usage = await getUsage(files);
+    expect(
+      Object.fromEntries([...usage.get("Props")!].map(([name, property]) => [name, property.isUnusedOrTestOnly])),
+    ).toEqual({
       "'assigned-key'": false,
       "'computed-key'": false,
       "'for-of-key'": false,
@@ -386,11 +318,9 @@ describe("keyed property reads", () => {
     });
   });
 
-  test("counts element access with literal and literal-typed keys as reads", () => {
-    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { strict: true } });
-    project.createSourceFile(
-      "/types.ts",
-      `
+  test("counts element access with literal and literal-typed keys as reads", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       export interface Props {
         'literal-key'?: string;
         'constant-key'?: string;
@@ -402,10 +332,12 @@ describe("keyed property reads", () => {
       export function read(props: Props, key: 'union-a' | 'union-b') {
         return [props['literal-key'], props[CONSTANT_KEY], props[key]];
       }
-    `,
-    );
+    `;
 
-    expect(getUnusedFlags(project, "Props")).toEqual({
+    const usage = await getUsage(files);
+    expect(
+      Object.fromEntries([...usage.get("Props")!].map(([name, property]) => [name, property.isUnusedOrTestOnly])),
+    ).toEqual({
       "'literal-key'": false,
       "'constant-key'": false,
       "'union-a'": false,
@@ -414,14 +346,9 @@ describe("keyed property reads", () => {
     });
   });
 
-  test("counts destructuring and element access with unique symbol keys as reads", () => {
-    const project = new Project({
-      useInMemoryFileSystem: true,
-      compilerOptions: { strict: true, target: ts.ScriptTarget.ES2022 },
-    });
-    project.createSourceFile(
-      "/types.ts",
-      `
+  test("counts destructuring and element access with unique symbol keys as reads", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       const BINDING_KEY: unique symbol = Symbol("binding");
       const ASSIGNED_KEY = Symbol("assigned");
       const INDEXED_KEY = Symbol("indexed");
@@ -442,10 +369,12 @@ describe("keyed property reads", () => {
         ({ [ASSIGNED_KEY]: assigned } = props);
         return [binding, assigned, props[INDEXED_KEY], props[key]];
       }
-    `,
-    );
+    `;
 
-    expect(getUnusedFlags(project, "Props")).toEqual({
+    const usage = await getUsage(files);
+    expect(
+      Object.fromEntries([...usage.get("Props")!].map(([name, property]) => [name, property.isUnusedOrTestOnly])),
+    ).toEqual({
       "[BINDING_KEY]": false,
       "[ASSIGNED_KEY]": false,
       "[INDEXED_KEY]": false,
@@ -455,60 +384,56 @@ describe("keyed property reads", () => {
     });
   });
 
-  test("attributes unique symbol reads to the symbol that keys the property", () => {
-    const project = new Project({
-      useInMemoryFileSystem: true,
-      compilerOptions: { strict: true, target: ts.ScriptTarget.ES2022 },
-    });
-    project.createSourceFile(
-      "/types.ts",
-      `
+  test("attributes unique symbol reads to the symbol that keys the property", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       const KEY = Symbol("key");
       const SAME_DESCRIPTION = Symbol("key");
       export interface Keyed { [KEY]?: string; [SAME_DESCRIPTION]?: string; }
       export function read(keyed: Keyed) {
         return keyed[KEY];
       }
-    `,
-    );
+    `;
 
-    expect(getUnusedFlags(project, "Keyed")).toEqual({ "[KEY]": false, "[SAME_DESCRIPTION]": true });
+    const usage = await getUsage(files);
+    expect(
+      Object.fromEntries([...usage.get("Keyed")!].map(([name, property]) => [name, property.isUnusedOrTestOnly])),
+    ).toEqual({ "[KEY]": false, "[SAME_DESCRIPTION]": true });
   });
 
-  test("attributes keyed reads to the destructured type only", () => {
-    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { strict: true } });
-    project.createSourceFile(
-      "/types.ts",
-      `
+  test("attributes keyed reads to the destructured type only", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `
       export interface Unused { 'shared-key'?: string; }
       export interface Used { 'shared-key'?: string; }
       export function read(used: Used) {
         const { 'shared-key': value } = used;
         return value;
       }
-    `,
-    );
+    `;
 
-    expect(getUnusedFlags(project, "Unused")).toEqual({ "'shared-key'": true });
-    expect(getUnusedFlags(project, "Used")).toEqual({ "'shared-key'": false });
+    const usage = await getUsage(files);
+    expect(
+      Object.fromEntries([...usage.get("Unused")!].map(([name, property]) => [name, property.isUnusedOrTestOnly])),
+    ).toEqual({ "'shared-key'": true });
+    expect(
+      Object.fromEntries([...usage.get("Used")!].map(([name, property]) => [name, property.isUnusedOrTestOnly])),
+    ).toEqual({ "'shared-key'": false });
   });
 
-  test("reports keyed reads that occur only in tests as test-only", () => {
-    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { strict: true } });
-    const file = project.createSourceFile("/types.ts", `export interface Props { 'test-key'?: string; }`);
-    project.createSourceFile(
-      "/usage.test.ts",
-      `
+  test("reports keyed reads that occur only in tests as test-only", async () => {
+    const files: Record<string, string> = {};
+    files["/types.ts"] = `export interface Props { 'test-key'?: string; }`;
+    files["/usage.test.ts"] = `
       import type { Props } from "./types";
       export function check(props: Props) {
         const { 'test-key': value } = props;
         return value;
       }
-    `,
-    );
+    `;
 
-    const property = file.getInterfaceOrThrow("Props").getPropertyOrThrow("'test-key'");
-    expect(isPropertyUnused(property, classifyUsageSource, project)).toEqual({
+    const usage = await getUsage(files);
+    expect(usage.get("Props")!.get("'test-key'")!).toEqual({
       isUnusedOrTestOnly: true,
       onlyUsedInTests: true,
       onlyUsedInStories: false,
@@ -516,34 +441,19 @@ describe("keyed property reads", () => {
   });
 });
 
-test("legacy property scanner counts union return writes only for branches compatible with the returned literal", () => {
-  const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
-  const file = project.createSourceFile(
-    "/union.ts",
-    `
+test("native property scanner counts union return writes only for branches compatible with the returned literal", async () => {
+  const files: Record<string, string> = {};
+  files["/union.ts"] = `
       interface Success { kind: "success"; data: string; shared: string; }
       interface Failure { kind: "failure"; error: string; shared: string; }
       function result(): Success | Failure {
         return { kind: "success", data: "written", shared: "selected" };
       }
-    `,
-  );
-  const classify = createClassifyUsageSource(isTestFile, [], "/");
+    `;
 
-  expect(
-    isPropertyUnused(file.getInterfaceOrThrow("Success").getPropertyOrThrow("data"), classify, project)
-      .isUnusedOrTestOnly,
-  ).toBe(false);
-  expect(
-    isPropertyUnused(file.getInterfaceOrThrow("Success").getPropertyOrThrow("shared"), classify, project)
-      .isUnusedOrTestOnly,
-  ).toBe(false);
-  expect(
-    isPropertyUnused(file.getInterfaceOrThrow("Failure").getPropertyOrThrow("shared"), classify, project)
-      .isUnusedOrTestOnly,
-  ).toBe(true);
-  expect(
-    isPropertyUnused(file.getInterfaceOrThrow("Failure").getPropertyOrThrow("error"), classify, project)
-      .isUnusedOrTestOnly,
-  ).toBe(true);
+  const usage = await getUsage(files);
+  expect(usage.get("Success")!.get("data")!.isUnusedOrTestOnly).toBe(false);
+  expect(usage.get("Success")!.get("shared")!.isUnusedOrTestOnly).toBe(false);
+  expect(usage.get("Failure")!.get("shared")!.isUnusedOrTestOnly).toBe(true);
+  expect(usage.get("Failure")!.get("error")!.isUnusedOrTestOnly).toBe(true);
 });

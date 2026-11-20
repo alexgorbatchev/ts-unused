@@ -37,7 +37,6 @@
     "oxlint": "^1.89.0"
   },
   "dependencies": {
-    "ts-morph": "^28.0.0",
     "typescript": "7.1.0-beta",
     "yargs": "18.2.0"
   }

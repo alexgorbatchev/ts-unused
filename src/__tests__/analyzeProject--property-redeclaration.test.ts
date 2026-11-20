@@ -1,14 +1,12 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import path from "node:path";
-import type { SourceFile } from "ts-morph";
 import { analyzeProject } from "../analyzeProject";
 
 const FIXTURES_DIR = path.join(import.meta.dir, "../../test-project");
 const TSCONFIG_PATH = path.join(FIXTURES_DIR, "tsconfig.json");
 
 const TEST_FILE_EXTENSIONS: string[] = [".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"];
-function isTestFileForTests(sourceFile: SourceFile): boolean {
-  const filePath: string = sourceFile.getFilePath();
+function isTestFileForTests(filePath: string): boolean {
   return TEST_FILE_EXTENSIONS.some((ext) => filePath.endsWith(ext));
 }
 

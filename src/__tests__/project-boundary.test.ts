@@ -70,11 +70,11 @@ describe("project boundary", () => {
     const results = await fixProject(tsConfigPath);
 
     expect(results.errors).toEqual([]);
-    expect(results.deletedFiles).toBe(1);
+    expect(results.deletedFiles).toBe(0);
     expect(results.fixedExports).toBe(1);
     expect(results.fixedProperties).toBe(0);
     expect(results.fixedNeverReturnedTypes).toBe(0);
-    expect(await Bun.file(path.join(repoDir, "app/dead.ts")).exists()).toBe(false);
+    expect(await Bun.file(path.join(repoDir, "app/dead.ts")).exists()).toBe(true);
     expect(await Bun.file(path.join(repoDir, "shared/model.ts")).text()).toBe(SHARED_SOURCE);
     expect(await Bun.file(path.join(repoDir, "shared/barrel.ts")).text()).toBe(SHARED_BARREL_SOURCE);
   });

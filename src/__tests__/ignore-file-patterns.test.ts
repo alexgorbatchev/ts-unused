@@ -134,7 +134,7 @@ describe("ignoreFilePatterns", () => {
     expect(await Bun.file(path.join(projectDir, "generated/barrel.ts")).text()).toBe(BARREL_SOURCE);
   });
 
-  test("fix does not delete an ignored file that only re-exports a deleted file", async () => {
+  test("fix preserves modules named by ignored star re-exports", async () => {
     await Bun.write(path.join(projectDir, "src/dead.ts"), "export const dead = 1;\n");
     await Bun.write(path.join(projectDir, "generated/dead-barrel.ts"), 'export * from "../src/dead";\n');
     commitFixProject(repoDir);
@@ -142,8 +142,8 @@ describe("ignoreFilePatterns", () => {
     const results = await fixProject(tsConfigPath, undefined, { config: { ignoreFilePatterns: ["generated/**"] } });
 
     expect(results.errors).toEqual([]);
-    expect(results.deletedFiles).toBe(1);
-    expect(await Bun.file(path.join(projectDir, "src/dead.ts")).exists()).toBe(false);
+    expect(results.deletedFiles).toBe(0);
+    expect(await Bun.file(path.join(projectDir, "src/dead.ts")).exists()).toBe(true);
     expect(await Bun.file(path.join(projectDir, "generated/dead-barrel.ts")).text()).toBe(
       'export * from "../src/dead";\n',
     );

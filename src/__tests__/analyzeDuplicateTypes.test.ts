@@ -2,7 +2,8 @@ import { SEVERITY } from "../constants";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
-import { Project } from "ts-morph";
+import { API } from "typescript/async";
+import { loadProject } from "../loadProject";
 import { analyzeProject } from "../analyzeProject";
 import { formatResults } from "../formatResults";
 
@@ -92,7 +93,7 @@ describe("duplicate types", () => {
     `,
     );
 
-    expect(new Project({ tsConfigFilePath: configPath }).getPreEmitDiagnostics()).toEqual([]);
+    await expectNoDiagnostics(configPath);
     const results = await analyzeProject(configPath);
     const targeted = await analyzeProject(configPath, undefined, path.join(projectDir, "types.ts"));
     expect(results.duplicateTypes).toEqual([]);
@@ -184,7 +185,7 @@ describe("duplicate types", () => {
     `,
     );
 
-    expect(new Project({ tsConfigFilePath: configPath }).getPreEmitDiagnostics()).toEqual([]);
+    await expectNoDiagnostics(configPath);
     const results = await analyzeProject(configPath);
     expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
       ["Second", "First"],
@@ -464,7 +465,7 @@ describe("duplicate types", () => {
     `,
     );
 
-    expect(new Project({ tsConfigFilePath: configPath }).getPreEmitDiagnostics()).toEqual([]);
+    await expectNoDiagnostics(configPath);
     const results = await analyzeProject(configPath);
     expect(results.duplicateTypes?.map((item) => [item.typeName, item.duplicateOf.typeName])).toEqual([
       ["Second", "First"],
@@ -671,3 +672,9 @@ describe("duplicate types", () => {
     );
   });
 });
+
+async function expectNoDiagnostics(configPath: string): Promise<void> {
+  await using api = new API();
+  await using loaded = await loadProject(api, configPath);
+  expect(await loaded.project.program.getSemanticDiagnostics()).toEqual([]);
+}

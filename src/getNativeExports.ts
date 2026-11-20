@@ -1,6 +1,5 @@
-import { isExportAssignment, isFunctionDeclaration, isIdentifier, isSourceFile } from "typescript/ast";
+import { isExportAssignment, isFunctionDeclaration, isIdentifier, type Node, type SourceFile } from "typescript/ast";
 import { type Project, type Symbol, SymbolFlags, type NodeHandle } from "typescript/async";
-import type { Node, SourceFile } from "ts-morph";
 
 export async function resolveNativeExport(project: Project, symbol: Symbol): Promise<readonly NodeHandle[]> {
   const resolved = symbol.flags & SymbolFlags.Alias ? await project.checker.getAliasedSymbol(symbol) : symbol;
@@ -8,7 +7,7 @@ export async function resolveNativeExport(project: Project, symbol: Symbol): Pro
 }
 
 export async function getNativeExports(project: Project, sourceFile: SourceFile): Promise<Map<string, Node[]>> {
-  const module = await project.checker.getSymbolOfSourceFile(sourceFile.getFilePath());
+  const module = await project.checker.getSymbolOfSourceFile(sourceFile.fileName);
   if (!module) return new Map();
 
   const exports = await project.checker.getExportsOfModule(module);
@@ -22,26 +21,11 @@ export async function getNativeExports(project: Project, sourceFile: SourceFile)
           (declaration) =>
             declaration &&
             isFunctionDeclaration(declaration) &&
-            String(declaration.getSourceFile().fileName) === sourceFile.getFilePath(),
+            String(declaration.getSourceFile().fileName) === sourceFile.fileName,
         );
-      const declarations: Node[] = [];
-      for (const native of nativeDeclarations) {
-        if (!native) continue;
-        const file = sourceFile.getProject().addSourceFileAtPathIfExists(native.getSourceFile().fileName);
-        if (!file) continue;
-        if (isSourceFile(native)) {
-          declarations.push(file);
-          continue;
-        }
-        const node = isExportAssignment(native) && !isIdentifier(native.expression) ? native.expression : native;
-        const declaration = file.getDescendantAtStartWithWidth(node.getStart(), node.getWidth());
-        if (!declaration) {
-          throw new Error(
-            `TypeScript export location does not match the source: ${file.getFilePath()}:${node.getStart()}`,
-          );
-        }
-        declarations.push(declaration);
-      }
+      const declarations = nativeDeclarations.flatMap((node) =>
+        node ? [isExportAssignment(node) && !isIdentifier(node.expression) ? node.expression : node] : [],
+      );
       return { name: symbol.name, declarations, hoisted };
     }),
   );

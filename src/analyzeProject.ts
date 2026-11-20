@@ -1,8 +1,8 @@
 import { RULE_NAME, RULE_SEVERITY, USAGE_SOURCE } from "./constants.js";
 import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
-import { type Node, type SourceFile } from "ts-morph";
-import { API } from "typescript/async";
+import { type Node, type SourceFile } from "typescript/ast";
+import { API, type Project } from "typescript/async";
 import { analyzeFunctionReturnTypes } from "./analyzeFunctionReturnTypes.js";
 import { analyzeNativeDuplicateTypes } from "./analyzeNativeDuplicateTypes.js";
 import { analyzeProperties } from "./analyzeProperties.js";
@@ -19,7 +19,7 @@ import { createNativePropertyUsage } from "./createNativePropertyUsage.js";
 import { getNativeExports } from "./getNativeExports.js";
 import { findEmittedDeclarationFiles } from "./findEmittedDeclarationFiles.js";
 import { createIsTestFile, isTestFile as defaultIsTestFile } from "./isTestFile.js";
-import { loadProject } from "./loadProject.js";
+import { getProjectFiles, loadProject, resolveConfigPath } from "./loadProject.js";
 import { findPackageJson, getPackageEntryTargets, resolvePackageEntryPoints } from "./packageEntryPoints.js";
 import { isIgnoredFile } from "./isIgnoredFile.js";
 import { createClassifyUsageSource } from "./usageSourceUtils.js";
@@ -54,6 +54,22 @@ export async function analyzeProject(
   targetFilePath?: string,
   isTestFileOrOptions?: IsTestFileFnOrOptions,
 ): Promise<IAnalysisResults> {
+  const configPath = resolveConfigPath(tsConfigPath);
+  const target = targetFilePath && existsSync(targetFilePath) ? realpathSync(targetFilePath) : targetFilePath;
+  await using api = new API();
+  await using loaded = await loadProject(api, configPath);
+  const projectFiles = await getProjectFiles(loaded.project);
+  return await analyzeSnapshot(loaded.project, configPath, projectFiles, onProgress, target, isTestFileOrOptions);
+}
+
+export async function analyzeSnapshot(
+  project: Project,
+  configPath: string,
+  projectFiles: SourceFile[],
+  onProgress?: ProgressCallback,
+  target?: string,
+  isTestFileOrOptions?: IsTestFileFnOrOptions,
+): Promise<IAnalysisResults> {
   // Handle backward compatibility: can pass IsTestFileFn directly or options object
   let options: IAnalyzeProjectOptions = {};
   if (typeof isTestFileOrOptions === "function") {
@@ -70,11 +86,6 @@ export async function analyzeProject(
     : config.testFilePatterns
       ? createIsTestFile(config.testFilePatterns)
       : defaultIsTestFile;
-
-  // Compiler-resolved imports use physical paths, including when the tsconfig was opened through a symlink.
-  const configPath = existsSync(tsConfigPath) ? realpathSync(tsConfigPath) : path.resolve(tsConfigPath);
-  const target = targetFilePath && existsSync(targetFilePath) ? realpathSync(targetFilePath) : targetFilePath;
-  const { project, projectFiles } = loadProject(configPath, false);
 
   const tsConfigDir: string = path.dirname(configPath);
   const classifyUsageSource = createClassifyUsageSource(isTestFile, config.storyFilePatterns, tsConfigDir);
@@ -96,18 +107,17 @@ export async function analyzeProject(
     return targets;
   }
   const entryTargets = getEntryTargets();
-
   // Get total file count for progress reporting
   const filesToAnalyze = projectFiles.filter((sf) => {
-    if (isTestFile(sf)) {
+    if (isTestFile(sf.fileName)) {
       return false;
     }
-    if (hasNoCheck(sf)) {
+    if (hasNoCheck(sf.text)) {
       return false;
     }
-    return !isIgnoredFile(sf, tsConfigDir, config.ignoreFilePatterns);
+    return !isIgnoredFile(sf.fileName, tsConfigDir, config.ignoreFilePatterns);
   });
-  const targetFiles = target ? filesToAnalyze.filter((sf) => sf.getFilePath() === target) : filesToAnalyze;
+  const targetFiles = target ? filesToAnalyze.filter((sf) => sf.fileName === target) : filesToAnalyze;
   const totalFiles: number = targetFiles.length;
 
   let currentFile = 0;
@@ -145,21 +155,13 @@ export async function analyzeProject(
     config.packageMode ||
     (targetFiles.length && (analyzeExports || analyzeReturns || analyzePropertyUsage || analyzeDuplicates))
   ) {
-    await using api = new API();
-    await using snapshot = await api.createSnapshot({ openProjects: [configPath] });
-    const nativeProject = snapshot.getConfiguredProject(configPath);
-    if (!nativeProject) {
-      throw new Error(`TypeScript could not load project: ${configPath}`);
-    }
-    for (const filePath of await nativeProject.program.getSourceFileNames()) {
-      if (!/\.d\.[cm]?ts$/i.test(filePath)) project.addSourceFileAtPathIfExists(filePath);
-    }
     let packageApi: Awaited<ReturnType<typeof collectNativePublicApiDeclarations>> | undefined;
     if (entryTargets) {
-      const entryPoints = resolvePackageEntryPoints(
+      const entryPoints = await resolvePackageEntryPoints(
         tsConfigDir,
         entryTargets,
         project,
+        configPath,
         projectFiles,
         config.packageEntryPointSources,
       );
@@ -168,73 +170,62 @@ export async function analyzeProject(
           `Package mode is enabled but no package.json entry point resolves to a project source file: ${entryTargets.join(", ")}`,
         );
       }
-      packageApi = await collectNativePublicApiDeclarations(nativeProject, entryPoints, projectFiles);
+      packageApi = await collectNativePublicApiDeclarations(project, entryPoints, projectFiles);
     }
     if (analyzeExports) {
-      const findReferences = (declaration: Node) => findNativeReferenceNodes(nativeProject, declaration);
-      const specialImports = await findNativeSpecialImports(
-        nativeProject,
-        project,
-        new Set(targetFiles.map((file) => file.getFilePath())),
-      );
+      const findReferences = (declaration: Node) => findNativeReferenceNodes(project, declaration);
+      const specialImports = await findNativeSpecialImports(project, new Set(targetFiles.map((file) => file.fileName)));
       sideEffectImports = specialImports.sideEffects;
       const wholeNamespaceImporters = (file: SourceFile) => [
-        ...(specialImports.wholeNamespaces.get(file.getFilePath()) ?? []),
+        ...(specialImports.wholeNamespaces.get(file.fileName) ?? []),
       ];
       const usedImports =
-        targetFiles.length > 1
-          ? await findNativeUsedImports(nativeProject, project.getSourceFiles(), classifyUsageSource)
-          : undefined;
+        targetFiles.length > 1 ? await findNativeUsedImports(project, classifyUsageSource) : undefined;
       for (const sourceFile of targetFiles) {
-        await project.forgetNodesCreatedInBlock(async () => {
-          // Storybook reads the meta and the stories of a story file, so they are used without any reference
-          const isCsfExport =
-            classifyUsageSource(sourceFile) === USAGE_SOURCE.STORY ? createIsCsfExport(sourceFile) : undefined;
-          const exports = await getNativeExports(nativeProject, sourceFile);
-          exportCounts.set(sourceFile.getFilePath(), exports.size);
-          for (const [exportName, declarations] of exports.entries()) {
-            const first = declarations[0];
-            if (
-              (first && usedImports?.has(declarationLocation(first.getSourceFile().getFilePath(), first.getStart()))) ||
-              isCsfExport?.(exportName, declarations)
-            ) {
-              continue;
-            }
-            const unusedExport = await checkExportUsage(
-              exportName,
-              declarations,
-              sourceFile,
-              tsConfigDir,
-              classifyUsageSource,
-              {
-                ...exportCheckOptions,
-                findReferences,
-                wholeNamespaceImporters,
-                publicDeclarations: packageApi?.publicDeclarations,
-              },
-            );
-            if (unusedExport) {
-              unusedExports.push(unusedExport);
-            }
+        // Storybook reads the meta and the stories of a story file, so they are used without any reference
+        const exports = await getNativeExports(project, sourceFile);
+        const isCsfExport =
+          classifyUsageSource(sourceFile.fileName) === USAGE_SOURCE.STORY
+            ? createIsCsfExport(exports.get("default")?.[0])
+            : undefined;
+        exportCounts.set(sourceFile.fileName, exports.size);
+        for (const [exportName, declarations] of exports.entries()) {
+          const first = declarations[0];
+          if (
+            (first && usedImports?.has(declarationLocation(first.getSourceFile().fileName, first.getStart()))) ||
+            isCsfExport?.(exportName, declarations)
+          ) {
+            continue;
           }
-        });
+          const unusedExport = await checkExportUsage(
+            exportName,
+            declarations,
+            sourceFile,
+            tsConfigDir,
+            classifyUsageSource,
+            {
+              ...exportCheckOptions,
+              findReferences,
+              wholeNamespaceImporters,
+              publicDeclarations: packageApi?.publicDeclarations,
+            },
+          );
+          if (unusedExport) {
+            unusedExports.push(unusedExport);
+          }
+        }
       }
     }
 
     if (analyzeReturns) {
       for (const sourceFile of targetFiles) {
-        const filePath = sourceFile.getFilePath();
-        const nativeSource = await nativeProject.program.getSourceFile(filePath);
-        if (!nativeSource) throw new Error(`TypeScript could not load source: ${filePath}`);
-        neverReturnedTypes.push(
-          ...(await analyzeFunctionReturnTypes(nativeProject.checker, nativeSource, tsConfigDir)),
-        );
+        neverReturnedTypes.push(...(await analyzeFunctionReturnTypes(project.checker, sourceFile, tsConfigDir)));
       }
     }
     if (analyzePropertyUsage) {
-      const propertyUsage = await createNativePropertyUsage(nativeProject, project, classifyUsageSource);
+      const propertyUsage = await createNativePropertyUsage(project, classifyUsageSource);
       for (const sourceFile of targetFiles) {
-        onProgress?.(++currentFile, totalFiles, path.relative(tsConfigDir, sourceFile.getFilePath()));
+        onProgress?.(++currentFile, totalFiles, path.relative(tsConfigDir, sourceFile.fileName));
         await analyzeProperties(sourceFile, tsConfigDir, unusedProperties, {
           ignoreProperties: config.ignoreProperties,
           ignoreTypes: config.ignoreTypes,
@@ -244,10 +235,10 @@ export async function analyzeProject(
       }
     }
     if (analyzeDuplicates) {
-      const emitted = findEmittedDeclarationFiles(project, projectFiles);
+      const emitted = await findEmittedDeclarationFiles(project, configPath, projectFiles);
       duplicateTypes = await analyzeNativeDuplicateTypes(
-        nativeProject,
-        filesToAnalyze.filter((source) => !emitted.has(source)).map((source) => source.getFilePath()),
+        project,
+        filesToAnalyze.filter((source) => !emitted.has(source)).map((source) => source.fileName),
         tsConfigDir,
         config.ignoreTypes,
         target,
@@ -257,7 +248,7 @@ export async function analyzeProject(
 
   if (!analyzePropertyUsage && onProgress) {
     for (const sourceFile of targetFiles) {
-      onProgress(++currentFile, totalFiles, path.relative(tsConfigDir, sourceFile.getFilePath()));
+      onProgress(++currentFile, totalFiles, path.relative(tsConfigDir, sourceFile.fileName));
     }
   }
 
@@ -276,8 +267,8 @@ export async function analyzeProject(
 
     // Count total exports per file
     for (const sourceFile of targetFiles) {
-      const filePath = path.relative(tsConfigDir, sourceFile.getFilePath());
-      const totalExports = exportCounts.get(sourceFile.getFilePath()) ?? 0;
+      const filePath = path.relative(tsConfigDir, sourceFile.fileName);
+      const totalExports = exportCounts.get(sourceFile.fileName) ?? 0;
 
       if (totalExports > 0) {
         fileExportCounts.set(filePath, { sourceFile, total: totalExports, unused: 0, protectedExports: 0 });
@@ -301,7 +292,7 @@ export async function analyzeProject(
       const allExportsUnused = counts.total > 0 && counts.unused === counts.total;
       const hasProtectedExports = counts.protectedExports > 0;
 
-      if (allExportsUnused && !hasProtectedExports && !sideEffectImports?.has(counts.sourceFile.getFilePath())) {
+      if (allExportsUnused && !hasProtectedExports && !sideEffectImports?.has(counts.sourceFile.fileName)) {
         unusedFiles.push(filePath);
       }
     }
