@@ -1,4 +1,4 @@
-import type { Project } from "ts-morph";
+import type { Project, ts } from "ts-morph";
 import { USAGE_SOURCE } from "./constants.js";
 import { findRelatedProperties } from "./findRelatedProperties.js";
 import { getPropertyAccesses } from "./getPropertyAccesses.js";
@@ -6,13 +6,13 @@ import type { ClassifyUsageSourceFn, PropertyNode, UsageSource } from "./types.j
 import { getLowerUsageSource, isUsageSourceAtLeast } from "./usageSourceUtils.js";
 
 function getReferenceSources(
-  prop: PropertyNode,
+  prop: ts.Node,
   classifyUsageSource: ClassifyUsageSourceFn,
   project: Project,
 ): Set<UsageSource> {
   const sources = new Set<UsageSource>();
 
-  for (const sourceFile of getPropertyAccesses(project).get(prop.compilerNode) ?? []) {
+  for (const sourceFile of getPropertyAccesses(project).get(prop) ?? []) {
     sources.add(classifyUsageSource(sourceFile));
   }
 
@@ -40,7 +40,7 @@ export function isPropertyUnused(
   const used: IPropertyUsageResult = { isUnusedOrTestOnly: false, onlyUsedInTests: false, onlyUsedInStories: false };
 
   // Declarations and redeclarations are excluded; only actual references count as usage.
-  const usageSources = [...getReferenceSources(prop, classifyUsageSource, project)];
+  const usageSources = [...getReferenceSources(prop.compilerNode, classifyUsageSource, project)];
   if (usageSources.some((usageSource) => isUsageSourceAtLeast(usageSource, declarationSource))) {
     return used;
   }

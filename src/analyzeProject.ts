@@ -141,7 +141,41 @@ export async function analyzeProject(
     config.rules[RULE_NAME.TODO_COMMENTS] !== RULE_SEVERITY.OFF ||
     config.rules[RULE_NAME.IGNORE_COMMENTS] !== RULE_SEVERITY.OFF;
 
-  // Analyze per-file exports, properties, and function return types.
+  // Drop the reference checker's program before the property pass builds its own semantic caches.
+  if (
+    config.analyzeExports &&
+    (config.rules[RULE_NAME.UNUSED_EXPORTS] !== RULE_SEVERITY.OFF ||
+      hasCommentRules ||
+      (config.detectUnusedFiles && config.rules[RULE_NAME.UNUSED_FILES] !== RULE_SEVERITY.OFF))
+  ) {
+    for (const sourceFile of targetFiles) {
+      project.forgetNodesCreatedInBlock(() => {
+        // Storybook reads the meta and the stories of a story file, so they are used without any reference
+        const isCsfExport =
+          classifyUsageSource(sourceFile) === USAGE_SOURCE.STORY ? createIsCsfExport(sourceFile) : undefined;
+        const exports = sourceFile.getExportedDeclarations();
+        for (const [exportName, declarations] of exports.entries()) {
+          if (isCsfExport?.(exportName, declarations)) {
+            continue;
+          }
+          const unusedExport = checkExportUsage(
+            exportName,
+            declarations,
+            sourceFile,
+            tsConfigDir,
+            classifyUsageSource,
+            exportCheckOptions,
+          );
+          if (unusedExport) {
+            unusedExports.push(unusedExport);
+          }
+        }
+      });
+    }
+    project.getLanguageService().compilerObject.cleanupSemanticCache();
+  }
+
+  // Analyze properties and function return types.
   for (const sourceFile of targetFiles) {
     const filePath = sourceFile.getFilePath();
     const relativePath = path.relative(tsConfigDir, filePath);
@@ -150,35 +184,6 @@ export async function analyzeProject(
     if (onProgress) {
       currentFile++;
       onProgress(currentFile, totalFiles, relativePath);
-    }
-
-    // Analyze exports
-    if (
-      config.analyzeExports &&
-      (config.rules[RULE_NAME.UNUSED_EXPORTS] !== RULE_SEVERITY.OFF ||
-        hasCommentRules ||
-        (config.detectUnusedFiles && config.rules[RULE_NAME.UNUSED_FILES] !== RULE_SEVERITY.OFF))
-    ) {
-      // Storybook reads the meta and the stories of a story file, so they are used without any reference
-      const isCsfExport =
-        classifyUsageSource(sourceFile) === USAGE_SOURCE.STORY ? createIsCsfExport(sourceFile) : undefined;
-      const exports = sourceFile.getExportedDeclarations();
-      for (const [exportName, declarations] of exports.entries()) {
-        if (isCsfExport?.(exportName, declarations)) {
-          continue;
-        }
-        const unusedExport = checkExportUsage(
-          exportName,
-          declarations,
-          sourceFile,
-          tsConfigDir,
-          classifyUsageSource,
-          exportCheckOptions,
-        );
-        if (unusedExport) {
-          unusedExports.push(unusedExport);
-        }
-      }
     }
 
     // Analyze properties

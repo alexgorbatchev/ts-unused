@@ -1,6 +1,6 @@
 ---
 created_on: 2026-10-23 03:09
-last_modified: 2026-11-05 08:32
+last_modified: 2026-11-19 15:54
 status: current
 ---
 
@@ -14,7 +14,7 @@ For maintainers, this reference describes the analysis caches and the checks tha
 
 Contextual writes into union types must resolve properties on their individual members. The union itself exposes only common properties. When members have different property origins, use the actual expression's assignability to select compatible members so a discriminated return literal does not count as writing an unrelated branch.
 
-Property analysis does not request language-service references. ts-morph maintains a compiler program and a separate language-service program; resolving contextual property references through both retains separate semantic type and relation caches. Export and namespace reference analysis requests reference positions without the symbol display information that expands inferred types.
+Property analysis does not request language-service references. ts-morph maintains a compiler program and a separate language-service program; resolving contextual property references through both retains separate semantic type and relation caches. Export and namespace reference analysis requests reference positions without the symbol display information that expands inferred types. The export pass forgets temporary wrappers after each file and releases the language service’s semantic cache before property analysis begins.
 
 Walk the compiler program's actual source nodes. Duplicate installed packages can redirect to a canonical declaration tree that differs from ts-morph's cached source wrapper. Querying the checker with the unbound wrapper tree can fail while resolving a qualified name in an interface type-parameter constraint.
 
@@ -22,7 +22,9 @@ The access and relationship indexes use weak project keys. Each `analyzeProject`
 
 ## Relationship traversal
 
-Every property-flow edge preserves the property name. Build and cache relationship graphs on demand for the requested canonical symbol name. Skip declaration names and type positions, and defer contextual type resolution until the source can contribute a tracked property. Fresh object literals without spreads cannot contribute property-signature/declaration origins; their value expressions still participate in traversal.
+On the first relationship query, walk compiler nodes once to index interface inheritance, object spreads, and expressions with a contextual type. Group expressions by their target type. Each subsequent property query uses that index and resolves source types only for targets that declare the requested property. Fresh object literals without spreads cannot supply tracked declarations, but their child expressions can.
+
+The graph for each property name uses compiler declarations as keys and preserves the source file of each edge for test and story classification. Ordinary property names use direct lookup. Computed unique symbols use their compiler-assigned names.
 
 Keep all analysis rules and project files enabled when measuring changes. Preserve actual usage through imports, inherited and overridden properties, contextual assignments, spreads, tests, and stories. Memory reductions must not change findings or suppress rules.
 

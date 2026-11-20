@@ -170,6 +170,28 @@ describe("property usage relationships", () => {
     expect(isPropertyUnused(property, classifyUsageSource, project).isUnusedOrTestOnly).toBe(false);
   });
 
+  test("preserves unique symbol keys across contextual assignments", () => {
+    const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
+    const file = project.createSourceFile(
+      "/types.ts",
+      `
+      declare const key: unique symbol;
+      interface Source { [key]: string; "overwritten": string; }
+      interface Target { [key]: string; overwritten: string; }
+      function read(target: Target) { return target[key] + target.overwritten; }
+      function pass(source: Source) { return read({ ...source, "overwritten": "replacement" }); }
+    `,
+    );
+
+    const source = file.getInterfaceOrThrow("Source");
+    expect(isPropertyUnused(source.getPropertyOrThrow("[key]"), classifyUsageSource, project).isUnusedOrTestOnly).toBe(
+      false,
+    );
+    expect(
+      isPropertyUnused(source.getPropertyOrThrow('"overwritten"'), classifyUsageSource, project).isUnusedOrTestOnly,
+    ).toBe(true);
+  });
+
   test("tracks usage through spreads that occur only in tests as test-only", () => {
     const project = new Project({ useInMemoryFileSystem: true });
     const file = project.createSourceFile(

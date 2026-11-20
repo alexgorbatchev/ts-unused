@@ -71,7 +71,9 @@ console.log(alwaysFails());
     // Run fix
     commitFixProject(TEMP_DIR);
 
-    const results = await fixProject(tsconfigFile);
+    const progress: string[] = [];
+    const results = await fixProject(tsconfigFile, (message) => progress.push(message));
+    expect(progress.some((message) => message.includes("Removed never-returned type"))).toBe(true);
 
     // Check results
     expect(results.fixedNeverReturnedTypes).toBe(2);
