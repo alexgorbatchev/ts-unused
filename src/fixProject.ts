@@ -163,6 +163,14 @@ export async function fixProject(
     }
     return existing;
   }
+  function planSpecifierRemoval(specifier: RemovableSpecifier): void {
+    const source = specifier.getSourceFile();
+    const change = plan(source.fileName);
+    change.specifiers.add(specifier);
+    change.messages.push(
+      `  ✓ Removed ${isExportSpecifier(specifier) ? "re-export" : "import"} of unused export: ${specifier.getText(source)} (${relative(source.fileName)})`,
+    );
+  }
   function recordError(file: string, action: string, error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     results.errors.push({ file: relative(file), error: message });
@@ -236,6 +244,7 @@ export async function fixProject(
       continue;
 
     const removals = new Map<string, IExportRemoval>();
+    const deletionSpecifiers = new Set<RemovableSpecifier>();
     let blockedDeletion = false;
     for (const finding of findings) {
       const declarations = (exported.get(finding.exportName) ?? []).filter((node) => node.getSourceFile() === source);
@@ -255,11 +264,15 @@ export async function fixProject(
         blockedDeletion = true;
         continue;
       }
+      if (deleting) {
+        for (const specifier of specifiers) deletionSpecifiers.add(specifier);
+      }
       if (isFixable(finding)) removals.set(finding.exportName, { declarations, specifiers });
     }
 
     if (deleting && !blockedDeletion) {
       planFileDeletion(file, "all exports unused");
+      for (const specifier of deletionSpecifiers) planSpecifierRemoval(specifier);
       continue;
     }
 
@@ -271,14 +284,7 @@ export async function fixProject(
         change.fixedExports++;
         change.messages.push(`  ✓ Removed unused export: ${name}`);
       }
-      for (const specifier of removal.specifiers) {
-        const source = specifier.getSourceFile();
-        const change = plan(source.fileName);
-        change.specifiers.add(specifier);
-        change.messages.push(
-          `  ✓ Removed ${isExportSpecifier(specifier) ? "re-export" : "import"} of unused export: ${specifier.getText(source)} (${relative(source.fileName)})`,
-        );
-      }
+      for (const specifier of removal.specifiers) planSpecifierRemoval(specifier);
     }
     if (targets.size) plan(file).edits.push(...planDeclarationEdits(targets, source));
     if (removals.size === exported.size && !deleted.has(file)) {
