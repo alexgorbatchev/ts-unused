@@ -78,7 +78,7 @@ async function main() {
 
     // Step 3: TypeScript check before fix
     console.log("🔎 Step 3: Running TypeScript check (before fix)...");
-    await $`tsgo --noEmit --project ${TEST_PROJECT_DIR}/tsconfig.json`.quiet();
+    await $`tsc --noEmit --project ${TEST_PROJECT_DIR}/tsconfig.json`.quiet();
     console.log("✅ TypeScript check passed (before fix)\n");
 
     // Step 4: Run fix command
@@ -117,12 +117,12 @@ async function main() {
 
     // Step 7: TypeScript check after fix
     console.log("🔎 Step 7: Running TypeScript check (after fix)...");
-    const tscAfter = await $`tsgo --noEmit --project ${TEST_PROJECT_DIR}/tsconfig.json`.nothrow().quiet();
+    const tscAfter = await $`tsc --noEmit --project ${TEST_PROJECT_DIR}/tsconfig.json`.nothrow().quiet();
     if (tscAfter.exitCode !== 0) {
       console.error("❌ FAILED: TypeScript errors after fix");
       console.error("Fix command should not leave TypeScript errors");
       console.error("\nTypeScript output:");
-      // tsgo outputs to stdout, not stderr
+      // tsc outputs to stdout, not stderr
       const output = tscAfter.stdout.toString() || tscAfter.stderr.toString();
       console.error(output);
       await $`git -C ${TEST_PROJECT_DIR} restore .`.quiet();

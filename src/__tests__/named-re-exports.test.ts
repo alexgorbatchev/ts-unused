@@ -30,10 +30,11 @@ async function findUnusedExports(tsConfigPath: string, packageMode = false): Pro
 }
 
 async function typecheck(): Promise<string> {
-  const result = Bun.spawnSync(
-    ["bun", "run", "tsgo", "--noEmit", "--project", path.join(projectDir, "tsconfig.json")],
-    { cwd: path.join(import.meta.dir, "../.."), stdout: "pipe", stderr: "pipe" },
-  );
+  const result = Bun.spawnSync(["bun", "run", "tsc", "--noEmit", "--project", path.join(projectDir, "tsconfig.json")], {
+    cwd: path.join(import.meta.dir, "../.."),
+    stdout: "pipe",
+    stderr: "pipe",
+  });
   return result.stdout.toString() + result.stderr.toString();
 }
 

@@ -30,7 +30,7 @@ fix: fmt
     bun run typescript-ai-policy fix-semantic src
 
 typecheck:
-    bun run tsgo --noEmit
+    bun run tsc --noEmit
 
 unused:
     bun src/cli.ts check tsconfig.json
@@ -48,7 +48,7 @@ build-cli:
     bun build src/cli.ts --outdir dist --target node --external 'typescript/*' --external yargs --minify --sourcemap=external
 
 build-lib *args:
-    bun run tsgo --project tsconfig.build.json "$@"
+    bun run tsc --project tsconfig.build.json "$@"
 
 build: clean build-cli build-lib
 
