@@ -1,4 +1,9 @@
-import { isComputedPropertyName } from "typescript/ast";
+import {
+  isComputedPropertyName,
+  isNoSubstitutionTemplateLiteral,
+  isNumericLiteral,
+  isStringLiteral,
+} from "typescript/ast";
 import type { Project } from "typescript/async";
 import { USAGE_SOURCE } from "./constants.js";
 import { findNativePropertyAccesses } from "./findNativePropertyAccesses.js";
@@ -33,7 +38,9 @@ export async function createNativePropertyUsage(
 
     const name =
       (isComputedPropertyName(prop.name) ? (await project.checker.getSymbolOfNode(prop))?.name : undefined) ??
-      prop.name.getText(file);
+      (isStringLiteral(prop.name) || isNumericLiteral(prop.name) || isNoSubstitutionTemplateLiteral(prop.name)
+        ? prop.name.text
+        : prop.name.getText(file));
     const relations = await getRelations(name);
     const reached = new Map<string, UsageSource>([[key, USAGE_SOURCE.PRODUCTION]]);
     const queue: IReachedProperty[] = [{ property: key, usage: USAGE_SOURCE.PRODUCTION }];

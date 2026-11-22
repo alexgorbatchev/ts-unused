@@ -136,3 +136,79 @@ test("tracks unique-symbol reads and unused computed property declarations", asy
   });
   expect(results).toEqual(["Computed.[unused]"]);
 });
+
+test("counts typeof property queries as property usage", async () => {
+  const results = await analyzeProperties({
+    "query.ts": `
+      interface Holder { nested: { value: string }; unused: number; }
+      declare const holder: Holder;
+      export type NestedValue = typeof holder.nested.value;
+    `,
+  });
+  expect(results).toEqual(["Holder.unused"]);
+});
+
+test("preserves contextual property flows through unions, conditionals, JSX spreads, and third-party bridges", async () => {
+  const results = await analyzeProperties({
+    "node_modules/bridge/package.json": JSON.stringify({ name: "bridge", types: "index.d.ts" }),
+    "node_modules/bridge/index.d.ts": "export interface ExternalBridge { bridged: string; }\n",
+    "flows.tsx": `
+      import type { ExternalBridge } from "bridge";
+      namespace JSX { export interface Element {} }
+      interface Source {
+        viaConditional: string;
+        viaNullish: string;
+        viaJsxSpread: string;
+        viaSatisfies: string;
+        viaBridge: string;
+        unused: number;
+      }
+      interface Target {
+        viaConditional: string;
+        viaNullish: string;
+        viaJsxSpread: string;
+        viaSatisfies: string;
+      }
+      interface BridgeSource { bridged: string; unusedBridge: number; }
+      declare function Comp(props: Target): JSX.Element;
+      declare function take(target?: Target): void;
+      export function run(flag: boolean, source: Source, fallback: Source, bridgeSource: BridgeSource) {
+        const picked: Target = flag ? (source) : (fallback ?? source);
+        const checked = source satisfies Target;
+        take(flag && source ? source : fallback);
+        const bridge: ExternalBridge = bridgeSource;
+        const el = <Comp {...source} />;
+        return [
+          picked.viaConditional,
+          picked.viaNullish,
+          picked.viaSatisfies,
+          checked,
+          bridge.bridged,
+          el,
+        ];
+      }
+      export function readJsx(target: Target) {
+        return target.viaJsxSpread;
+      }
+    `,
+  });
+  expect(results).toEqual(["Source.viaBridge", "Source.unused", "BridgeSource.unusedBridge"]);
+});
+
+test("ignores non-remapped Record accesses and dynamic mapped element keys without false positives", async () => {
+  const results = await analyzeProperties({
+    "mapped.ts": `
+      interface Props { value: string; unused: number; }
+      type Renamed<T> = { [K in keyof T as \`get_\${K & string}\`]: T[K] };
+      type KeyMap = Record<"a" | "b", string>;
+      export function read(
+        record: KeyMap,
+        renamed: Renamed<Props> | undefined,
+        key: "get_value",
+      ) {
+        return [record.a, renamed?.get_value, renamed?.[key]];
+      }
+    `,
+  });
+  expect(results).toEqual(["Props.unused"]);
+});

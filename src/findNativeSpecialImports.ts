@@ -9,6 +9,7 @@ import {
 } from "typescript/ast";
 import type { Project } from "typescript/async";
 import { findNativeReferenceNodes } from "./findNativeReferenceNodes.js";
+import { getRelevantProgramFileNames } from "./getRelevantProgramFileNames.js";
 import { isNamespaceMemberAccess } from "./isNamespaceMemberAccess.js";
 
 interface ISpecialImports {
@@ -22,7 +23,7 @@ export async function findNativeSpecialImports(
 ): Promise<ISpecialImports> {
   const sideEffects = new Set<string>();
   const wholeNamespaces = new Map<string, Set<string>>();
-  for (const name of await project.program.getSourceFileNames()) {
+  for (const name of await getRelevantProgramFileNames(project)) {
     const source = await project.program.getSourceFile(name);
     if (!source) continue;
     const imports: ImportDeclaration[] = [];
